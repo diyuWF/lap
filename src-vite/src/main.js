@@ -59,6 +59,34 @@ app.use(i18n)
 app.mount('#app')
 console.log('App mounted', app)
 
+// Legacy Settings.vue still contains one English helper string. Keep the
+// visible Simplified Chinese interface complete until that large component is
+// split into smaller localized sections.
+function localizeResidualStaticText(root = document) {
+  if (config.settings.language !== 'zh') return
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+  const replacements = new Map([
+    ['Select language', '选择界面语言'],
+  ])
+  let node = walker.nextNode()
+  while (node) {
+    const replacement = replacements.get(node.nodeValue?.trim())
+    if (replacement) node.nodeValue = node.nodeValue.replace(node.nodeValue.trim(), replacement)
+    node = walker.nextNode()
+  }
+}
+
+localizeResidualStaticText()
+const localizationObserver = new MutationObserver((mutations) => {
+  for (const mutation of mutations) {
+    for (const node of mutation.addedNodes) {
+      if (node.nodeType === Node.TEXT_NODE) localizeResidualStaticText(node.parentNode || document)
+      else if (node.nodeType === Node.ELEMENT_NODE) localizeResidualStaticText(node)
+    }
+  }
+})
+localizationObserver.observe(document.body, { childList: true, subtree: true })
+
 // Listen for events
 listen('settings-appearance-changed', (event) => {
   config.setAppearance(event.payload)
@@ -86,6 +114,7 @@ listen('settings-externalVideoAppName-changed', (event) => {
 })
 listen('settings-language-changed', (event) => {
   config.setLanguage(event.payload)
+  localizeResidualStaticText()
 })
 listen('settings-showToolTip-changed', (event) => {
   config.setShowToolTip(event.payload)
