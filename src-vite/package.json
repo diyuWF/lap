@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "vite --config vite.config.js",
     "dev:clean": "vite --config vite.config.js --force",
-    "build": "vite build",
-    "preview": "vite preview"
+    "build": "node scripts/i18n-audit.mjs --strict && vite build",
+    "preview": "vite preview",
+    "i18n:audit": "node scripts/i18n-audit.mjs",
+    "i18n:audit:strict": "node scripts/i18n-audit.mjs --strict"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.2",

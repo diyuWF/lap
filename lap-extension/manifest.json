@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Lap 素材采集器",
+  "version": "0.2.0",
+  "description": "将网页图片、来源信息和标签快速保存到本地 Lap 素材库。",
+  "permissions": [
+    "contextMenus",
+    "activeTab",
+    "tabs",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:47821/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "保存到 Lap",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html"
+}

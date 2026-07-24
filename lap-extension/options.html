@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lap 素材采集器设置</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <div>
+          <p class="eyebrow">LAP BROWSER CAPTURE</p>
+          <h1>素材采集器设置</h1>
+          <p class="description">连接本机 Lap，设置默认保存目录与采集标签。</p>
+        </div>
+        <span id="connectionBadge" class="badge offline">未连接</span>
+      </header>
+
+      <section class="card">
+        <h2>连接</h2>
+        <label>
+          <span>本地服务地址</span>
+          <input id="apiUrl" type="url" value="http://127.0.0.1:47821" />
+        </label>
+        <label>
+          <span>配对 Token</span>
+          <input id="token" type="password" autocomplete="off" placeholder="从 Lap 设置中复制" />
+        </label>
+        <div class="actions">
+          <button id="testButton" class="secondary">测试连接</button>
+          <button id="saveButton" class="primary">保存设置</button>
+        </div>
+        <p id="connectionMessage" class="message"></p>
+      </section>
+
+      <section class="card">
+        <h2>默认采集规则</h2>
+        <label>
+          <span>默认保存目录</span>
+          <select id="folderPath">
+            <option value="">自动选择 Inbox 或第一个可用目录</option>
+          </select>
+        </label>
+        <label>
+          <span>默认标签</span>
+          <textarea id="tags" rows="4" placeholder="每行一个，例如：&#10;source:web&#10;status:inbox"></textarea>
+        </label>
+        <label class="check-row">
+          <input id="allowDuplicate" type="checkbox" />
+          <span>允许保存相同来源 URL 的重复素材</span>
+        </label>
+      </section>
+    </main>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>保存到 Lap</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">LAP CAPTURE</p>
+          <h1>保存当前页面素材</h1>
+        </div>
+        <button id="settingsButton" class="icon-button" type="button" title="扩展设置">设置</button>
+      </header>
+
+      <section id="connectionCard" class="status-card" aria-live="polite">
+        <span id="connectionDot" class="status-dot"></span>
+        <div>
+          <strong id="connectionTitle">正在连接 Lap</strong>
+          <p id="connectionMessage">正在检查本地采集服务。</p>
+        </div>
+      </section>
+
+      <section class="controls">
+        <label>
+          <span>保存目录</span>
+          <select id="folderSelect"></select>
+        </label>
+        <label>
+          <span>本次标签</span>
+          <input id="tagsInput" type="text" placeholder="例如 style:minimal, usage:ui" />
+        </label>
+        <div class="toolbar-row">
+          <label class="check-row">
+            <input id="allowDuplicate" type="checkbox" />
+            <span>允许重复来源</span>
+          </label>
+          <button id="refreshButton" class="secondary-button" type="button">重新扫描</button>
+        </div>
+      </section>
+
+      <section class="asset-section">
+        <div class="section-heading">
+          <div>
+            <h2>页面图片</h2>
+            <p id="selectionSummary">尚未扫描</p>
+          </div>
+          <div class="heading-actions">
+            <button id="selectAllButton" class="text-button" type="button">全选</button>
+            <button id="clearButton" class="text-button" type="button">清空</button>
+          </div>
+        </div>
+        <div id="imageGrid" class="image-grid"></div>
+        <div id="emptyState" class="empty-state" hidden>
+          <strong>没有找到可采集图片</strong>
+          <p>部分浏览器内置页面和受限页面不允许扩展读取内容。</p>
+        </div>
+      </section>
+
+      <footer>
+        <div id="progressText" class="progress-text"></div>
+        <button id="captureButton" class="primary-button" type="button" disabled>
+          保存所选素材
+        </button>
+      </footer>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

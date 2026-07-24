@@ -14,12 +14,16 @@ use tauri::Manager;
 use tauri_plugin_aptabase::EventTracker;
 
 mod t_ai;
+mod t_ai_online;
 mod t_ai_png;
 mod t_apple_sidecar;
+mod t_capture_server;
 mod t_cluster;
 mod t_cmds;
 mod t_common;
 mod t_config;
+mod t_dam;
+mod t_dam_cmds;
 mod t_dedup;
 mod t_face;
 #[cfg(all(not(target_os = "macos"), lap_has_libheif))]
@@ -36,6 +40,7 @@ mod t_pasteboard;
 mod t_protocol;
 mod t_sqlite;
 mod t_storage;
+mod t_taxonomy;
 mod t_utils;
 mod t_video;
 
@@ -59,7 +64,7 @@ async fn main() {
     };
 
     let run_result = builder
-        .plugin(tauri_plugin_window_state::Builder::default().build()) // macOS: ~/Library/Application Support/{APP_NAME}/window-state.json
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_fs::init())
@@ -89,43 +94,37 @@ async fn main() {
             }),
         )))
         .manage(t_dedup::DedupState::default())
-        .setup(|_app| {
-            t_video::init_ffmpeg_path(&_app.handle());
-            t_config::set_app_identifier(&_app.config().identifier);
-            t_menu::install_app_menu(&_app.handle())?;
+        .setup(|app| {
+            t_video::init_ffmpeg_path(&app.handle());
+            t_config::set_app_identifier(&app.config().identifier);
+            t_menu::install_app_menu(&app.handle())?;
 
             #[cfg(not(target_os = "macos"))]
-            if let Some(window) = _app.get_webview_window("main") {
+            if let Some(window) = app.get_webview_window("main") {
                 if let Err(e) = window.set_decorations(false) {
                     eprintln!("Failed to disable main window decorations: {}", e);
                 }
             }
 
-            // tauri.windows.conf.json sets zoomHotkeysEnabled=true so wry sets
-            // both IsZoomControlEnabled and IsPinchZoomEnabled to true at WebView
-            // creation. That combination is what allows Chromium to synthesize
-            // wheel+ctrlKey events for touchpad pinch. Touchscreen pinch is still
-            // handled by our pointer-event logic (with `touch-action: none`).
-
-            // Create the database on startup
             if let Err(e) = t_sqlite::create_db() {
                 eprintln!("Failed to initialize database: {}", e);
             }
+            if let Err(e) = t_dam::ensure_schema() {
+                eprintln!("Failed to initialize DAM schema: {}", e);
+            }
+            t_capture_server::init_capture_server();
 
-            // Initialize video HTTP server for Linux
             #[cfg(target_os = "linux")]
             t_http::init_video_http_server();
 
-            // Cleanup video cache
-            t_video::init_video_cache(&_app.handle());
+            t_video::init_video_cache(&app.handle());
 
-            if let Err(e) = t_utils::restore_album_scopes(&_app.handle()) {
+            if let Err(e) = t_utils::restore_album_scopes(&app.handle()) {
                 eprintln!("Failed to restore asset scopes: {}", e);
             }
 
-            // Initialize AI Engine
-            let app_handle = _app.handle();
-            let ai_state = _app.state::<t_ai::AiState>();
+            let app_handle = app.handle();
+            let ai_state = app.state::<t_ai::AiState>();
             let mut ai_engine = ai_state.0.lock().unwrap();
             match ai_engine.load_models(app_handle) {
                 Ok(_) => println!("AI Engine started successfully"),
@@ -160,15 +159,7 @@ async fn main() {
                 }
             }
 
-            t_utils::start_folder_mtime_sync(_app.handle().clone());
-
-            // Open devtools in development mode
-            // #[cfg(debug_assertions)] // only include this block in debug builds
-            // {
-            //     let window = app.get_webview_window("main").unwrap();
-            //     window.open_devtools();
-            // }
-
+            t_utils::start_folder_mtime_sync(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -177,12 +168,8 @@ async fn main() {
             }
 
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                // Prevent the default close so we can decide what to do per platform.
                 api.prevent_close();
 
-                // macOS convention: closing the window hides it; the app stays
-                // alive and can be reopened via the Dock icon (handled by
-                // RunEvent::Reopen). Real quit keeps using the native Quit menu.
                 #[cfg(target_os = "macos")]
                 {
                     let _ = window.hide();
@@ -191,9 +178,6 @@ async fn main() {
                 #[cfg(not(target_os = "macos"))]
                 {
                     let app_handle = window.app_handle();
-
-                    // Close every other window first (image viewer, settings, ...),
-                    // then exit the process.
                     let windows = app_handle.webview_windows();
                     for (_, other_window) in windows {
                         if other_window.label() != "main" {
@@ -202,7 +186,6 @@ async fn main() {
                             }
                         }
                     }
-
                     app_handle.exit(0);
                 }
             }
@@ -346,6 +329,19 @@ async fn main() {
             t_cmds::remove_tag_from_file,
             t_cmds::get_tag_selection_counts,
             t_cmds::apply_tags_to_files,
+            // DAM and browser capture
+            t_dam_cmds::dam_init_schema,
+            t_dam_cmds::dam_list_folders,
+            t_dam_cmds::dam_find_duplicate_source,
+            t_dam_cmds::dam_save_source_metadata,
+            t_dam_cmds::dam_set_workflow_status,
+            t_dam_cmds::dam_apply_tags,
+            t_dam_cmds::get_capture_server_info,
+            // taxonomy
+            t_taxonomy::taxonomy_get_snapshot,
+            t_taxonomy::taxonomy_save_group,
+            t_taxonomy::taxonomy_delete_group,
+            t_taxonomy::taxonomy_save_tag,
             // calendar
             t_cmds::get_taken_dates,
             // camera
@@ -358,7 +354,7 @@ async fn main() {
             t_cmds::get_package_info,
             t_cmds::get_build_time,
             t_cmds::get_storage_file_info,
-            // ai
+            // local AI
             t_cmds::check_ai_status,
             t_cmds::get_image_search_model_status,
             t_cmds::set_image_search_model,
@@ -366,6 +362,12 @@ async fn main() {
             t_cmds::cancel_multilingual_image_search_model_download,
             t_cmds::generate_embedding,
             t_cmds::search_similar_images,
+            // online AI
+            t_ai_online::list_online_ai_providers,
+            t_ai_online::save_online_ai_provider,
+            t_ai_online::delete_online_ai_provider,
+            t_ai_online::test_online_ai_provider,
+            t_ai_online::analyze_file_with_online_ai,
             // person (face recognition)
             t_cmds::index_faces,
             t_cmds::cancel_face_index,
@@ -411,9 +413,6 @@ async fn main() {
                     }
                     app_handle.flush_events_blocking();
                 }
-
-                // macOS: clicking the Dock icon of a running app reopens it.
-                // When the main window is hidden (closed-to-hide), show it again.
                 #[cfg(target_os = "macos")]
                 tauri::RunEvent::Reopen { .. } => {
                     if let Some(window) = app_handle.get_webview_window("main") {

@@ -1,0 +1,62 @@
+:root {
+  color-scheme: light dark;
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  background: #111318;
+  color: #f4f5f7;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; width: 420px; min-height: 560px; background: #111318; }
+button, input, select { font: inherit; }
+button { cursor: pointer; }
+
+.app-shell { display: flex; flex-direction: column; min-height: 560px; padding: 16px; gap: 14px; }
+.topbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.eyebrow { margin: 0 0 4px; font-size: 10px; letter-spacing: .16em; color: #8e96a8; }
+h1 { margin: 0; font-size: 20px; line-height: 1.25; }
+h2 { margin: 0; font-size: 14px; }
+p { margin: 0; }
+.icon-button, .secondary-button, .text-button { border: 0; border-radius: 9px; background: #252934; color: #dfe3ea; }
+.icon-button { padding: 8px 10px; }
+.secondary-button { padding: 7px 10px; }
+.text-button { padding: 5px 8px; background: transparent; color: #9fb7ff; }
+
+.status-card { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid #2a2f3b; border-radius: 12px; background: #181b22; }
+.status-card p { margin-top: 3px; color: #8e96a8; font-size: 12px; }
+.status-dot { width: 10px; height: 10px; flex: none; border-radius: 50%; background: #e0a63b; box-shadow: 0 0 0 4px rgba(224,166,59,.12); }
+.status-card.connected .status-dot { background: #34c77b; box-shadow: 0 0 0 4px rgba(52,199,123,.12); }
+.status-card.error .status-dot { background: #f05d6c; box-shadow: 0 0 0 4px rgba(240,93,108,.12); }
+
+.controls { display: grid; gap: 10px; }
+.controls label:not(.check-row) { display: grid; gap: 5px; color: #b8bfcc; font-size: 12px; }
+select, input[type="text"] { width: 100%; border: 1px solid #303645; border-radius: 9px; padding: 9px 10px; background: #181b22; color: #f4f5f7; outline: none; }
+select:focus, input:focus { border-color: #6388ff; }
+.toolbar-row { display: flex; align-items: center; justify-content: space-between; }
+.check-row { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #b8bfcc; }
+
+.asset-section { display: flex; flex-direction: column; gap: 10px; min-height: 250px; }
+.section-heading { display: flex; justify-content: space-between; align-items: center; }
+.section-heading p { margin-top: 3px; color: #858da0; font-size: 11px; }
+.heading-actions { display: flex; gap: 4px; }
+.image-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-height: 270px; overflow-y: auto; padding-right: 3px; }
+.asset-card { position: relative; aspect-ratio: 1; overflow: hidden; border: 2px solid transparent; border-radius: 10px; background: #20242d; }
+.asset-card.selected { border-color: #6388ff; }
+.asset-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.asset-card .check { position: absolute; top: 6px; right: 6px; width: 21px; height: 21px; display: grid; place-items: center; border-radius: 50%; background: rgba(12,14,18,.78); color: transparent; font-size: 13px; }
+.asset-card.selected .check { background: #6388ff; color: white; }
+.asset-card .dimensions { position: absolute; left: 5px; bottom: 5px; padding: 2px 5px; border-radius: 5px; background: rgba(12,14,18,.72); color: #dce1e9; font-size: 9px; }
+.empty-state { padding: 30px 16px; text-align: center; border: 1px dashed #313746; border-radius: 12px; color: #c4cad4; }
+.empty-state p { margin-top: 6px; color: #81899b; font-size: 12px; }
+
+footer { margin-top: auto; display: grid; gap: 8px; }
+.progress-text { min-height: 18px; color: #99a2b5; font-size: 12px; }
+.primary-button { width: 100%; border: 0; border-radius: 10px; padding: 11px 14px; background: #6388ff; color: white; font-weight: 650; }
+.primary-button:disabled { cursor: not-allowed; opacity: .45; }
+
+@media (prefers-color-scheme: light) {
+  :root, body { background: #f4f5f8; color: #15171c; }
+  .status-card, select, input[type="text"] { background: white; border-color: #dfe2e8; color: #15171c; }
+  .status-card p, .section-heading p, .progress-text { color: #6f7787; }
+  .icon-button, .secondary-button { background: #e8eaf0; color: #272b34; }
+  .asset-card { background: #e5e7ec; }
+}
