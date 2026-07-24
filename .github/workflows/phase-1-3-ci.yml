@@ -32,7 +32,13 @@ jobs:
 
       - name: Audit Simplified Chinese localization
         working-directory: src-vite
-        run: pnpm i18n:audit:strict
+        run: |
+          pnpm i18n:audit:strict > i18n-audit.log 2>&1 || {
+            echo "Localization audit failed. Showing the final 200 lines:"
+            tail -n 200 i18n-audit.log
+            exit 1
+          }
+          cat i18n-audit.log
 
       - name: Build frontend
         working-directory: src-vite
@@ -70,4 +76,8 @@ jobs:
 
       - name: Check Rust backend
         working-directory: src-tauri
-        run: cargo check --locked
+        run: cargo check --locked > cargo-check.log 2>&1 || {
+          echo "cargo check failed. Showing the final 250 lines:"
+          tail -n 250 cargo-check.log
+          exit 1
+        }
