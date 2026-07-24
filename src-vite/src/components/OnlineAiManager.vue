@@ -5,7 +5,7 @@
         <div class="mb-3 flex items-start justify-between gap-2">
           <div>
             <h2 class="font-semibold">在线 AI 自动整理</h2>
-            <p class="text-xs text-base-content/45">自带 API Key，无厂商锁定</p>
+            <p class="text-xs text-base-content/45">自带 API 密钥，无厂商锁定</p>
           </div>
           <button class="btn btn-ghost btn-xs" type="button" @click="$emit('close')">关闭</button>
         </div>
@@ -29,7 +29,7 @@
       <main class="min-w-0 flex-1 overflow-y-auto p-5">
         <div class="mb-5">
           <h3 class="text-lg font-semibold">{{ form.id ? '编辑 AI 服务' : '添加 AI 服务' }}</h3>
-          <p class="text-xs text-base-content/45">支持 OpenAI 兼容接口、Gemini 和 Anthropic。API Key 仅保存在本机应用数据目录。</p>
+          <p class="text-xs text-base-content/45">支持 OpenAI 兼容接口、Gemini 和 Anthropic。API 密钥仅保存在本机应用数据目录。</p>
         </div>
 
         <form class="grid grid-cols-2 gap-4" @submit.prevent="save">
@@ -55,8 +55,8 @@
             <input v-model="form.model" class="input input-bordered input-sm font-mono" required placeholder="模型标识" />
           </label>
           <label class="form-control gap-1">
-            <span class="text-xs text-base-content/60">API Key</span>
-            <input v-model="form.apiKey" class="input input-bordered input-sm font-mono" type="password" :placeholder="form.hasApiKey ? '留空则保留现有 Key' : '输入 API Key'" />
+            <span class="text-xs text-base-content/60">API 密钥</span>
+            <input v-model="form.apiKey" class="input input-bordered input-sm font-mono" type="password" :placeholder="form.hasApiKey ? '留空则保留现有密钥' : '输入 API 密钥'" />
           </label>
 
           <label class="form-control gap-1">
@@ -73,7 +73,7 @@
             <span class="text-xs text-base-content/60">输出语言</span>
             <select v-model="form.language" class="select select-bordered select-sm">
               <option value="zh-CN">简体中文</option>
-              <option value="en">English</option>
+              <option value="en">英语</option>
             </select>
           </label>
           <label class="form-control gap-1">
@@ -233,7 +233,7 @@ async function test() {
   try {
     const result = await testOnlineAiProvider(form.id);
     messageType.value = 'success';
-    message.value = `${result.message}（${result.elapsedMs} ms）`;
+    message.value = `${result.message}（${result.elapsedMs} 毫秒）`;
   } catch (error: any) {
     messageType.value = 'error';
     message.value = String(error);
