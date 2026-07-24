@@ -87,6 +87,10 @@ jobs:
             librsvg2-dev libasound2-dev libheif-dev libraw-dev \
             ffmpeg clang cmake nasm
 
+      - name: Download Linux FFmpeg sidecars
+        shell: bash
+        run: bash scripts/download_ffmpeg_sidecar.sh linux x86_64
+
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Cargo check
