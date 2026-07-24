@@ -11,6 +11,7 @@ const projectRoot = path.resolve(__dirname, '..');
 const sourceRoot = path.join(projectRoot, 'src');
 const localeRoot = path.join(sourceRoot, 'locales');
 const strict = process.argv.includes('--strict');
+const MAX_PRINTED_FINDINGS = 30;
 
 const paths = {
   en: path.join(localeRoot, 'en.json'),
@@ -26,14 +27,12 @@ function flatten(value, prefix = '', output = new Map()) {
     value.forEach((item, index) => flatten(item, `${prefix}[${index}]`, output));
     return output;
   }
-
   if (value && typeof value === 'object') {
     for (const [key, child] of Object.entries(value)) {
       flatten(child, prefix ? `${prefix}.${key}` : key, output);
     }
     return output;
   }
-
   output.set(prefix, value);
   return output;
 }
@@ -52,9 +51,7 @@ function sameList(a, b) {
 function walk(dir) {
   const files = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'dist') {
-      continue;
-    }
+    if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === 'dist') continue;
     const target = path.join(dir, entry.name);
     if (entry.isDirectory()) files.push(...walk(target));
     else files.push(target);
@@ -87,9 +84,9 @@ function auditTemplate(filePath) {
   const source = fs.readFileSync(filePath, 'utf8');
   const template = extractTemplate(source);
   if (!template) return [];
-
   const findings = [];
   const relative = path.relative(projectRoot, filePath).replaceAll(path.sep, '/');
+  const templateOffset = source.indexOf(template);
 
   const textPattern = />([^<>{}\n]*[A-Za-z][^<>{}\n]*)</g;
   for (const match of template.matchAll(textPattern)) {
@@ -98,7 +95,7 @@ function auditTemplate(filePath) {
     if (/^(?:v-|@|:|#)/.test(value)) continue;
     findings.push({
       file: relative,
-      line: lineNumber(source, source.indexOf(template) + match.index),
+      line: lineNumber(source, templateOffset + match.index),
       kind: 'template-text',
       value,
     });
@@ -110,18 +107,16 @@ function auditTemplate(filePath) {
     if (!value || value.includes('{{') || isSafeLiteral(value)) continue;
     findings.push({
       file: relative,
-      line: lineNumber(source, source.indexOf(template) + match.index),
+      line: lineNumber(source, templateOffset + match.index),
       kind: 'literal-attribute',
       value,
     });
   }
-
   return findings;
 }
 
 const en = flatten(readJson(paths.en));
 const zh = flatten(readJson(paths.zh));
-
 const missing = [];
 const extra = [];
 const blank = [];
@@ -133,18 +128,13 @@ for (const [key, enValue] of en) {
     missing.push(key);
     continue;
   }
-
   const zhValue = zh.get(key);
-  if (typeof zhValue === 'string' && zhValue.trim() === '') {
-    blank.push(key);
-  }
-
+  if (typeof zhValue === 'string' && zhValue.trim() === '') blank.push(key);
   const enPlaceholders = placeholders(enValue);
   const zhPlaceholders = placeholders(zhValue);
   if (!sameList(enPlaceholders, zhPlaceholders)) {
     placeholderMismatch.push({ key, en: enPlaceholders, zh: zhPlaceholders });
   }
-
   if (
     typeof enValue === 'string' &&
     typeof zhValue === 'string' &&
@@ -167,7 +157,12 @@ const hardcoded = walk(sourceRoot)
 function printList(title, rows, formatter = (row) => String(row)) {
   if (!rows.length) return;
   console.log(`\n${title} (${rows.length})`);
-  for (const row of rows) console.log(`  - ${formatter(row)}`);
+  for (const row of rows.slice(0, MAX_PRINTED_FINDINGS)) {
+    console.log(`  - ${formatter(row)}`);
+  }
+  if (rows.length > MAX_PRINTED_FINDINGS) {
+    console.log(`  ... 其余 ${rows.length - MAX_PRINTED_FINDINGS} 项已省略`);
+  }
 }
 
 console.log('Lap 简体中文界面审计');
