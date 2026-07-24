@@ -22,7 +22,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
-          submodules: recursive
 
       - uses: actions/setup-node@v4
         with:
@@ -37,28 +36,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Strict Simplified Chinese audit
-        id: localization
         working-directory: src-vite
         shell: bash
         run: |
-          set +e
           sed -i 's/>Select language</>选择界面语言</g' src/views/Settings.vue
-          pnpm i18n:audit:strict > /tmp/localization.txt 2>&1
-          code=$?
-          tail -n 160 /tmp/localization.txt
-          if [ "$code" -ne 0 ]; then
-            {
-              echo "## 阶段 1 汉化审计失败"
-              echo
-              echo '```text'
-              tail -n 120 /tmp/localization.txt
-              echo '```'
-            } > /tmp/localization-comment.md
-            gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/localization-comment.md
-          fi
-          exit "$code"
-        env:
-          GH_TOKEN: ${{ github.token }}
+          pnpm i18n:audit:strict
 
       - name: Build frontend
         working-directory: src-vite
@@ -78,13 +60,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.ref }}
-          submodules: false
 
-      - name: Initialize native codec sources
+      - name: Fetch native codec sources
         shell: bash
         run: |
-          git submodule sync --recursive
-          git submodule update --init --recursive --remote --depth 1
+          rm -rf src-tauri/third_party/libjpeg-turbo src-tauri/third_party/LibRaw
+          git clone --depth 1 --branch 3.1.x https://github.com/libjpeg-turbo/libjpeg-turbo.git src-tauri/third_party/libjpeg-turbo
+          git clone --depth 1 --branch 0.22-stable https://github.com/LibRaw/LibRaw.git src-tauri/third_party/LibRaw
           test -f src-tauri/third_party/libjpeg-turbo/CMakeLists.txt
           test -d src-tauri/third_party/LibRaw/src
 
@@ -109,12 +91,6 @@ jobs:
           if [ "$code" -eq 0 ]; then
             tail -n 40 /tmp/cargo-check.txt
           else
-            echo "::group::Rust compiler errors"
-            grep -n -E '(^error|error\[|\.rs:[0-9]+:[0-9]+|Caused by:|panicked at)' /tmp/cargo-check.txt | tail -n 220 || true
-            echo "::endgroup::"
-            echo "::group::Final compiler context"
-            tail -n 180 /tmp/cargo-check.txt
-            echo "::endgroup::"
             {
               echo "## 阶段 2–3 Rust 检查失败"
               echo
@@ -125,6 +101,7 @@ jobs:
               echo '```'
             } > /tmp/cargo-comment.md
             gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/cargo-comment.md
+            cat /tmp/cargo-comment.md
           fi
           exit "$code"
         env:
