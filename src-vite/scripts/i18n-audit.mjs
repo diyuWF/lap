@@ -11,7 +11,7 @@ const projectRoot = path.resolve(__dirname, '..');
 const sourceRoot = path.join(projectRoot, 'src');
 const localeRoot = path.join(sourceRoot, 'locales');
 const strict = process.argv.includes('--strict');
-const MAX_PRINTED_FINDINGS = 30;
+const MAX_PRINTED_FINDINGS = 60;
 
 const paths = {
   en: path.join(localeRoot, 'en.json'),
@@ -62,6 +62,7 @@ function walk(dir) {
 const safeLiteralPatterns = [
   /^Lap$/i,
   /^(RAW|GPS|AI|EXIF|HEIC|HEIF|AVIF|JPEG|JPG|PNG|GIF|WebP|PSD|SVG|HDR|EXR|MP4|MOV|MKV|AVI)$/i,
+  /^(Kodak|Toyo)$/i,
   /^https?:\/\//i,
   /^[A-Z0-9_.+\-/]{1,12}$/,
   /^#[0-9a-f]{3,8}$/i,
@@ -77,41 +78,52 @@ function lineNumber(source, offset) {
 
 function extractTemplate(source) {
   const match = source.match(/<template(?:\s[^>]*)?>([\s\S]*?)<\/template>/i);
-  return match ? match[1] : '';
+  return match ? { content: match[1], offset: match.index + match[0].indexOf(match[1]) } : null;
+}
+
+function blankRangePreservingLines(value, pattern) {
+  return value.replace(pattern, (match) => match.replace(/[^\n]/g, ' '));
 }
 
 function auditTemplate(filePath) {
   const source = fs.readFileSync(filePath, 'utf8');
-  const template = extractTemplate(source);
-  if (!template) return [];
+  const extracted = extractTemplate(source);
+  if (!extracted) return [];
+
   const findings = [];
   const relative = path.relative(projectRoot, filePath).replaceAll(path.sep, '/');
-  const templateOffset = source.indexOf(template);
+  let visibleTemplate = extracted.content;
+  visibleTemplate = blankRangePreservingLines(visibleTemplate, /<!--[\s\S]*?-->/g);
+  visibleTemplate = blankRangePreservingLines(visibleTemplate, /\{\{[\s\S]*?\}\}/g);
 
-  const textPattern = />([^<>{}\n]*[A-Za-z][^<>{}\n]*)</g;
-  for (const match of template.matchAll(textPattern)) {
-    const value = match[1].replace(/\s+/g, ' ').trim();
+  // Static text nodes only. Vue interpolation has already been blanked, so
+  // operators such as `>` inside expressions cannot be mistaken for text.
+  const textPattern = />([^<\n]*[A-Za-z][^<\n]*)</g;
+  for (const match of visibleTemplate.matchAll(textPattern)) {
+    const value = match[1].replace(/&(?:gt|lt|amp|quot|apos);/g, ' ').replace(/\s+/g, ' ').trim();
     if (!value || isSafeLiteral(value)) continue;
-    if (/^(?:v-|@|:|#)/.test(value)) continue;
     findings.push({
       file: relative,
-      line: lineNumber(source, templateOffset + match.index),
+      line: lineNumber(source, extracted.offset + match.index),
       kind: 'template-text',
       value,
     });
   }
 
-  const attrPattern = /\b(?:title|placeholder|aria-label|alt|data-tip)\s*=\s*["']([^"']*[A-Za-z][^"']*)["']/gi;
-  for (const match of template.matchAll(attrPattern)) {
-    const value = match[1].trim();
-    if (!value || value.includes('{{') || isSafeLiteral(value)) continue;
+  // Only unbound static attributes are user-visible literals. Bound forms
+  // (`:title`, `v-bind:title`) are expressions and must not be reported.
+  const attrPattern = /(?:^|\s)(title|placeholder|aria-label|alt|data-tip)\s*=\s*["']([^"']*[A-Za-z][^"']*)["']/gim;
+  for (const match of visibleTemplate.matchAll(attrPattern)) {
+    const value = match[2].trim();
+    if (!value || isSafeLiteral(value)) continue;
     findings.push({
       file: relative,
-      line: lineNumber(source, templateOffset + match.index),
+      line: lineNumber(source, extracted.offset + match.index),
       kind: 'literal-attribute',
       value,
     });
   }
+
   return findings;
 }
 
@@ -157,9 +169,7 @@ const hardcoded = walk(sourceRoot)
 function printList(title, rows, formatter = (row) => String(row)) {
   if (!rows.length) return;
   console.log(`\n${title} (${rows.length})`);
-  for (const row of rows.slice(0, MAX_PRINTED_FINDINGS)) {
-    console.log(`  - ${formatter(row)}`);
-  }
+  for (const row of rows.slice(0, MAX_PRINTED_FINDINGS)) console.log(`  - ${formatter(row)}`);
   if (rows.length > MAX_PRINTED_FINDINGS) {
     console.log(`  ... 其余 ${rows.length - MAX_PRINTED_FINDINGS} 项已省略`);
   }
