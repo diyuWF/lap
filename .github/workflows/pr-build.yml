@@ -90,6 +90,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Cargo check
+        id: cargo-check
         working-directory: src-tauri
         shell: bash
         env:
@@ -100,6 +101,7 @@ jobs:
           set +e
           cargo check --locked --message-format short > /tmp/cargo-check.txt 2>&1
           code=$?
+          echo "$code" > /tmp/cargo-exit-code.txt
           if [ "$code" -eq 0 ]; then
             echo "Rust backend check passed."
             tail -n 20 /tmp/cargo-check.txt
@@ -145,3 +147,15 @@ jobs:
           } > /tmp/cargo-comment.md
           gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/cargo-comment.md
           exit "$code"
+
+      - name: Upload Rust diagnostics
+        if: failure() && steps.cargo-check.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-diagnostics-${{ github.run_number }}
+          path: |
+            /tmp/cargo-check.txt
+            /tmp/cargo-summary.txt
+            /tmp/cargo-comment.md
+          if-no-files-found: warn
+          retention-days: 7
