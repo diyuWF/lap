@@ -4,6 +4,12 @@
       <span class="sidebar-panel-header-title flex-1">{{ localeMsg.tag.title }}</span>
       <div class="flex items-center gap-1">
         <TButton
+          :icon="IconSearch"
+          :buttonSize="'small'"
+          tooltip="在线 AI 自动整理"
+          @click="showOnlineAiManager = true"
+        />
+        <TButton
           :icon="IconMore"
           :buttonSize="'small'"
           tooltip="管理标签分类体系"
@@ -123,6 +129,11 @@
     @close="showTaxonomyManager = false"
     @changed="loadTags"
   />
+
+  <OnlineAiManager
+    v-if="showOnlineAiManager"
+    @close="showOnlineAiManager = false"
+  />
 </template>
 
 <script setup lang="ts">
@@ -144,6 +155,7 @@ import ContextMenu from '@/components/ContextMenu.vue';
 import MessageBox from '@/components/MessageBox.vue';
 import TButton from '@/components/TButton.vue';
 import TaxonomyManager from '@/components/TaxonomyManager.vue';
+import OnlineAiManager from '@/components/OnlineAiManager.vue';
 
 const props = defineProps({
   titlebar: {
@@ -154,7 +166,6 @@ const props = defineProps({
 
 const { locale, messages } = useI18n();
 const localeMsg = computed(() => messages.value[locale.value] as any);
-
 const emit = defineEmits(['editDataChanged']);
 
 const allTags = ref<any[]>([]);
@@ -165,6 +176,7 @@ const tagInputRef = ref<HTMLInputElement[]>([]);
 const tagSearch = ref('');
 const isTagSearchFocused = ref(false);
 const showTaxonomyManager = ref(false);
+const showOnlineAiManager = ref(false);
 
 const sortedTags = computed(() => allTags.value);
 const filteredTags = computed(() => {
