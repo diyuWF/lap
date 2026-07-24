@@ -63,6 +63,8 @@ const safeLiteralPatterns = [
   /^Lap$/i,
   /^(RAW|GPS|AI|EXIF|HEIC|HEIF|AVIF|JPEG|JPG|PNG|GIF|WebP|PSD|SVG|HDR|EXR|MP4|MOV|MKV|AVI)$/i,
   /^(Kodak|Toyo)$/i,
+  /^(OpenAI|OpenRouter|Google Gemini|Gemini|Anthropic)$/i,
+  /^(English|Deutsch|Español|Français|Português|Русский|日本語|한국어)$/i,
   /^https?:\/\//i,
   /^[A-Z0-9_.+\-/]{1,12}$/,
   /^#[0-9a-f]{3,8}$/i,
@@ -70,6 +72,10 @@ const safeLiteralPatterns = [
 
 function isSafeLiteral(value) {
   return safeLiteralPatterns.some((pattern) => pattern.test(value.trim()));
+}
+
+function containsCjk(value) {
+  return /[\u3400-\u9fff]/u.test(value);
 }
 
 function lineNumber(source, offset) {
@@ -85,6 +91,50 @@ function blankRangePreservingLines(value, pattern) {
   return value.replace(pattern, (match) => match.replace(/[^\n]/g, ' '));
 }
 
+// Blank Vue/HTML tags while respecting quoted attribute values. A simple
+// `<[^>]+>` expression is insufficient because Vue expressions may contain `>`.
+function blankTagsPreservingLines(value) {
+  const chars = [...value];
+  let inTag = false;
+  let quote = null;
+
+  for (let index = 0; index < chars.length; index += 1) {
+    const char = chars[index];
+
+    if (!inTag) {
+      if (char === '<') {
+        inTag = true;
+        quote = null;
+        if (char !== '\n') chars[index] = ' ';
+      }
+      continue;
+    }
+
+    if (quote) {
+      if (char === quote && chars[index - 1] !== '\\') quote = null;
+    } else if (char === '"' || char === "'") {
+      quote = char;
+    } else if (char === '>') {
+      inTag = false;
+    }
+
+    if (char !== '\n') chars[index] = ' ';
+  }
+
+  return chars.join('');
+}
+
+function normalizeVisibleText(value) {
+  return value
+    .replace(/&(?:gt|lt|amp|quot|apos|nbsp);/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function shouldReportVisibleLiteral(value) {
+  return /[A-Za-z]{2,}/.test(value) && !containsCjk(value) && !isSafeLiteral(value);
+}
+
 function auditTemplate(filePath) {
   const source = fs.readFileSync(filePath, 'utf8');
   const extracted = extractTemplate(source);
@@ -96,12 +146,13 @@ function auditTemplate(filePath) {
   visibleTemplate = blankRangePreservingLines(visibleTemplate, /<!--[\s\S]*?-->/g);
   visibleTemplate = blankRangePreservingLines(visibleTemplate, /\{\{[\s\S]*?\}\}/g);
 
-  // Static text nodes only. Vue interpolation has already been blanked, so
-  // operators such as `>` inside expressions cannot be mistaken for text.
-  const textPattern = />([^<\n]*[A-Za-z][^<\n]*)</g;
-  for (const match of visibleTemplate.matchAll(textPattern)) {
-    const value = match[1].replace(/&(?:gt|lt|amp|quot|apos);/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!value || isSafeLiteral(value)) continue;
+  // Keep only actual text nodes. Tag markup and Vue expressions inside
+  // attributes are blanked with line positions preserved.
+  const textOnly = blankTagsPreservingLines(visibleTemplate);
+  const textPattern = /[^\n]*[A-Za-z][^\n]*/g;
+  for (const match of textOnly.matchAll(textPattern)) {
+    const value = normalizeVisibleText(match[0]);
+    if (!value || !shouldReportVisibleLiteral(value)) continue;
     findings.push({
       file: relative,
       line: lineNumber(source, extracted.offset + match.index),
@@ -114,8 +165,8 @@ function auditTemplate(filePath) {
   // (`:title`, `v-bind:title`) are expressions and must not be reported.
   const attrPattern = /(?:^|\s)(title|placeholder|aria-label|alt|data-tip)\s*=\s*["']([^"']*[A-Za-z][^"']*)["']/gim;
   for (const match of visibleTemplate.matchAll(attrPattern)) {
-    const value = match[2].trim();
-    if (!value || isSafeLiteral(value)) continue;
+    const value = normalizeVisibleText(match[2]);
+    if (!value || !shouldReportVisibleLiteral(value)) continue;
     findings.push({
       file: relative,
       line: lineNumber(source, extracted.offset + match.index),
@@ -151,6 +202,7 @@ for (const [key, enValue] of en) {
     typeof enValue === 'string' &&
     typeof zhValue === 'string' &&
     /[A-Za-z]{3,}/.test(zhValue) &&
+    !containsCjk(zhValue) &&
     !isSafeLiteral(zhValue) &&
     enValue.trim() === zhValue.trim()
   ) {
