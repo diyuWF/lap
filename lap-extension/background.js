@@ -1,93 +1,99 @@
 const DEFAULT_URL = 'http://127.0.0.1:47821';
 
+function normalizeApiUrl(value) {
+  return (value || DEFAULT_URL).trim().replace(/\/+$/, '');
+}
+
 async function getConfig() {
   return chrome.storage.local.get({
     apiUrl: DEFAULT_URL,
     token: '',
-    folderPath: '',
     tags: [],
     allowDuplicate: false,
+    recentFolders: [],
   });
 }
 
-function normalizeApiUrl(value) {
-  return (value || DEFAULT_URL).trim().replace(/\/$/, '');
-}
-
-async function captureImage(info, tab) {
+async function apiRequest(path, options = {}) {
   const config = await getConfig();
-
-  if (!config.token) {
-    await chrome.runtime.openOptionsPage();
+  if (!config.token && path !== '/health') {
     throw new Error('请先在扩展设置中填写 Lap 配对 Token');
   }
 
-  const pageUrl = tab?.url || info.pageUrl || '';
-  const payload = {
-    sourceUrl: info.srcUrl,
-    pageUrl,
-    pageTitle: tab?.title || '',
-    siteName: (() => {
-      try {
-        return new URL(pageUrl).hostname;
-      } catch {
-        return '';
-      }
-    })(),
-    folderPath: config.folderPath || null,
-    allowDuplicate: Boolean(config.allowDuplicate),
-    metadata: {
-      browser: 'chromium',
-      capturedBy: 'lap-extension',
-      capturedAt: new Date().toISOString(),
-      frameUrl: info.frameUrl || null,
-    },
-    tags: Array.isArray(config.tags) ? config.tags : [],
-  };
-
-  const response = await fetch(`${normalizeApiUrl(config.apiUrl)}/capture`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Lap-Token': config.token,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || !data.ok) {
-    throw new Error(data.error || `保存失败：HTTP ${response.status}`);
+  const headers = new Headers(options.headers || {});
+  if (config.token) headers.set('X-Lap-Token', config.token);
+  if (options.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
   }
 
-  await chrome.action.setBadgeBackgroundColor({ color: data.duplicate ? '#8B5CF6' : '#16A34A' });
-  await chrome.action.setBadgeText({ text: data.duplicate ? '重复' : '✓' });
-  setTimeout(() => chrome.action.setBadgeText({ text: '' }), 1800);
+  let response;
+  try {
+    response = await fetch(`${normalizeApiUrl(config.apiUrl)}${path}`, {
+      ...options,
+      headers,
+    });
+  } catch {
+    throw new Error('无法连接本机 Lap。请确认 Lap 已启动并且采集服务可用。');
+  }
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok === false) {
+    throw new Error(data.error || `Lap 请求失败：HTTP ${response.status}`);
+  }
   return data;
 }
 
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({
-      id: 'save-image-to-lap',
-      title: '保存图片到 Lap',
-      contexts: ['image'],
-    });
+async function rememberFolder(folderPath) {
+  if (!folderPath) return;
+  const { recentFolders = [] } = await getConfig();
+  const next = [folderPath, ...recentFolders.filter((item) => item !== folderPath)].slice(0, 8);
+  await chrome.storage.local.set({ recentFolders: next });
+}
+
+async function capture(payload) {
+  const config = await getConfig();
+  const data = await apiRequest('/capture', {
+    method: 'POST',
+    body: JSON.stringify({
+      ...payload,
+      tags: Array.isArray(payload.tags) && payload.tags.length
+        ? payload.tags
+        : (Array.isArray(config.tags) ? config.tags : []),
+      allowDuplicate: payload.allowDuplicate ?? Boolean(config.allowDuplicate),
+    }),
   });
+  if (!data.duplicate) await rememberFolder(payload.folderPath);
+  return data;
+}
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  const run = async () => {
+    switch (message?.type) {
+      case 'lap:get-state': {
+        const config = await getConfig();
+        const foldersResponse = await apiRequest('/folders');
+        return {
+          ok: true,
+          folders: foldersResponse.folders || [],
+          recentFolders: config.recentFolders || [],
+          configured: Boolean(config.token),
+        };
+      }
+      case 'lap:capture':
+        return { ok: true, result: await capture(message.payload || {}) };
+      case 'lap:open-options':
+        await chrome.runtime.openOptionsPage();
+        return { ok: true };
+      default:
+        return { ok: false, error: '未知的扩展消息' };
+    }
+  };
+
+  run()
+    .then(sendResponse)
+    .catch((error) => sendResponse({
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    }));
+  return true;
 });
-
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId !== 'save-image-to-lap') {
-    return;
-  }
-
-  try {
-    await captureImage(info, tab);
-  } catch (error) {
-    console.error(error);
-    await chrome.action.setBadgeBackgroundColor({ color: '#DC2626' });
-    await chrome.action.setBadgeText({ text: '!' });
-    setTimeout(() => chrome.action.setBadgeText({ text: '' }), 2200);
-  }
-});
-
-chrome.action.onClicked.addListener(() => chrome.runtime.openOptionsPage());
