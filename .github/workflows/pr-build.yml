@@ -87,9 +87,16 @@ jobs:
             librsvg2-dev libasound2-dev libheif-dev libraw-dev \
             ffmpeg clang cmake nasm
 
-      - name: Download Linux FFmpeg sidecars
+      - name: Prepare optional Tauri resources
         shell: bash
-        run: bash scripts/download_ffmpeg_sidecar.sh linux x86_64
+        run: |
+          mkdir -p src-tauri/resources/models src-tauri/resources/ffmpeg
+          if ! find src-tauri/resources/models -mindepth 1 -maxdepth 1 -type f | grep -q .; then
+            printf 'CI placeholder: release builds download real AI model files.\n' > src-tauri/resources/models/ci-placeholder.txt
+          fi
+          bash scripts/download_ffmpeg_sidecar.sh linux x86_64
+          test -n "$(find src-tauri/resources/models -mindepth 1 -maxdepth 1 -type f -print -quit)"
+          test -n "$(find src-tauri/resources/ffmpeg -mindepth 1 -maxdepth 1 -type f -print -quit)"
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -121,23 +128,23 @@ jobs:
               re.compile(r'(^|:)error(\[[A-Z0-9]+\])?:'),
               re.compile(r'\.rs:\d+:\d+:'),
               re.compile(r'cannot find|failed to resolve|mismatched types|no method named|private (function|struct|field)|borrow of moved value|use of moved value|the trait bound|future cannot be sent', re.I),
-              re.compile(r'Caused by:|panicked at'),
+              re.compile(r'Caused by:|panicked at|glob pattern'),
           ]
           hits = []
           for index, line in enumerate(text):
               if any(pattern.search(line) for pattern in patterns):
-                  start = max(0, index - 2)
-                  end = min(len(text), index + 5)
+                  start = max(0, index - 3)
+                  end = min(len(text), index + 8)
                   hits.extend(text[start:end])
           if not hits:
-              hits = text[-120:]
+              hits = text[-160:]
           deduped = []
           previous = None
           for line in hits:
               if line != previous:
                   deduped.append(line)
               previous = line
-          summary = '\n'.join(deduped[-220:])
+          summary = '\n'.join(deduped[-260:])
           Path('/tmp/cargo-summary.txt').write_text(summary)
           print(summary)
           PY
