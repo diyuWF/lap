@@ -19,6 +19,14 @@ pub const FFMPEG_BACKED_IMGS: &[&str] = &[
     "dpx", // Digital cinema intermediate format; niche film/grading pipeline only
 ];
 
+// Previewable documents, 3D files and common design-project assets.
+// These are indexed as file_type 4. Interactive support depends on the preview provider.
+pub const PREVIEW_ASSETS: &[&str] = &[
+    "svg", "pdf", "glb", "gltf", "obj", "stl",
+    "ai", "eps", "psb", "blend", "fbx", "usd", "usda", "usdc", "usdz",
+    "abc", "3ds", "dae", "c4d", "dwg", "dxf", "aep", "aepx", "prproj",
+];
+
 // RAW support
 pub const RAW_IMGS: &[&str] = &[
     "cr2", "cr3", "crw", // Canon

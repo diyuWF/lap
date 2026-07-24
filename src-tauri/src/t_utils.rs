@@ -2359,6 +2359,10 @@ pub fn get_file_type(file_path: &str) -> Option<i64> {
         return Some(3);
     }
 
+    if contains_ext(t_common::PREVIEW_ASSETS) {
+        return Some(4);
+    }
+
     None
 }
 

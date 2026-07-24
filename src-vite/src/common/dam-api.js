@@ -67,3 +67,7 @@ export async function analyzeFileWithOnlineAi(fileId, providerId, forceAutoApply
     forceAutoApply,
   });
 }
+
+export async function getPreviewDescriptor(fileId) {
+  return invoke('get_preview_descriptor', { fileId });
+}

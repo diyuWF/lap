@@ -35,7 +35,7 @@
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.general.select_language') }}</div>
-                <div v-if="config.settings.language !== 'en'" class="text-xs text-base-content/30">Select language</div>
+                <div class="text-xs text-base-content/30">选择应用界面所使用的语言</div>
               </div>
               <select class="select  select-bordered select-sm min-w-32" v-model="config.settings.language">
                 <option v-for="(lang, index) in languages" :key="index" :value="lang.value">{{ lang.label }}</option>
@@ -578,6 +578,27 @@
             </div>
           </div>
 
+          <!-- online AI -->
+          <div class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">
+            <div class="flex items-center gap-2 text-base-content/30">
+              <span class="font-bold uppercase text-[10px] tracking-widest">AI 自动整理</span>
+            </div>
+            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">
+                <div>在线 AI 服务</div>
+                <div class="text-xs text-base-content/30">配置 OpenAI 兼容、Gemini 或 Anthropic 视觉模型</div>
+              </div>
+              <button class="btn btn-sm btn-ghost rounded-box bg-base-100 border border-base-content/30" @click="showOnlineAiManager = true">管理服务</button>
+            </div>
+            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">
+                <div>AI 建议审核</div>
+                <div class="text-xs text-base-content/30">接受或拒绝自动生成的标签、标题、描述和颜色建议</div>
+              </div>
+              <button class="btn btn-sm btn-ghost rounded-box bg-base-100 border border-base-content/30" @click="showAiReviewQueue = true">打开队列</button>
+            </div>
+          </div>
+
           <!-- diagnostics -->
           <div class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">
             <div class="flex items-center gap-2 text-base-content/30">
@@ -599,6 +620,9 @@
 
       </div>
     </div>
+
+    <OnlineAiManager v-if="showOnlineAiManager" @close="showOnlineAiManager = false" />
+    <AiReviewQueue v-if="showAiReviewQueue" @close="showAiReviewQueue = false" />
 
     <MessageBox
       v-if="showChangeDbStorageDialog"
@@ -667,6 +691,8 @@ import SettingsAbout from '@/components/SettingsAbout.vue';
 import MessageBox from '@/components/MessageBox.vue';
 import BackupDialog from '@/components/BackupDialog.vue';
 import RestoreDialog from '@/components/RestoreDialog.vue';
+import OnlineAiManager from '@/components/OnlineAiManager.vue';
+import AiReviewQueue from '@/components/AiReviewQueue.vue';
 import TButton from '@/components/TButton.vue';
 
 /// i18n
@@ -696,6 +722,8 @@ const showChangeDbStorageDialog = ref(false);
 const showResetDbStorageDialog = ref(false);
 const showBackupDialog = ref(false);
 const showRestoreDialog = ref(false);
+const showOnlineAiManager = ref(false);
+const showAiReviewQueue = ref(false);
 const isDownloadingMultilingualModel = ref(false);
 const isCancelingMultilingualModelDownload = ref(false);
 const multilingualModelDownloadProgress = ref(0);
@@ -710,15 +738,15 @@ const onRestoreDone = () => {
 };
 
 const languages = [
-  { label: 'English', value: 'en' },
-  { label: 'Deutsch', value: 'de' },
-  { label: 'Español', value: 'es' },
-  { label: 'Français', value: 'fr' },
-  { label: 'Português', value: 'pt' },
-  { label: 'Русский', value: 'ru' },
-  { label: '中文', value: 'zh' },
-  { label: '日本語', value: 'ja' },
-  { label: '한국어', value: 'ko' },
+  { label: '英语', value: 'en' },
+  { label: '德语', value: 'de' },
+  { label: '西班牙语', value: 'es' },
+  { label: '法语', value: 'fr' },
+  { label: '葡萄牙语', value: 'pt' },
+  { label: '俄语', value: 'ru' },
+  { label: '简体中文', value: 'zh' },
+  { label: '日语', value: 'ja' },
+  { label: '韩语', value: 'ko' },
 ];
 
 const appearanceOptions = computed(() => {

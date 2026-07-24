@@ -2,6 +2,7 @@ use crate::{t_dam, t_sqlite};
 use chrono::Utc;
 use rusqlite::{OptionalExtension, params};
 use serde::Serialize;
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -43,11 +44,12 @@ pub fn list_ai_suggestions(
     let conn = t_sqlite::open_conn()?;
     let mut statement = conn
         .prepare(
-            "SELECT s.id, s.file_id, COALESCE(f.name, ''), f.file_path,
+            "SELECT s.id, s.file_id, COALESCE(f.name, ''), folder.path,
                     s.kind, s.value, s.confidence, s.provider, s.model,
                     s.status, s.created_at, s.reviewed_at
              FROM dam_ai_suggestions s
              LEFT JOIN afiles f ON f.id = s.file_id
+             LEFT JOIN afolders folder ON folder.id = f.folder_id
              WHERE (?1 = 'all' OR s.status = ?1)
              ORDER BY CASE WHEN s.status = 'pending' THEN 0 ELSE 1 END,
                       s.created_at DESC, s.id DESC
@@ -56,11 +58,19 @@ pub fn list_ai_suggestions(
         .map_err(|error| error.to_string())?;
     let rows = statement
         .query_map(params![status, limit], |row| {
+            let file_name: String = row.get(2)?;
+            let folder_path: Option<String> = row.get(3)?;
+            let file_path = folder_path.map(|folder| {
+                Path::new(&folder)
+                    .join(&file_name)
+                    .to_string_lossy()
+                    .into_owned()
+            });
             Ok(AiSuggestionRow {
                 id: row.get(0)?,
                 file_id: row.get(1)?,
-                file_name: row.get(2)?,
-                file_path: row.get(3)?,
+                file_name,
+                file_path,
                 kind: row.get(4)?,
                 value: row.get(5)?,
                 confidence: row.get(6)?,
