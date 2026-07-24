@@ -87,14 +87,18 @@ jobs:
             librsvg2-dev libasound2-dev libheif-dev libraw-dev \
             ffmpeg clang cmake nasm
 
-      - name: Prepare optional Tauri resources
+      - name: Prepare Tauri build inputs
         shell: bash
         run: |
-          mkdir -p src-tauri/resources/models src-tauri/resources/ffmpeg
+          mkdir -p src-tauri/resources/models src-tauri/resources/ffmpeg src-vite/dist
           if ! find src-tauri/resources/models -mindepth 1 -maxdepth 1 -type f | grep -q .; then
             printf 'CI placeholder: release builds download real AI model files.\n' > src-tauri/resources/models/ci-placeholder.txt
           fi
+          if [ ! -f src-vite/dist/index.html ]; then
+            printf '<!doctype html><html><head><meta charset="utf-8"></head><body>CI</body></html>\n' > src-vite/dist/index.html
+          fi
           bash scripts/download_ffmpeg_sidecar.sh linux x86_64
+          test -s src-vite/dist/index.html
           test -n "$(find src-tauri/resources/models -mindepth 1 -maxdepth 1 -type f -print -quit)"
           test -n "$(find src-tauri/resources/ffmpeg -mindepth 1 -maxdepth 1 -type f -print -quit)"
 
@@ -108,14 +112,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CARGO_TERM_COLOR: never
           CARGO_TERM_PROGRESS_WHEN: never
+          RUST_BACKTRACE: 1
         run: |
           set +e
-          cargo check --locked --message-format short > /tmp/cargo-check.txt 2>&1
+          cargo check --locked > /tmp/cargo-check.txt 2>&1
           code=$?
           echo "$code" > /tmp/cargo-exit-code.txt
           if [ "$code" -eq 0 ]; then
             echo "Rust backend check passed."
-            tail -n 20 /tmp/cargo-check.txt
+            tail -n 30 /tmp/cargo-check.txt
             exit 0
           fi
 
@@ -125,26 +130,30 @@ jobs:
 
           text = Path('/tmp/cargo-check.txt').read_text(errors='replace').splitlines()
           patterns = [
-              re.compile(r'(^|:)error(\[[A-Z0-9]+\])?:'),
-              re.compile(r'\.rs:\d+:\d+:'),
+              re.compile(r'(^|\s)error(\[[A-Z0-9]+\])?:'),
+              re.compile(r'proc macro panicked|message:|glob pattern|frontendDist|capabilit', re.I),
+              re.compile(r'\.rs:\d+:\d+'),
               re.compile(r'cannot find|failed to resolve|mismatched types|no method named|private (function|struct|field)|borrow of moved value|use of moved value|the trait bound|future cannot be sent', re.I),
-              re.compile(r'Caused by:|panicked at|glob pattern'),
+              re.compile(r'Caused by:|panicked at'),
           ]
-          hits = []
+          hit_indexes = []
           for index, line in enumerate(text):
               if any(pattern.search(line) for pattern in patterns):
-                  start = max(0, index - 3)
-                  end = min(len(text), index + 8)
-                  hits.extend(text[start:end])
-          if not hits:
-              hits = text[-160:]
+                  hit_indexes.append(index)
+          lines = []
+          for index in hit_indexes:
+              start = max(0, index - 5)
+              end = min(len(text), index + 12)
+              lines.extend(text[start:end])
+          if not lines:
+              lines = text[-220:]
           deduped = []
           previous = None
-          for line in hits:
+          for line in lines:
               if line != previous:
                   deduped.append(line)
               previous = line
-          summary = '\n'.join(deduped[-260:])
+          summary = '\n'.join(deduped[-360:])
           Path('/tmp/cargo-summary.txt').write_text(summary)
           print(summary)
           PY
@@ -168,5 +177,6 @@ jobs:
             /tmp/cargo-check.txt
             /tmp/cargo-summary.txt
             /tmp/cargo-comment.md
+            src-tauri/tauri.conf.json
           if-no-files-found: warn
           retention-days: 7
