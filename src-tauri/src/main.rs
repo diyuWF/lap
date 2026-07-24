@@ -40,6 +40,7 @@ mod t_pasteboard;
 mod t_protocol;
 mod t_sqlite;
 mod t_storage;
+mod t_taxonomy;
 mod t_utils;
 mod t_video;
 
@@ -336,6 +337,11 @@ async fn main() {
             t_dam_cmds::dam_set_workflow_status,
             t_dam_cmds::dam_apply_tags,
             t_dam_cmds::get_capture_server_info,
+            // taxonomy
+            t_taxonomy::taxonomy_get_snapshot,
+            t_taxonomy::taxonomy_save_group,
+            t_taxonomy::taxonomy_delete_group,
+            t_taxonomy::taxonomy_save_tag,
             // calendar
             t_cmds::get_taken_dates,
             // camera
