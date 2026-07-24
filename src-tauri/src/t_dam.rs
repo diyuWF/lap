@@ -1,4 +1,4 @@
-use crate::t_sqlite::{self, AFolder};
+use crate::t_sqlite::{self, AFolder, ATag};
 use chrono::Utc;
 use rusqlite::{OptionalExtension, params};
 use serde::{Deserialize, Serialize};
@@ -155,8 +155,12 @@ pub fn ensure_schema() -> Result<(), String> {
         [],
     )
     .map_err(|error| error.to_string())?;
+    // Existing libraries may already contain tags that differ only by case.
+    // Keep this index non-unique so schema initialization never blocks startup.
+    conn.execute("DROP INDEX IF EXISTS idx_atags_normalized_name", [])
+        .map_err(|error| error.to_string())?;
     conn.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS idx_atags_normalized_name ON atags(normalized_name)",
+        "CREATE INDEX IF NOT EXISTS idx_atags_normalized_name_lookup ON atags(normalized_name)",
         [],
     )
     .map_err(|error| error.to_string())?;
@@ -326,24 +330,27 @@ fn ensure_tag(raw_tag: &str) -> Result<Option<i64>, String> {
     };
 
     let conn = t_sqlite::open_conn()?;
-    conn.execute(
-        "INSERT OR IGNORE INTO atags (name, normalized_name, group_id) VALUES (?1, ?2, ?3)",
-        params![raw_tag, normalized_name, group_id],
-    )
-    .map_err(|error| error.to_string())?;
-    conn.execute(
-        "UPDATE atags SET group_id = COALESCE(group_id, ?2), normalized_name = ?3 WHERE name = ?1",
-        params![raw_tag, group_id, normalized_name],
-    )
-    .map_err(|error| error.to_string())?;
-
-    let tag_id = conn
+    let existing_id = conn
         .query_row(
-            "SELECT id FROM atags WHERE normalized_name = ?1 OR name = ?2 COLLATE NOCASE LIMIT 1",
-            params![normalize_tag(raw_tag), raw_tag],
-            |row| row.get(0),
+            "SELECT id FROM atags WHERE normalized_name = ?1 OR name = ?2 COLLATE NOCASE ORDER BY id LIMIT 1",
+            params![normalized_name, raw_tag],
+            |row| row.get::<_, i64>(0),
         )
+        .optional()
         .map_err(|error| error.to_string())?;
+    drop(conn);
+
+    let tag_id = match existing_id {
+        Some(id) => id,
+        None => ATag::add(raw_tag)?.id,
+    };
+
+    let conn = t_sqlite::open_conn()?;
+    conn.execute(
+        "UPDATE atags SET group_id = COALESCE(group_id, ?2), normalized_name = ?3 WHERE id = ?1",
+        params![tag_id, group_id, normalize_tag(raw_tag)],
+    )
+    .map_err(|error| error.to_string())?;
     Ok(Some(tag_id))
 }
 
