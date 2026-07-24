@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: read
+  issues: write
+  pull-requests: write
 
 concurrency:
   group: pr-build-${{ github.event.pull_request.number || github.ref }}
@@ -34,8 +36,27 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Strict Simplified Chinese audit
+        id: localization
         working-directory: src-vite
-        run: pnpm i18n:audit:strict
+        shell: bash
+        run: |
+          set +e
+          pnpm i18n:audit:strict > /tmp/localization.txt 2>&1
+          code=$?
+          cat /tmp/localization.txt
+          if [ "$code" -ne 0 ]; then
+            {
+              echo "## 阶段 1 汉化审计失败"
+              echo
+              echo '```text'
+              tail -n 120 /tmp/localization.txt
+              echo '```'
+            } > /tmp/localization-comment.md
+            gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/localization-comment.md
+          fi
+          exit "$code"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Build frontend
         working-directory: src-vite
@@ -69,4 +90,22 @@ jobs:
 
       - name: Cargo check
         working-directory: src-tauri
-        run: cargo check --locked
+        shell: bash
+        run: |
+          set +e
+          cargo check --locked > /tmp/cargo-check.txt 2>&1
+          code=$?
+          cat /tmp/cargo-check.txt
+          if [ "$code" -ne 0 ]; then
+            {
+              echo "## 阶段 2–3 Rust 检查失败"
+              echo
+              echo '```text'
+              tail -n 160 /tmp/cargo-check.txt
+              echo '```'
+            } > /tmp/cargo-comment.md
+            gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/cargo-comment.md
+          fi
+          exit "$code"
+        env:
+          GH_TOKEN: ${{ github.token }}
