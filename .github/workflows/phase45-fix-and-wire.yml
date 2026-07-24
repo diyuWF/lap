@@ -29,7 +29,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Wire batch AI, single-file analysis and fix localization audit
+      - name: Wire batch AI and fix localization audit
         shell: bash
         run: |
           python3 - <<'PY'
@@ -69,7 +69,7 @@ jobs:
           replace_once(
               'src-vite/src/views/Settings.vue',
               '''            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">\n              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">\n                <div>AI 建议审核</div>\n                <div class="text-xs text-base-content/30">接受或拒绝自动生成的标签、标题、描述和颜色建议</div>\n              </div>\n              <button class="btn btn-sm btn-ghost rounded-box bg-base-100 border border-base-content/30" @click="showAiReviewQueue = true">打开队列</button>\n            </div>''',
-              '''            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">\n              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">\n                <div>AI 建议审核</div>\n                <div class="text-xs text-base-content/30">接受或拒绝自动生成的标签、标题、描述和颜色建议</div>\n              </div>\n              <button class="btn btn-sm btn-ghost rounded-box bg-base-100 border border-base-content/30" @click="showAiReviewQueue = true">打开队列</button>\n            </div>\n            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">\n              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">\n                <div>AI Inbox 工作台</div>\n                <div class="text-xs text-base-content/30">批量发现未整理素材并生成结构化建议</div>\n              </div>\n              <button class="btn btn-sm btn-primary rounded-box" @click="showAiInboxWorkbench = true">开始整理</button>\n            </div>''',
+              '''            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">\n              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">\n                <div>AI 建议审核</div>\n                <div class="text-xs text-base-content/30">接受或拒绝自动生成的标签、标题、描述和颜色建议</div>\n              </div>\n              <button class="btn btn-sm btn-ghost rounded-box bg-base-100 border border-base-content/30" @click="showAiReviewQueue = true">打开队列</button>\n            </div>\n            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">\n              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">\n                <div>AI 批量整理工作台</div>\n                <div class="text-xs text-base-content/30">批量发现未整理素材并生成结构化建议</div>\n              </div>\n              <button class="btn btn-sm btn-primary rounded-box" @click="showAiInboxWorkbench = true">开始整理</button>\n            </div>''',
           )
           replace_once(
               'src-vite/src/views/Settings.vue',
@@ -122,12 +122,6 @@ jobs:
               '''  () => {\n    isLivePhotoPlaying.value = false;\n    livePhotoViewport.value = null;\n  },''',
               '''  () => {\n    isLivePhotoPlaying.value = false;\n    livePhotoViewport.value = null;\n    showAiAnalyzeDialog.value = false;\n  },''',
           )
-
-          replace_once(
-              '.github/workflows/pr-build.yml',
-              "          sed -i 's/>Select language</>选择界面语言</g' src/views/Settings.vue\n",
-              '',
-          )
           PY
 
           pnpm --dir src-vite install --frozen-lockfile
@@ -135,16 +129,17 @@ jobs:
           cargo fmt --manifest-path src-tauri/Cargo.toml
           git diff --check
 
-      - name: Commit integration and remove temporary workflows
+      - name: Commit integration changes
         shell: bash
         run: |
-          rm -f \
-            .github/workflows/dev-snapshot.yml \
-            .github/workflows/one-shot-fix-ai-raw-string.yml \
-            .github/workflows/phase45-integration-batch.yml \
-            .github/workflows/phase45-fix-and-wire.yml
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add -A
+          git add \
+            src-tauri/src/main.rs \
+            src-tauri/src/t_ai_batch.rs \
+            src-vite/src/common/dam-api.js \
+            src-vite/src/components/AiInboxWorkbench.vue \
+            src-vite/src/components/MediaViewer.vue \
+            src-vite/src/views/Settings.vue
           git commit -m "fix: wire AI workbench and pass strict localization audit"
           git push origin HEAD:feat/phase4-ai-preview-pipeline
