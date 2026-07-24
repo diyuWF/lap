@@ -1,9 +1,14 @@
 <template>
-
   <div class="sidebar-panel">
     <div class="sidebar-panel-header">
       <span class="sidebar-panel-header-title flex-1">{{ localeMsg.tag.title }}</span>
       <div class="flex items-center gap-1">
+        <TButton
+          :icon="IconMore"
+          :buttonSize="'small'"
+          tooltip="管理标签分类体系"
+          @click="showTaxonomyManager = true"
+        />
         <TButton
           :icon="IconAdd"
           :buttonSize="'small'"
@@ -84,13 +89,11 @@
       </div>
 
       <div v-else class="mt-2 px-2 flex flex-col items-center justify-center text-base-content/30">
-        <!-- <IconTag class="w-8 h-8 mb-2" /> -->
         <span class="text-sm text-center">{{ $t('tooltip.not_found.tag_hint') }}</span>
       </div>
     </div>
   </div>
-  
-  <!-- new tag -->
+
   <MessageBox
     v-if="showNewTagMsgbox"
     :title="$t('msgbox.new_tag.title')"
@@ -104,7 +107,6 @@
     @cancel="showNewTagMsgbox = false"
   />
 
-  <!-- delete tag -->
   <MessageBox
     v-if="showDeleteTagMsgbox"
     :title="$t('msgbox.delete_tag.title')"
@@ -115,6 +117,12 @@
     @ok="clickDeleteTag"
     @cancel="showDeleteTagMsgbox = false"
   />
+
+  <TaxonomyManager
+    v-if="showTaxonomyManager"
+    @close="showTaxonomyManager = false"
+    @changed="loadTags"
+  />
 </template>
 
 <script setup lang="ts">
@@ -122,19 +130,20 @@ import { ref, onMounted, computed, nextTick, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { config, libConfig } from '@/common/config';
 import { getAllTags, renameTag, deleteTag, createTag } from '@/common/api';
-import { 
+import {
   IconAdd,
   IconClose,
   IconMore,
   IconSearch,
   IconTag,
-  IconRename, 
+  IconRename,
   IconTrash,
 } from '@/common/icons';
 
 import ContextMenu from '@/components/ContextMenu.vue';
 import MessageBox from '@/components/MessageBox.vue';
 import TButton from '@/components/TButton.vue';
+import TaxonomyManager from '@/components/TaxonomyManager.vue';
 
 const props = defineProps({
   titlebar: {
@@ -143,13 +152,11 @@ const props = defineProps({
   }
 });
 
-/// i18n
 const { locale, messages } = useI18n();
 const localeMsg = computed(() => messages.value[locale.value] as any);
 
 const emit = defineEmits(['editDataChanged']);
 
-// tags
 const allTags = ref<any[]>([]);
 const selectedTag = ref<any>(null);
 const isRenamingTag = ref(false);
@@ -157,6 +164,7 @@ const originalTagName = ref('');
 const tagInputRef = ref<HTMLInputElement[]>([]);
 const tagSearch = ref('');
 const isTagSearchFocused = ref(false);
+const showTaxonomyManager = ref(false);
 
 const sortedTags = computed(() => allTags.value);
 const filteredTags = computed(() => {
@@ -165,7 +173,6 @@ const filteredTags = computed(() => {
   return sortedTags.value.filter(tag => tag.name.toLowerCase().includes(query));
 });
 
-// message boxes
 const showDeleteTagMsgbox = ref(false);
 const showNewTagMsgbox = ref(false);
 const tagContextMenus = ref<Record<number, any>>({});
@@ -175,7 +182,6 @@ function handleTagContextMenu(tag: any, event: MouseEvent) {
   tagContextMenus.value[tag.id]?.open?.(event.clientX, event.clientY);
 }
 
-// more menuitems
 const getMoreMenuItems = () => [
   {
     label: localeMsg.value.menu.tag.rename,
@@ -184,9 +190,7 @@ const getMoreMenuItems = () => [
       isRenamingTag.value = true;
       originalTagName.value = selectedTag.value.name;
       nextTick(() => {
-        if (tagInputRef.value) {
-          tagInputRef.value[0].focus();    // array of input elements
-        }
+        if (tagInputRef.value) tagInputRef.value[0].focus();
       });
     }
   },
@@ -234,24 +238,18 @@ function selectTag(tag: any) {
 
 async function handleRenameTag() {
   if (!isRenamingTag.value) return;
-
   const newName = selectedTag.value.name.trim();
-
   if (newName.length === 0 || newName === originalTagName.value) {
     isRenamingTag.value = false;
     selectedTag.value.name = originalTagName.value;
     return;
   }
-
-  // rename tag
   const result = await renameTag(selectedTag.value.id, newName);
-  if (result) {
-    isRenamingTag.value = false;
-  }
+  if (result) isRenamingTag.value = false;
 }
 
 function cancelRenameTag() {
-  selectedTag.value.name = originalTagName.value; // Revert the name on the selected tag
+  selectedTag.value.name = originalTagName.value;
   isRenamingTag.value = false;
 }
 
@@ -260,61 +258,40 @@ function clickAddTag() {
 }
 
 async function clickNewTag(newTagName: string) {
-  if (!newTagName || newTagName.trim().length === 0) {
-    return;
-  }
+  if (!newTagName || newTagName.trim().length === 0) return;
   const result = await createTag(newTagName);
   if (result) {
     showNewTagMsgbox.value = false;
     await loadTags();
-    
-    // select the new tag
     const newTag = allTags.value.find(tag => tag.name === newTagName);
     if (newTag) {
       selectTag(newTag);
-      nextTick(() => {
-        scrollToTag(newTag.id);
-      });
+      nextTick(() => scrollToTag(newTag.id));
     }
   }
 }
 
 function scrollToTag(tagId: number) {
   const tagElement = document.getElementById(`tag-${tagId}`);
-  if (tagElement) {
-    tagElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
+  if (tagElement) tagElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 async function clickDeleteTag() {
-  if (selectedTag.value) {
-    showDeleteTagMsgbox.value = false;
-    const result = await deleteTag(selectedTag.value.id);
-    if (result) {
-      // get the index of the selected tag
-      const index = allTags.value.findIndex(tag => tag.id === selectedTag.value.id);
-      // remove the selected tag
-      allTags.value = allTags.value.filter(tag => tag.id !== selectedTag.value.id);
-      // select the previous tag if exist
-      if (index > 0) {
-        selectTag(allTags.value[index - 1]);
-      } else if (index === 0) {
-        if (allTags.value.length > 0) {
-          selectTag(allTags.value[0]);
-        } else {
-          selectedTag.value = null;
-          libConfig.tag.id = null;
-        }
-      } else {
-        selectedTag.value = null;
-        libConfig.tag.id = null;
-      }
-    }
+  if (!selectedTag.value) return;
+  showDeleteTagMsgbox.value = false;
+  const result = await deleteTag(selectedTag.value.id);
+  if (!result) return;
+  const index = allTags.value.findIndex(tag => tag.id === selectedTag.value.id);
+  allTags.value = allTags.value.filter(tag => tag.id !== selectedTag.value.id);
+  if (index > 0) {
+    selectTag(allTags.value[index - 1]);
+  } else if (index === 0 && allTags.value.length > 0) {
+    selectTag(allTags.value[0]);
+  } else {
+    selectedTag.value = null;
+    libConfig.tag.id = null;
   }
 }
 
-defineExpose({
-  clickAddTag,
-});
-
+defineExpose({ clickAddTag });
 </script>
