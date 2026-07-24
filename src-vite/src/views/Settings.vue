@@ -597,6 +597,13 @@
               </div>
               <button class="btn btn-sm btn-ghost rounded-box bg-base-100 border border-base-content/30" @click="showAiReviewQueue = true">打开队列</button>
             </div>
+            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">
+                <div>AI 批量整理工作台</div>
+                <div class="text-xs text-base-content/30">批量发现未整理素材并生成结构化建议</div>
+              </div>
+              <button class="btn btn-sm btn-primary rounded-box" @click="showAiInboxWorkbench = true">开始整理</button>
+            </div>
           </div>
 
           <!-- diagnostics -->
@@ -623,6 +630,11 @@
 
     <OnlineAiManager v-if="showOnlineAiManager" @close="showOnlineAiManager = false" />
     <AiReviewQueue v-if="showAiReviewQueue" @close="showAiReviewQueue = false" />
+    <AiInboxWorkbench
+      v-if="showAiInboxWorkbench"
+      @close="showAiInboxWorkbench = false"
+      @open-review="openAiReviewFromInbox"
+    />
 
     <MessageBox
       v-if="showChangeDbStorageDialog"
@@ -693,6 +705,7 @@ import BackupDialog from '@/components/BackupDialog.vue';
 import RestoreDialog from '@/components/RestoreDialog.vue';
 import OnlineAiManager from '@/components/OnlineAiManager.vue';
 import AiReviewQueue from '@/components/AiReviewQueue.vue';
+import AiInboxWorkbench from '@/components/AiInboxWorkbench.vue';
 import TButton from '@/components/TButton.vue';
 
 /// i18n
@@ -724,6 +737,7 @@ const showBackupDialog = ref(false);
 const showRestoreDialog = ref(false);
 const showOnlineAiManager = ref(false);
 const showAiReviewQueue = ref(false);
+const showAiInboxWorkbench = ref(false);
 const isDownloadingMultilingualModel = ref(false);
 const isCancelingMultilingualModelDownload = ref(false);
 const multilingualModelDownloadProgress = ref(0);
@@ -735,6 +749,11 @@ let unlistenImageSearchModelDownloadProgress: (() => void) | null = null;
 const onRestoreDone = () => {
   showRestoreDialog.value = false;
   emit('libraries-changed');
+};
+
+const openAiReviewFromInbox = () => {
+  showAiInboxWorkbench.value = false;
+  showAiReviewQueue.value = true;
 };
 
 const languages = [

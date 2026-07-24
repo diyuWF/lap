@@ -93,6 +93,13 @@
         <template v-if="showExtraIcons">
           <IconSeparator class="t-icon-size-sm text-base-content/30" />
           <TButton
+            v-if="onlineAiEligible"
+            :icon="IconSparkles"
+            :disabled="fileIndex < 0 || isSlideShow || !canInteract"
+            :tooltip="'在线 AI 分析'"
+            @click="showAiAnalyzeDialog = true"
+          />
+          <TButton
             :icon="file?.is_favorite ? IconHeartFilled : IconHeart"
             :disabled="fileIndex < 0 || isSlideShow || !canInteract"
             :selected="file?.is_favorite && !isSlideShow"
@@ -386,6 +393,13 @@
 
     </template>
 
+    <AiAnalyzeDialog
+      v-if="showAiAnalyzeDialog"
+      :file="file"
+      @close="showAiAnalyzeDialog = false"
+      @done="showAiAnalyzeDialog = false"
+    />
+
     <ContextMenu
       ref="backgroundContextMenuRef"
       class="absolute h-0 w-0 overflow-hidden pointer-events-none"
@@ -408,6 +422,7 @@ import { getShortcutLabel, ShortcutActionId, ShortcutPlatform, VIEW_BACKGROUND_S
 
 import Image from '@/components/Image.vue';
 import PreviewPanel from '@/components/PreviewPanel.vue';
+import AiAnalyzeDialog from '@/components/AiAnalyzeDialog.vue';
 import TButton from '@/components/TButton.vue';
 import { 
   IconLeft, 
@@ -443,6 +458,7 @@ import {
   IconLink,
   IconVideoPlay,
   IconLivePhoto,
+  IconSparkles,
 } from '@/common/icons';
 import ContextMenu from '@/components/ContextMenu.vue';
 import iconLogo from '@/assets/images/icon.png';
@@ -565,6 +581,8 @@ const currentExtension = computed(() => {
   return name.includes('.') ? name.split('.').pop()?.toLowerCase() || '' : '';
 });
 const usePreviewPanel = computed(() => PREVIEW_PANEL_EXTENSIONS.has(currentExtension.value));
+const onlineAiEligible = computed(() => [1, 2, 3].includes(Number(props.file?.file_type)));
+const showAiAnalyzeDialog = ref(false);
 const isLivePhotoPlaying = ref(false);
 const isLivePhoto = computed(() => props.file?.media_subtype === 'live_photo' && !!props.file?.live_photo_video_path);
 const livePhotoViewport = ref<Record<string, number | boolean> | null>(null);
@@ -587,6 +605,7 @@ watch(
   () => {
     isLivePhotoPlaying.value = false;
     livePhotoViewport.value = null;
+    showAiAnalyzeDialog.value = false;
   },
 );
 

@@ -13,7 +13,7 @@
         <label class="form-control gap-1">
           <span class="text-xs text-base-content/55">工作流状态</span>
           <select v-model="workflowStatus" class="select select-bordered select-sm" @change="loadCandidates">
-            <option value="inbox">Inbox</option>
+            <option value="inbox">待整理</option>
             <option value="reviewed">已审核</option>
             <option value="selected">已选用</option>
             <option value="archived">已归档</option>

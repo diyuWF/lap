@@ -191,7 +191,10 @@ mod tests {
 
     #[test]
     fn normalizes_duplicate_and_invalid_file_ids() {
-        assert_eq!(normalize_file_ids(vec![0, 4, 4, -2, 7]).unwrap(), vec![4, 7]);
+        assert_eq!(
+            normalize_file_ids(vec![0, 4, 4, -2, 7]).unwrap(),
+            vec![4, 7]
+        );
     }
 
     #[test]
@@ -207,7 +210,10 @@ mod tests {
 
     #[test]
     fn normalizes_unknown_workflow_status_to_inbox() {
-        assert_eq!(normalize_workflow_status(Some("unknown".to_string())), "inbox");
+        assert_eq!(
+            normalize_workflow_status(Some("unknown".to_string())),
+            "inbox"
+        );
         assert_eq!(normalize_workflow_status(Some("ALL".to_string())), "all");
     }
 }
