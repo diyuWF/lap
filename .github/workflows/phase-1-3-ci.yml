@@ -22,26 +22,27 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: src-vite/package-lock.json
+
+      - name: Enable pnpm
+        run: corepack enable
 
       - name: Install frontend dependencies
         working-directory: src-vite
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Audit Simplified Chinese localization
         working-directory: src-vite
-        run: npm run i18n:audit:strict
+        run: pnpm i18n:audit:strict
 
       - name: Build frontend
         working-directory: src-vite
-        run: npm run build
+        run: pnpm build
 
       - name: Validate extension JavaScript
         run: |
           node --check lap-extension/background.js
           node --check lap-extension/options.js
-          if [ -f lap-extension/popup.js ]; then node --check lap-extension/popup.js; fi
+          node --check lap-extension/popup.js
 
       - name: Validate extension manifest
         run: node -e "JSON.parse(require('fs').readFileSync('lap-extension/manifest.json','utf8')); console.log('manifest.json OK')"
