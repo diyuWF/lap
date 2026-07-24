@@ -28,6 +28,22 @@ export async function getCaptureServerInfo() {
   return invoke('get_capture_server_info');
 }
 
+export async function getTaxonomySnapshot() {
+  return invoke('taxonomy_get_snapshot');
+}
+
+export async function saveTaxonomyGroup(input) {
+  return invoke('taxonomy_save_group', { input });
+}
+
+export async function deleteTaxonomyGroup(groupId, moveTagsToGroupId = null) {
+  return invoke('taxonomy_delete_group', { groupId, moveTagsToGroupId });
+}
+
+export async function saveTaxonomyTag(input) {
+  return invoke('taxonomy_save_tag', { input });
+}
+
 export async function listOnlineAiProviders() {
   return invoke('list_online_ai_providers');
 }
