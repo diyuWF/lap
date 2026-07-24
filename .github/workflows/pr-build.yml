@@ -92,25 +92,56 @@ jobs:
       - name: Cargo check
         working-directory: src-tauri
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CARGO_TERM_COLOR: never
+          CARGO_TERM_PROGRESS_WHEN: never
         run: |
           set +e
           cargo check --locked --message-format short > /tmp/cargo-check.txt 2>&1
           code=$?
           if [ "$code" -eq 0 ]; then
-            tail -n 40 /tmp/cargo-check.txt
-          else
-            {
-              echo "## 阶段 2–3 Rust 检查失败"
-              echo
-              echo '```text'
-              grep -n -E '(^error|error\[|\.rs:[0-9]+:[0-9]+|Caused by:|panicked at)' /tmp/cargo-check.txt | tail -n 160 || true
-              echo
-              tail -n 80 /tmp/cargo-check.txt
-              echo '```'
-            } > /tmp/cargo-comment.md
-            gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/cargo-comment.md
-            cat /tmp/cargo-comment.md
+            echo "Rust backend check passed."
+            tail -n 20 /tmp/cargo-check.txt
+            exit 0
           fi
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          text = Path('/tmp/cargo-check.txt').read_text(errors='replace').splitlines()
+          patterns = [
+              re.compile(r'(^|:)error(\[[A-Z0-9]+\])?:'),
+              re.compile(r'\.rs:\d+:\d+:'),
+              re.compile(r'cannot find|failed to resolve|mismatched types|no method named|private (function|struct|field)|borrow of moved value|use of moved value|the trait bound|future cannot be sent', re.I),
+              re.compile(r'Caused by:|panicked at'),
+          ]
+          hits = []
+          for index, line in enumerate(text):
+              if any(pattern.search(line) for pattern in patterns):
+                  start = max(0, index - 2)
+                  end = min(len(text), index + 5)
+                  hits.extend(text[start:end])
+          if not hits:
+              hits = text[-120:]
+          deduped = []
+          previous = None
+          for line in hits:
+              if line != previous:
+                  deduped.append(line)
+              previous = line
+          summary = '\n'.join(deduped[-220:])
+          Path('/tmp/cargo-summary.txt').write_text(summary)
+          print(summary)
+          PY
+
+          {
+            echo "## 阶段 2–3 Rust 检查失败"
+            echo
+            echo '```text'
+            cat /tmp/cargo-summary.txt
+            echo '```'
+          } > /tmp/cargo-comment.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/cargo-comment.md
           exit "$code"
-        env:
-          GH_TOKEN: ${{ github.token }}
