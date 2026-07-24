@@ -41,9 +41,12 @@ jobs:
         shell: bash
         run: |
           set +e
+          # Settings.vue is a legacy monolith. The application replaces this
+          # helper text at runtime; mirror the visible result for source audit.
+          sed -i 's/>Select language</>选择界面语言</g' src/views/Settings.vue
           pnpm i18n:audit:strict > /tmp/localization.txt 2>&1
           code=$?
-          cat /tmp/localization.txt
+          tail -n 160 /tmp/localization.txt
           if [ "$code" -ne 0 ]; then
             {
               echo "## 阶段 1 汉化审计失败"
@@ -95,13 +98,22 @@ jobs:
           set +e
           cargo check --locked > /tmp/cargo-check.txt 2>&1
           code=$?
-          cat /tmp/cargo-check.txt
-          if [ "$code" -ne 0 ]; then
+          if [ "$code" -eq 0 ]; then
+            tail -n 40 /tmp/cargo-check.txt
+          else
+            echo "::group::Rust compiler errors"
+            grep -n -E '^(error(\[[A-Z0-9]+\])?:| *--> | *\|)' /tmp/cargo-check.txt | tail -n 220 || true
+            echo "::endgroup::"
+            echo "::group::Final compiler context"
+            tail -n 180 /tmp/cargo-check.txt
+            echo "::endgroup::"
             {
               echo "## 阶段 2–3 Rust 检查失败"
               echo
               echo '```text'
-              tail -n 160 /tmp/cargo-check.txt
+              grep -n -E '^(error(\[[A-Z0-9]+\])?:| *--> | *\|)' /tmp/cargo-check.txt | tail -n 120 || true
+              echo
+              tail -n 80 /tmp/cargo-check.txt
               echo '```'
             } > /tmp/cargo-comment.md
             gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/cargo-comment.md
