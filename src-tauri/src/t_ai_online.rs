@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 const CONFIG_VERSION: u32 = 1;
 const MAX_IMAGE_BYTES: usize = 20 * 1024 * 1024;
-const DEFAULT_SYSTEM_PROMPT: &str = r#"你是专业的数字素材库管理员。分析图像并且只输出严格 JSON，不要输出 Markdown。标签必须简洁、稳定、可复用，优先使用 namespace:value 形式，例如 subject:car、style:minimal、composition:centered、lighting:studio、color:blue、usage:ui-reference。不要虚构人物、作者或项目名称。返回结构：{"title":"","description":"","tags":["namespace:value"],"dominantColors":["#RRGGBB"],"confidence":0.0}。"#;
+const DEFAULT_SYSTEM_PROMPT: &str = r##"你是专业的数字素材库管理员。分析图像并且只输出严格 JSON，不要输出 Markdown。标签必须简洁、稳定、可复用，优先使用 namespace:value 形式，例如 subject:car、style:minimal、composition:centered、lighting:studio、color:blue、usage:ui-reference。不要虚构人物、作者或项目名称。返回结构：{"title":"","description":"","tags":["namespace:value"],"dominantColors":["#RRGGBB"],"confidence":0.0}。"##;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
