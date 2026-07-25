@@ -1,0 +1,36 @@
+name: Chat Validation Package
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/chat-validation-package.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chat-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  build-windows-package:
+    name: Build verified Windows and browser package
+    runs-on: windows-2022
+    timeout-minutes: 150
+
+    steps:
+      - name: Checkout exact PR commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Apply requested sidebar
