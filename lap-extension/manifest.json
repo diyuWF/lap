@@ -1,14 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Lap 素材采集器",
-  "version": "0.2.0",
-  "description": "将网页图片、来源信息和标签快速保存到本地 Lap 素材库。",
+  "version": "0.4.0",
+  "description": "拖动网页图片，在可展开的文件夹选择器中保存到 Lap，并可进入 AI 自动整理流程。",
   "permissions": [
-    "contextMenus",
-    "activeTab",
-    "tabs",
-    "storage",
-    "scripting"
+    "storage"
   ],
   "host_permissions": [
     "http://127.0.0.1:47821/*"
@@ -17,8 +13,24 @@
     "service_worker": "background.js",
     "type": "module"
   },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
   "action": {
-    "default_title": "保存到 Lap",
+    "default_title": "Lap 素材采集器",
     "default_popup": "popup.html"
   },
   "options_page": "options.html"
