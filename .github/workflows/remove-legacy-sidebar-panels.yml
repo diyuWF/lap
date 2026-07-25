@@ -1,0 +1,166 @@
+name: Remove legacy sidebar panels
+
+on:
+  push:
+    branches:
+      - feat/phase4-ai-preview-pipeline
+    paths:
+      - .github/workflows/remove-legacy-sidebar-panels.yml
+
+permissions:
+  contents: write
+
+jobs:
+  remove-panels:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/phase4-ai-preview-pipeline
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Remove sidebar entries and unused panels
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src-vite/src/views/Home.vue')
+          text = path.read_text(encoding='utf-8')
+
+          exact_lines = [
+              "import Library from '@/components/Library.vue';\n",
+              "import Location from '@/components/Location.vue';\n",
+              "import Camera from '@/components/Camera.vue';\n",
+              "  IconLocation,\n",
+              "  IconCamera,\n",
+              "  IconStack,\n",
+              "  { index: SIDEBAR.LIBRARY, icon: IconStack, component: Library, text: localeMsg.value.sidebar.library },\n",
+              "  { index: SIDEBAR.LOCATION, icon: IconLocation, component: Location, text: localeMsg.value.sidebar.location },\n",
+              "  { index: SIDEBAR.CAMERA, icon: IconCamera, component: Camera, text: localeMsg.value.sidebar.camera },\n",
+          ]
+          for line in exact_lines:
+              count = text.count(line)
+              if count != 1:
+                  raise SystemExit(f'Home.vue expected one occurrence, found {count}: {line!r}')
+              text = text.replace(line, '', 1)
+
+          old_active = """const activeSidebarButton = computed(() =>
+  buttons.value.find(item => item.index === config.main.sidebarIndex) || buttons.value[SIDEBAR.LIBRARY]
+);
+"""
+          new_active = """const removedSidebarIndices = new Set<number>([
+  SIDEBAR.LIBRARY,
+  SIDEBAR.LOCATION,
+  SIDEBAR.CAMERA,
+]);
+
+const activeSidebarButton = computed(() =>
+  buttons.value.find(item => item.index === config.main.sidebarIndex)
+  || buttons.value.find(item => item.index === SIDEBAR.ALBUM)
+  || buttons.value[0]
+);
+"""
+          if text.count(old_active) != 1:
+              raise SystemExit('Home.vue activeSidebarButton block changed unexpectedly')
+          text = text.replace(old_active, new_active, 1)
+
+          old_visible = """const visibleButtons = computed(() =>
+  buttons.value
+    .map((item) => ({ ...item, disabled: libraryEmpty.value && item.index !== SIDEBAR.ALBUM }))
+    .filter(item => !item.hidden)
+    .sort((a, b) => a.index - b.index)
+);
+"""
+          new_visible = old_visible + """
+watch(
+  () => config.main.sidebarIndex,
+  (index) => {
+    if (removedSidebarIndices.has(index)) {
+      config.main.sidebarIndex = SIDEBAR.ALBUM;
+    }
+  },
+  { immediate: true },
+);
+"""
+          if text.count(old_visible) != 1:
+              raise SystemExit('Home.vue visibleButtons block changed unexpectedly')
+          text = text.replace(old_visible, new_visible, 1)
+          path.write_text(text, encoding='utf-8')
+
+          source_root = Path('src-vite/src')
+          candidates = [
+              source_root / 'components/Library.vue',
+              source_root / 'components/Location.vue',
+              source_root / 'components/Camera.vue',
+          ]
+          source_files = [
+              item for item in source_root.rglob('*')
+              if item.is_file() and item.suffix in {'.vue', '.js', '.ts', '.tsx', '.jsx'}
+          ]
+          for candidate in candidates:
+              stem = candidate.stem
+              patterns = (
+                  f'@/components/{stem}.vue',
+                  f'@/components/{stem}',
+                  f'./{stem}.vue',
+                  f'../components/{stem}.vue',
+              )
+              references = []
+              for item in source_files:
+                  if item == candidate:
+                      continue
+                  content = item.read_text(encoding='utf-8', errors='ignore')
+                  if any(pattern in content for pattern in patterns):
+                      references.append(str(item))
+              if references:
+                  print(f'Keeping {candidate}: referenced by {references}')
+              elif candidate.exists():
+                  candidate.unlink()
+                  print(f'Removed unused component {candidate}')
+
+          forbidden = [
+              "component: Library",
+              "component: Location",
+              "component: Camera",
+              "@/components/Library.vue",
+              "@/components/Location.vue",
+              "@/components/Camera.vue",
+          ]
+          home = path.read_text(encoding='utf-8')
+          leftovers = [value for value in forbidden if value in home]
+          if leftovers:
+              raise SystemExit(f'Legacy sidebar references remain: {leftovers}')
+          PY
+
+          rm .github/workflows/remove-legacy-sidebar-panels.yml
+          git diff --check
+
+      - name: Install frontend dependencies
+        working-directory: src-vite
+        run: pnpm install --frozen-lockfile
+
+      - name: Run strict Chinese audit
+        working-directory: src-vite
+        run: pnpm i18n:audit:strict
+
+      - name: Build frontend
+        working-directory: src-vite
+        run: pnpm exec vite build
+
+      - name: Commit cleaned sidebar
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "refactor(ui): remove asset location and camera sidebar panels"
+          git push origin HEAD:feat/phase4-ai-preview-pipeline
