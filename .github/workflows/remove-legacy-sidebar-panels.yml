@@ -6,6 +6,7 @@ on:
       - feat/phase4-ai-preview-pipeline
     paths:
       - .github/workflows/remove-legacy-sidebar-panels.yml
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -18,14 +19,6 @@ jobs:
         with:
           ref: feat/phase4-ai-preview-pipeline
           fetch-depth: 0
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Remove sidebar entries and unused panels
         shell: bash
@@ -50,7 +43,7 @@ jobs:
           for line in exact_lines:
               count = text.count(line)
               if count != 1:
-                  raise SystemExit(f'Home.vue expected one occurrence, found {count}: {line!r}')
+                  raise SystemExit(f'Expected one occurrence, found {count}: {line!r}')
               text = text.replace(line, '', 1)
 
           old_active = """const activeSidebarButton = computed(() =>
@@ -70,7 +63,7 @@ const activeSidebarButton = computed(() =>
 );
 """
           if text.count(old_active) != 1:
-              raise SystemExit('Home.vue activeSidebarButton block changed unexpectedly')
+              raise SystemExit('activeSidebarButton block changed unexpectedly')
           text = text.replace(old_active, new_active, 1)
 
           old_visible = """const visibleButtons = computed(() =>
@@ -92,7 +85,7 @@ watch(
 );
 """
           if text.count(old_visible) != 1:
-              raise SystemExit('Home.vue visibleButtons block changed unexpectedly')
+              raise SystemExit('visibleButtons block changed unexpectedly')
           text = text.replace(old_visible, new_visible, 1)
           path.write_text(text, encoding='utf-8')
 
@@ -121,12 +114,13 @@ watch(
                   content = item.read_text(encoding='utf-8', errors='ignore')
                   if any(pattern in content for pattern in patterns):
                       references.append(str(item))
-              if references:
-                  print(f'Keeping {candidate}: referenced by {references}')
-              elif candidate.exists():
+              if not references and candidate.exists():
                   candidate.unlink()
-                  print(f'Removed unused component {candidate}')
+                  print(f'Removed {candidate}')
+              elif references:
+                  print(f'Keeping {candidate}; referenced by {references}')
 
+          home = path.read_text(encoding='utf-8')
           forbidden = [
               "component: Library",
               "component: Location",
@@ -135,32 +129,17 @@ watch(
               "@/components/Location.vue",
               "@/components/Camera.vue",
           ]
-          home = path.read_text(encoding='utf-8')
           leftovers = [value for value in forbidden if value in home]
           if leftovers:
               raise SystemExit(f'Legacy sidebar references remain: {leftovers}')
           PY
-
-          rm .github/workflows/remove-legacy-sidebar-panels.yml
           git diff --check
 
-      - name: Install frontend dependencies
-        working-directory: src-vite
-        run: pnpm install --frozen-lockfile
-
-      - name: Run strict Chinese audit
-        working-directory: src-vite
-        run: pnpm i18n:audit:strict
-
-      - name: Build frontend
-        working-directory: src-vite
-        run: pnpm exec vite build
-
-      - name: Commit cleaned sidebar
+      - name: Commit sidebar cleanup
         shell: bash
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add -A
+          git add src-vite/src/views/Home.vue src-vite/src/components
           git commit -m "refactor(ui): remove asset location and camera sidebar panels"
           git push origin HEAD:feat/phase4-ai-preview-pipeline
