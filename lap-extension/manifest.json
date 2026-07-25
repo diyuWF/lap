@@ -2,9 +2,12 @@
   "manifest_version": 3,
   "name": "Lap 素材采集器",
   "version": "0.4.0",
-  "description": "拖动网页图片，在可展开的文件夹选择器中保存到 Lap，并可进入 AI 自动整理流程。",
+  "description": "拖动网页图片，在可展开的文件夹选择器中保存到 Lap；工具栏可批量采集当前页面图片。",
   "permissions": [
-    "storage"
+    "activeTab",
+    "tabs",
+    "storage",
+    "scripting"
   ],
   "host_permissions": [
     "http://127.0.0.1:47821/*"
