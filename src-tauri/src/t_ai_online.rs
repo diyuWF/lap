@@ -523,6 +523,79 @@ fn apply_extra_headers(
     Ok(request)
 }
 
+fn compact_service_message(value: &str) -> String {
+    value
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(240)
+        .collect()
+}
+
+fn ai_http_error(
+    status: reqwest::StatusCode,
+    value: &JsonValue,
+    provider: &StoredOnlineAiProvider,
+    url: &str,
+) -> String {
+    let metadata = &value["error"]["metadata"];
+    let provider_name = metadata["provider_name"]
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let raw = metadata["raw"]
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let message = value["error"]["message"]
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+
+    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        let upstream_limited = raw
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .contains("temporarily rate-limited upstream");
+        if upstream_limited {
+            let upstream = provider_name
+                .map(|name| format!("在 {} 上游", name))
+                .unwrap_or_else(|| "在上游".to_string());
+            return format!(
+                "当前模型 {} {}暂时限流。请稍后重试，或在 OpenRouter 配置自有上游密钥/更换可用模型。",
+                provider.model,
+                upstream
+            );
+        }
+        return format!(
+            "AI 服务请求过于频繁（HTTP 429）。请稍后重试，或检查 {} 的额度与限流设置。",
+            provider.name
+        );
+    }
+
+    if status == reqwest::StatusCode::UNAUTHORIZED
+        || status == reqwest::StatusCode::FORBIDDEN
+    {
+        return format!(
+            "AI 服务认证失败（HTTP {}）。请检查 API 密钥、账户权限和服务商配置。",
+            status.as_u16()
+        );
+    }
+
+    let detail = raw
+        .or(message)
+        .map(compact_service_message)
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "服务商没有返回可读的错误说明".to_string());
+    format!(
+        "AI 服务请求失败（HTTP {}）：{}。请求地址：{}",
+        status.as_u16(),
+        detail,
+        url
+    )
+}
+
 async fn send_request(
     provider: &StoredOnlineAiProvider,
     url: &str,
@@ -599,10 +672,7 @@ async fn send_request(
         )
     })?;
     if !status.is_success() {
-        return Err(format!(
-            "AI 服务请求失败（HTTP {}）：{}。请求地址：{}",
-            status, value, url
-        ));
+        return Err(ai_http_error(status, &value, provider, url));
     }
     Ok(value)
 }

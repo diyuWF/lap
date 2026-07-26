@@ -20,6 +20,12 @@
   position: fixed;
   inset: 0;
   z-index: 2147483646;
+  display: block;
+  background: transparent;
+  pointer-events: none;
+}
+
+.lap-capture-overlay.is-panel-open {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -27,6 +33,159 @@
   background: rgba(18, 20, 27, 0.38);
   backdrop-filter: blur(9px);
   -webkit-backdrop-filter: blur(9px);
+  pointer-events: auto;
+}
+
+.lap-capture-intent {
+  position: fixed;
+  z-index: 2;
+  display: grid;
+  width: 274px;
+  gap: 9px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  background: rgba(27, 29, 38, 0.9);
+  box-shadow: 0 14px 42px rgba(13, 15, 23, 0.28);
+  color: #fff;
+  pointer-events: none;
+}
+
+.lap-capture-intent-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.lap-capture-intent-copy strong {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.lap-capture-intent-copy span {
+  color: #c7cbd5;
+  font-size: 10px;
+}
+
+.lap-capture-intent-progress {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.lap-capture-intent-progress::after {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: #8a77ff;
+  content: "";
+  animation: lap-capture-intent-fill 1.3s linear forwards;
+}
+
+.lap-capture-radial {
+  position: fixed;
+  z-index: 3;
+  width: 328px;
+  height: 328px;
+  border-radius: 50%;
+  background: rgba(18, 20, 28, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  pointer-events: none;
+}
+
+.lap-capture-radial-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: 110px;
+  height: 110px;
+  place-content: center;
+  gap: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  background: rgba(29, 31, 42, 0.92);
+  box-shadow: 0 16px 44px rgba(13, 15, 23, 0.32);
+  color: #fff;
+  text-align: center;
+  transform: translate(-50%, -50%);
+}
+
+.lap-capture-radial-center strong {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.lap-capture-radial-center span {
+  color: #c7cbd5;
+  font-size: 9px;
+}
+
+.lap-capture-radial-items {
+  position: absolute;
+  inset: 0;
+}
+
+.lap-capture-radial-item {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: 78px;
+  height: 78px;
+  place-content: center;
+  justify-items: center;
+  gap: 3px;
+  padding: 7px;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.82);
+  border-radius: 50%;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 30px rgba(19, 21, 31, 0.24);
+  color: #343847;
+  cursor: copy;
+  font: inherit;
+  pointer-events: auto;
+  text-align: center;
+  transform: translate(-50%, -50%) translate(var(--lap-radial-x), var(--lap-radial-y));
+  transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+
+.lap-capture-radial-item > span:last-child {
+  display: block;
+  width: 64px;
+  overflow: hidden;
+  font-size: 9px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lap-capture-radial-folder-mark {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #eeeafd;
+  color: #6048db;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.lap-capture-radial-item.is-more strong {
+  color: #6048db;
+  font-size: 12px;
+}
+
+.lap-capture-radial-item.is-target {
+  border-color: #6e54eb;
+  background: #ebe6ff;
+  box-shadow:
+    0 0 0 6px rgba(98, 70, 234, 0.22),
+    0 16px 36px rgba(31, 23, 74, 0.28);
 }
 
 .lap-capture-panel {
@@ -43,6 +202,7 @@
     0 32px 100px rgba(14, 16, 24, 0.32),
     0 2px 10px rgba(14, 16, 24, 0.14);
   color: #1f2430;
+  pointer-events: auto;
 }
 
 .lap-capture-header {
@@ -614,61 +774,23 @@
   top: -10000px;
   left: -10000px;
   z-index: 2147483647;
-  display: grid;
-  width: 286px;
-  height: 76px;
-  align-items: center;
-  grid-template-columns: 54px minmax(0, 1fr) auto;
-  gap: 10px;
-  padding: 10px;
+  display: block;
+  max-width: 180px;
+  max-height: 140px;
   overflow: hidden;
-  border: 1px solid rgba(78, 58, 185, 0.28);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.97);
-  box-shadow: 0 18px 45px rgba(18, 20, 31, 0.28);
-  color: #232733;
+  border: 2px solid rgba(255, 255, 255, 0.82);
+  border-radius: 13px;
+  background: transparent;
+  box-shadow: 0 16px 42px rgba(18, 20, 31, 0.3);
+  object-fit: contain;
+  opacity: 0.58;
   pointer-events: none;
 }
 
-.lap-capture-drag-ghost-image {
-  display: block;
-  width: 54px;
-  height: 54px;
-  border-radius: 10px;
-  background: #e9eaf0;
-  object-fit: cover;
-}
-
-.lap-capture-drag-ghost-copy {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-}
-
-.lap-capture-drag-ghost-copy strong {
-  overflow: hidden;
-  color: #222631;
-  font-size: 13px;
-  font-weight: 780;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lap-capture-drag-ghost-copy span {
-  overflow: hidden;
-  color: #747989;
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lap-capture-drag-ghost-badge {
-  padding: 3px 7px;
-  border-radius: 999px;
-  background: #6246ea;
-  color: #fff;
-  font-size: 9px;
-  font-weight: 800;
+@keyframes lap-capture-intent-fill {
+  to {
+    width: 100%;
+  }
 }
 
 @keyframes lap-capture-spin {
@@ -678,7 +800,7 @@
 }
 
 @media (max-width: 720px), (max-height: 560px) {
-  .lap-capture-overlay {
+  .lap-capture-overlay.is-panel-open {
     padding: 10px;
   }
 
@@ -723,7 +845,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .lap-capture-overlay *,
-  .lap-capture-drag-ghost * {
+  .lap-capture-drag-ghost {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }

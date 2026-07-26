@@ -8,7 +8,9 @@ Date: 2026-07-26
 
 Branch: `feat/phase4-ai-preview-pipeline`
 
-Commit: `f8b84f002dda25f0864686d411bd69864e63cb29`
+Manual feedback baseline commit: `a1ab547aafa9845432d2384e5f0e0e38a3722ca0`
+
+Manual feedback baseline package: `Lap-0.4.1-Chat-Delivery-10`
 
 Environment: Windows desktop application and Chromium browser extension; Pinterest image detail page
 
@@ -100,14 +102,21 @@ Functions:
 - [ ] Page title saved
 - [ ] Duplicate handling works
 
-Result: FAILED
+Result: FAILED — focused rework implemented; awaiting a fresh package
 
-Evidence: Dragging an image opens the Lap destination overlay, but the overlay is only partially styled and the preview is broken.
+Evidence:
+
+- The extension settings page finds the capture service only after manually testing a copied address and Token.
+- With an invalid Token, the page shows raw English `Invalid pairing token`.
+- In Windows light mode, labels and default-rule controls have insufficient contrast.
+- Dragging an image immediately opens a large destination panel and uses a pointer card. This does not provide a clear intent threshold and is not the requested image-following interaction.
 
 Issues:
 
-- The drag operation has no clear image/confirmation card following the pointer.
-- The capture overlay is incomplete, has unreadable low-contrast content, and shows a broken preview image.
+- The setup flow needs a one-click local Lap detector that distinguishes “Lap not running”, “Lap found but Token missing”, and “Lap found but Token invalid”.
+- Light-theme labels, placeholders, status messages, and controls need accessible contrast.
+- The dragged image should become semi-transparent and follow the pointer. Only after a 1–2 second hold should a radial folder menu appear.
+- Dropping on a radial folder should lead to explicit save confirmation; “More folders” should open the complete folder browser.
 
 ## 6. Online AI
 
@@ -129,14 +138,18 @@ Functions:
 - [ ] Reject does not apply tags
 - [ ] Restart preserves configuration
 
-Result: FAILED
+Result: FAILED — endpoint retest passed; rate-limit UX rework implemented; awaiting a fresh package
 
-Evidence: An OpenAI-compatible OpenRouter provider configured with `https://openrouter.ai` returned HTTP 200 HTML beginning with `<!DOCTYPE html>` instead of JSON.
+Evidence:
+
+- OpenRouter configured with `https://openrouter.ai` now requests `https://openrouter.ai/api/v1/chat/completions`.
+- The provider returned JSON `HTTP 429` from Google AI Studio for `google/gemma-4-31b-it:free`, confirming that the request reached the correct API.
+- Lap displayed the complete upstream JSON payload, including an internal `user_id`, instead of a concise, safe explanation.
 
 Issues:
 
-- The OpenRouter root URL is joined to `/chat/completions` instead of the required `/api/v1/chat/completions` endpoint.
-- The non-JSON response error renders a long HTML excerpt that obscures the actionable configuration problem.
+- Upstream rate limits need a provider-aware Chinese message with retry, own-key, and model-switch guidance.
+- Raw provider payloads and internal identifiers must not be shown in the UI.
 
 ## Final status
 
@@ -148,5 +161,8 @@ Issues:
 
 | ID | Description | Severity | Status |
 |---|---|---|---|
-| LAP-VAL-001 | OpenRouter root URL reaches the website HTML response instead of the OpenAI-compatible JSON API; the resulting error is excessively verbose. | High | Fix implemented; awaiting retest |
-| LAP-VAL-002 | Browser drag capture lacks a pointer-following confirmation state, and the truncated overlay stylesheet causes incomplete layout, low contrast, and a broken preview presentation. | High | Fix implemented; awaiting retest |
+| LAP-VAL-001 | OpenRouter root URL reached website HTML instead of the OpenAI-compatible JSON API. | High | Retest PASS — correct endpoint returned provider JSON |
+| LAP-VAL-002 | Browser drag capture lacked feedback and the overlay stylesheet was truncated. | High | Partial retest PASS; interaction design superseded by LAP-VAL-005 |
+| LAP-VAL-003 | HTTP 429 shows raw upstream JSON and an internal user identifier instead of a safe, actionable Chinese rate-limit message. | High | Fix implemented; awaiting automated and manual retest |
+| LAP-VAL-004 | Extension setup lacks local auto-detection, exposes a raw English Token error, and has insufficient light-theme contrast. | High | Fix implemented; awaiting automated and manual retest |
+| LAP-VAL-005 | Drag capture opens the destination UI without a clear intent threshold; expected behavior is a semi-transparent pointer-following image followed by a delayed radial folder menu. | High | Fix implemented; awaiting automated and manual retest |

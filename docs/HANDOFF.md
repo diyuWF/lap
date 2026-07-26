@@ -120,19 +120,23 @@ Windows validation-package build before that package is used for manual testing.
 
 Current state:
 
-`FIX IMPLEMENTED — AWAITING AUTOMATED AND MANUAL REVALIDATION`
+`FAILED — SECOND FOCUSED VALIDATION FIX IMPLEMENTED`
 
 Reason:
 
-Manual Windows validation confirmed two focused defects, and focused fixes are
-now implemented:
+The first focused package (`Lap-0.4.1-Chat-Delivery-10`) passed its automated
+checks. Manual retest confirmed that OpenRouter now reaches the correct JSON API,
+then identified three remaining UX defects:
 
-- OpenRouter root URLs are routed to website HTML instead of the JSON API endpoint.
-- The browser drag-capture confirmation and overlay presentation are incomplete.
+- OpenRouter/Google AI Studio `HTTP 429` responses expose raw provider JSON and
+  internal identifiers instead of a concise rate-limit explanation.
+- Browser capture setup has no local auto-detection, does not distinguish Token
+  problems from a stopped Lap service, and has insufficient light-theme contrast.
+- Drag capture needs a semi-transparent image following the pointer, a deliberate
+  1.3-second intent threshold, and then a radial destination menu.
 
-Local frontend, extension syntax, extension DOM regression, CSS parsing, and
-patch checks pass. Rust validation and the fresh Windows package remain pending
-on GitHub Actions.
+Focused fixes are implemented in the working branch. Local validation, a new
+GitHub PR build, and a new Windows validation package are still required.
 
 Do not start future phases. Produce a fresh Windows validation package and
 return to manual validation.
@@ -174,11 +178,23 @@ Real API behavior depends on:
 OpenRouter compatibility must accept both its root URL and `/api/v1` base URL,
 and route both to `/api/v1/chat/completions`.
 
+Free OpenRouter models may be temporarily limited by their upstream provider.
+HTTP error messages must summarize safe provider/model details only; never render
+the complete provider payload or internal user identifiers.
+
 ### Browser extension drag capture
 
-The capture overlay stylesheet in the current validation package is truncated.
-The replacement must restore the complete overlay layout and add an explicit
-pointer-following drag confirmation before the next manual package is issued.
+The next package must be manually checked on a real Chromium page. Verify the
+native semi-transparent drag image follows the pointer, the radial folder menu
+does not appear before the 1.3-second threshold, folder drop opens confirmation,
+and releasing early does not leave an overlay behind.
+
+### Browser extension setup
+
+The capture service remains bound to `127.0.0.1:47821`. `/health` is intentionally
+available without a Token so the extension can detect a running local Lap. All
+folder and capture endpoints remain Token-protected; do not expose the Token
+through an unauthenticated discovery endpoint.
 
 ### Professional formats
 

@@ -1,6 +1,8 @@
 (() => {
   const HOVER_EXPAND_MS = 520;
-  const CLOSE_AFTER_DRAG_MS = 1200;
+  const INTENT_CONFIRM_MS = 1300;
+  const CLOSE_AFTER_DRAG_MS = 160;
+  const RADIAL_SIZE = 328;
 
   let overlay = null;
   let mode = 'idle';
@@ -9,8 +11,15 @@
   let recentFolderPaths = [];
   let expanded = new Set();
   let hoverTimer = null;
+  let intentTimer = null;
+  let intentReady = false;
+  let foldersReady = false;
+  let folderLoadError = null;
+  let lastDragPoint = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  let radialAnchor = null;
   let selectedFolder = null;
   let dragGhost = null;
+  let captureSession = 0;
 
   function sendMessage(message) {
     return new Promise((resolve, reject) => {
@@ -73,13 +82,20 @@
     hoverTimer = null;
   }
 
+  function clearIntentTimer() {
+    if (intentTimer) clearTimeout(intentTimer);
+    intentTimer = null;
+  }
+
   function removeDragGhost() {
     dragGhost?.remove();
     dragGhost = null;
   }
 
   function closeOverlay() {
+    captureSession += 1;
     clearHoverTimer();
+    clearIntentTimer();
     removeDragGhost();
     overlay?.remove();
     overlay = null;
@@ -89,6 +105,10 @@
     folders = [];
     recentFolderPaths = [];
     expanded = new Set();
+    intentReady = false;
+    foldersReady = false;
+    folderLoadError = null;
+    radialAnchor = null;
   }
 
   function escapeHtml(value) {
@@ -104,50 +124,62 @@
     if (!dataTransfer) return;
     removeDragGhost();
 
-    dragGhost = document.createElement('div');
+    dragGhost = image.cloneNode(false);
     dragGhost.className = 'lap-capture-drag-ghost';
+    dragGhost.removeAttribute('id');
+    dragGhost.removeAttribute('srcset');
+    dragGhost.removeAttribute('sizes');
+    dragGhost.removeAttribute('style');
+    dragGhost.removeAttribute('width');
+    dragGhost.removeAttribute('height');
+    dragGhost.src = image.currentSrc || image.src;
+    dragGhost.alt = '';
+    dragGhost.draggable = false;
 
-    const thumbnail = image.cloneNode(false);
-    thumbnail.className = 'lap-capture-drag-ghost-image';
-    thumbnail.removeAttribute('id');
-    thumbnail.removeAttribute('srcset');
-    thumbnail.removeAttribute('sizes');
-    thumbnail.src = image.currentSrc || image.src;
-    thumbnail.alt = '';
-    thumbnail.draggable = false;
-
-    const copy = document.createElement('div');
-    copy.className = 'lap-capture-drag-ghost-copy';
-    copy.innerHTML = '<strong>保存到 Lap</strong><span>拖到文件夹，松开后确认</span>';
-
-    const badge = document.createElement('span');
-    badge.className = 'lap-capture-drag-ghost-badge';
-    badge.textContent = '复制';
-
-    dragGhost.append(thumbnail, copy, badge);
+    const sourceWidth = Math.max(currentAsset.displayWidth, currentAsset.naturalWidth, 120);
+    const sourceHeight = Math.max(currentAsset.displayHeight, currentAsset.naturalHeight, 90);
+    const scale = Math.min(180 / sourceWidth, 140 / sourceHeight, 1);
+    const width = Math.max(12, Math.round(sourceWidth * scale));
+    const height = Math.max(12, Math.round(sourceHeight * scale));
+    dragGhost.style.width = `${width}px`;
+    dragGhost.style.height = `${height}px`;
     document.documentElement.appendChild(dragGhost);
 
     try {
       dataTransfer.effectAllowed = 'copy';
       dataTransfer.setData('application/x-lap-capture', currentAsset.sourceUrl);
-      dataTransfer.setDragImage(dragGhost, 30, 30);
+      dataTransfer.setDragImage(dragGhost, Math.round(width / 2), Math.round(height / 2));
     } catch {
       // Some pages restrict custom drag data. The overlay remains usable.
     }
   }
 
   function createOverlay() {
-    mode = 'loading';
+    mode = 'intent';
     overlay = document.createElement('div');
     overlay.className = 'lap-capture-overlay';
     overlay.innerHTML = `
-      <section class="lap-capture-panel" role="dialog" aria-label="保存到 Lap">
+      <div class="lap-capture-intent" aria-live="polite">
+        <div class="lap-capture-intent-copy">
+          <strong>继续拖住以保存</strong>
+          <span>约 1.3 秒后显示文件夹菜单</span>
+        </div>
+        <span class="lap-capture-intent-progress" aria-hidden="true"></span>
+      </div>
+      <div class="lap-capture-radial" role="menu" aria-label="保存到文件夹" hidden>
+        <div class="lap-capture-radial-center">
+          <strong>保存到 Lap</strong>
+          <span>拖到文件夹并松开</span>
+        </div>
+        <div class="lap-capture-radial-items"></div>
+      </div>
+      <section class="lap-capture-panel" role="dialog" aria-label="保存到 Lap" hidden>
         <header class="lap-capture-header">
           <div class="lap-capture-brand">
             <span class="lap-capture-logo">L</span>
             <div>
               <strong>保存到 Lap</strong>
-              <span>拖到文件夹上，停留自动展开</span>
+              <span>选择文件夹后确认保存</span>
             </div>
           </div>
           <button class="lap-capture-close" type="button" aria-label="关闭">×</button>
@@ -181,11 +213,9 @@
         </div>
       </section>`;
 
-    overlay.addEventListener('dragover', (event) => {
-      if (mode === 'picking') event.preventDefault();
-    });
     overlay.querySelector('.lap-capture-close').addEventListener('click', closeOverlay);
     document.documentElement.appendChild(overlay);
+    positionCaptureUi(lastDragPoint.x, lastDragPoint.y);
 
     const preview = overlay.querySelector('.lap-capture-preview-image');
     const previewFallback = overlay.querySelector('.lap-capture-preview-fallback');
@@ -201,6 +231,49 @@
       <strong>${escapeHtml(sourceFileName(currentAsset.sourceUrl))}</strong>
       <span>${escapeHtml(dimensions)}</span>
       <span>${escapeHtml(location.hostname)}</span>`;
+  }
+
+  function positionCaptureUi(clientX, clientY) {
+    if (!overlay) return;
+    const x = Number.isFinite(clientX) && clientX > 0 ? clientX : window.innerWidth / 2;
+    const y = Number.isFinite(clientY) && clientY > 0 ? clientY : window.innerHeight / 2;
+    lastDragPoint = { x, y };
+
+    const intent = overlay.querySelector('.lap-capture-intent');
+    if (intent && !intent.hidden) {
+      const left = Math.min(Math.max(12, x + 24), Math.max(12, window.innerWidth - 286));
+      const top = Math.min(Math.max(12, y + 22), Math.max(12, window.innerHeight - 82));
+      intent.style.left = `${left}px`;
+      intent.style.top = `${top}px`;
+    }
+
+    const radial = overlay.querySelector('.lap-capture-radial');
+    if (radial && !radial.hidden) {
+      const anchor = radialAnchor || { x, y };
+      const left = Math.min(
+        Math.max(10, anchor.x - RADIAL_SIZE / 2),
+        Math.max(10, window.innerWidth - RADIAL_SIZE - 10),
+      );
+      const top = Math.min(
+        Math.max(10, anchor.y - RADIAL_SIZE / 2),
+        Math.max(10, window.innerHeight - RADIAL_SIZE - 10),
+      );
+      radial.style.left = `${left}px`;
+      radial.style.top = `${top}px`;
+    }
+  }
+
+  function hideIntentUi() {
+    if (!overlay) return;
+    overlay.querySelector('.lap-capture-intent').hidden = true;
+    overlay.querySelector('.lap-capture-radial').hidden = true;
+  }
+
+  function openPanel() {
+    if (!overlay) return;
+    hideIntentUi();
+    overlay.classList.add('is-panel-open');
+    overlay.querySelector('.lap-capture-panel').hidden = false;
   }
 
   function setStatus(message, kind = 'normal', action = null) {
@@ -253,6 +326,152 @@
     return { roots, byKey };
   }
 
+  function radialFolderCandidates() {
+    const { roots, byKey } = buildFolderTree();
+    const candidates = [];
+    const seen = new Set();
+    const add = (folder) => {
+      if (!folder || seen.has(folder.key)) return;
+      seen.add(folder.key);
+      candidates.push(folder);
+    };
+    recentFolderPaths
+      .map((path) => byKey.get(normalizePath(path).toLowerCase()))
+      .forEach(add);
+    roots.forEach(add);
+    [...byKey.values()].forEach(add);
+    return candidates.slice(0, 5);
+  }
+
+  function createRadialFolder(folder, index, total) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'lap-capture-radial-item';
+    button.dataset.path = folder.path;
+    button.setAttribute('role', 'menuitem');
+    button.title = folder.path;
+    button.innerHTML = `
+      <span class="lap-capture-radial-folder-mark" aria-hidden="true">目录</span>
+      <span>${escapeHtml(folder.name)}</span>`;
+
+    const angle = -Math.PI / 2 + (Math.PI * 2 * index) / total;
+    button.style.setProperty('--lap-radial-x', `${Math.cos(angle) * 116}px`);
+    button.style.setProperty('--lap-radial-y', `${Math.sin(angle) * 116}px`);
+
+    button.addEventListener('dragenter', (event) => {
+      if (mode !== 'radial') return;
+      event.preventDefault();
+      button.classList.add('is-target');
+    });
+    button.addEventListener('dragover', (event) => {
+      if (mode !== 'radial') return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    });
+    button.addEventListener('dragleave', (event) => {
+      if (button.contains(event.relatedTarget)) return;
+      button.classList.remove('is-target');
+    });
+    button.addEventListener('drop', (event) => {
+      if (mode !== 'radial') return;
+      event.preventDefault();
+      event.stopPropagation();
+      selectedFolder = folder;
+      showConfirmation();
+    });
+    return button;
+  }
+
+  function showFolderBrowser() {
+    if (!overlay) return;
+    mode = 'browsing';
+    openPanel();
+    overlay.querySelector('.lap-capture-status').hidden = true;
+    overlay.querySelector('.lap-capture-confirm').hidden = true;
+    overlay.querySelector('.lap-capture-folder-area').hidden = false;
+    renderFolders();
+  }
+
+  function showRadialMenu() {
+    if (!overlay || !foldersReady || folderLoadError) return;
+    mode = 'radial';
+    const intent = overlay.querySelector('.lap-capture-intent');
+    const radial = overlay.querySelector('.lap-capture-radial');
+    const items = overlay.querySelector('.lap-capture-radial-items');
+    const candidates = radialFolderCandidates();
+    const showMore = folders.length > candidates.length;
+    const total = candidates.length + (showMore ? 1 : 0);
+
+    radialAnchor = { ...lastDragPoint };
+    intent.hidden = true;
+    radial.hidden = false;
+    items.textContent = '';
+    candidates.forEach((folder, index) => {
+      items.appendChild(createRadialFolder(folder, index, total));
+    });
+
+    if (showMore) {
+      const more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'lap-capture-radial-item is-more';
+      more.setAttribute('role', 'menuitem');
+      more.innerHTML = '<strong>更多</strong><span>全部文件夹</span>';
+      const angle = -Math.PI / 2 + (Math.PI * 2 * candidates.length) / total;
+      more.style.setProperty('--lap-radial-x', `${Math.cos(angle) * 116}px`);
+      more.style.setProperty('--lap-radial-y', `${Math.sin(angle) * 116}px`);
+      more.addEventListener('dragenter', (event) => {
+        if (mode !== 'radial') return;
+        event.preventDefault();
+        more.classList.add('is-target');
+      });
+      more.addEventListener('dragover', (event) => {
+        if (mode !== 'radial') return;
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+      });
+      more.addEventListener('dragleave', () => more.classList.remove('is-target'));
+      more.addEventListener('drop', (event) => {
+        if (mode !== 'radial') return;
+        event.preventDefault();
+        event.stopPropagation();
+        removeDragGhost();
+        showFolderBrowser();
+      });
+      more.addEventListener('click', showFolderBrowser);
+      items.appendChild(more);
+    }
+    positionCaptureUi(lastDragPoint.x, lastDragPoint.y);
+  }
+
+  function resolveIntentState() {
+    if (!overlay || !intentReady || mode !== 'intent') return;
+    if (folderLoadError) {
+      mode = 'error';
+      openPanel();
+      setStatus(folderLoadError, 'error', {
+        label: '打开扩展设置',
+        run: () => sendMessage({ type: 'lap:open-options' }),
+      });
+      return;
+    }
+    if (foldersReady) {
+      showRadialMenu();
+      return;
+    }
+    overlay.querySelector('.lap-capture-intent-copy').innerHTML = `
+      <strong>已确认保存意图</strong>
+      <span>正在读取 Lap 文件夹…</span>`;
+  }
+
+  function startIntentConfirmation() {
+    clearIntentTimer();
+    intentTimer = setTimeout(() => {
+      intentTimer = null;
+      intentReady = true;
+      resolveIntentState();
+    }, INTENT_CONFIRM_MS);
+  }
+
   function scheduleExpand(folder, row) {
     clearHoverTimer();
     if (!folder.children.length || expanded.has(folder.key)) return;
@@ -283,13 +502,13 @@
       ${hasChildren ? `<span class="lap-capture-child-count">${folder.children.length}</span>` : ''}`;
 
     row.addEventListener('dragenter', (event) => {
-      if (mode !== 'picking') return;
+      if (mode !== 'browsing') return;
       event.preventDefault();
       row.classList.add('is-target');
       scheduleExpand(folder, row);
     });
     row.addEventListener('dragover', (event) => {
-      if (mode !== 'picking') return;
+      if (mode !== 'browsing') return;
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
     });
@@ -299,18 +518,24 @@
       cancelExpand(row);
     });
     row.addEventListener('drop', (event) => {
-      if (mode !== 'picking') return;
+      if (mode !== 'browsing') return;
       event.preventDefault();
       event.stopPropagation();
       cancelExpand(row);
       selectedFolder = folder;
       showConfirmation();
     });
-    row.addEventListener('click', () => {
-      if (!hasChildren || mode !== 'picking') return;
+    row.querySelector('.lap-capture-chevron').addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (!hasChildren || mode !== 'browsing') return;
       if (expanded.has(folder.key)) expanded.delete(folder.key);
       else expanded.add(folder.key);
       renderFolders();
+    });
+    row.addEventListener('click', () => {
+      if (mode !== 'browsing') return;
+      selectedFolder = folder;
+      showConfirmation();
     });
     return row;
   }
@@ -340,23 +565,23 @@
     recent.forEach((folder) => recentList.appendChild(createFolderRow(folder, 0, true)));
   }
 
-  async function loadFolderState() {
+  async function loadFolderState(session) {
     const response = await sendMessage({ type: 'lap:get-state' });
+    if (!overlay || session !== captureSession) return;
     if (!response?.ok) throw new Error(response?.error || '无法读取 Lap 文件夹');
     folders = response.folders || [];
     recentFolderPaths = response.recentFolders || [];
     if (!folders.length) throw new Error('Lap 中还没有可用文件夹，请先添加资料库文件夹。');
 
-    mode = 'picking';
-    overlay.querySelector('.lap-capture-status').hidden = true;
-    overlay.querySelector('.lap-capture-folder-area').hidden = false;
-    renderFolders();
+    foldersReady = true;
+    resolveIntentState();
   }
 
   function showConfirmation() {
     mode = 'confirming';
     clearHoverTimer();
     removeDragGhost();
+    openPanel();
     overlay.querySelector('.lap-capture-folder-area').hidden = true;
     overlay.querySelector('.lap-capture-status').hidden = true;
     const confirm = overlay.querySelector('.lap-capture-confirm');
@@ -386,10 +611,8 @@
       </div>`;
 
     confirm.querySelector('[data-action="back"]').addEventListener('click', () => {
-      mode = 'picking';
       selectedFolder = null;
-      confirm.hidden = true;
-      overlay.querySelector('.lap-capture-folder-area').hidden = false;
+      showFolderBrowser();
     });
     confirm.querySelector('[data-action="save"]').addEventListener('click', saveConfirmedAsset);
   }
@@ -468,20 +691,20 @@
   async function beginCapture(image, event) {
     closeOverlay();
     currentAsset = createAsset(image);
+    lastDragPoint = {
+      x: event.clientX || window.innerWidth / 2,
+      y: event.clientY || window.innerHeight / 2,
+    };
+    const session = captureSession;
     createOverlay();
     createDragGhost(image, event.dataTransfer);
+    startIntentConfirmation();
     try {
-      await loadFolderState();
+      await loadFolderState(session);
     } catch (error) {
-      mode = 'error';
-      setStatus(
-        error instanceof Error ? error.message : String(error),
-        'error',
-        {
-          label: '打开扩展设置',
-          run: () => sendMessage({ type: 'lap:open-options' }),
-        },
-      );
+      if (!overlay || session !== captureSession) return;
+      folderLoadError = error instanceof Error ? error.message : String(error);
+      resolveIntentState();
     }
   }
 
@@ -491,11 +714,24 @@
     beginCapture(image, event);
   }, true);
 
+  document.addEventListener('dragover', (event) => {
+    if (!overlay || !['intent', 'radial'].includes(mode)) return;
+    positionCaptureUi(event.clientX, event.clientY);
+    if (mode === 'radial') event.preventDefault();
+  }, true);
+
+  document.addEventListener('drop', (event) => {
+    if (!overlay || mode !== 'radial') return;
+    if (event.target instanceof Element && event.target.closest('.lap-capture-radial-item')) return;
+    event.preventDefault();
+    closeOverlay();
+  }, true);
+
   document.addEventListener('dragend', () => {
     removeDragGhost();
-    if (!overlay || !['loading', 'picking'].includes(mode)) return;
+    if (!overlay || !['intent', 'radial'].includes(mode)) return;
     setTimeout(() => {
-      if (overlay && ['loading', 'picking'].includes(mode)) closeOverlay();
+      if (overlay && ['intent', 'radial'].includes(mode)) closeOverlay();
     }, CLOSE_AFTER_DRAG_MS);
   }, true);
 

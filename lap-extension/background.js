@@ -14,6 +14,14 @@ async function getConfig() {
   });
 }
 
+function friendlyApiError(data, status) {
+  const message = String(data?.error || '');
+  if (status === 401 || message.toLowerCase().includes('invalid pairing token')) {
+    return '已找到本机 Lap，但配对 Token 不正确。请打开扩展设置重新检测并复制 Token。';
+  }
+  return message || `Lap 请求失败：HTTP ${status}`;
+}
+
 async function apiRequest(path, options = {}) {
   const config = await getConfig();
   if (!config.token && path !== '/health') {
@@ -38,7 +46,7 @@ async function apiRequest(path, options = {}) {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data.ok === false) {
-    throw new Error(data.error || `Lap 请求失败：HTTP ${response.status}`);
+    throw new Error(friendlyApiError(data, response.status));
   }
   return data;
 }
