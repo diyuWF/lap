@@ -193,15 +193,12 @@ import { SIDEBAR } from '@/common/constants';
 import { getAppConfig, switchLibrary, cancelIndexing, cancelFaceIndex } from '@/common/api';
 
 // vue components
-import Library from '@/components/Library.vue';
 import AlbumList from '@/components/AlbumList.vue';
 import SmartAlbumList from '@/components/SmartAlbumList.vue';
 import ImageSearch from '@/components/ImageSearch.vue';
 import Tag from '@/components/Tag.vue';
 import Calendar from '@/components/Calendar.vue';
-import Location from '@/components/Location.vue';
 import Person from '@/components/Person.vue';
-import Camera from '@/components/Camera.vue';
 // import MapHeatmapView from '@/components/MapHeatmapView.vue';
 
 import TitleBar from '@/components/TitleBar.vue';
@@ -214,13 +211,10 @@ import iconLogo from '@/assets/images/icon.png';
 
 import {
   IconTag,
-  IconLocation,
   IconPerson,
-  IconCamera,
   IconSearch,
   IconSettings,
   IconDot,
-  IconStack,
   IconArrowDown,
   IconCalendarDay,
   IconFolders,
@@ -353,20 +347,25 @@ const {
 
 // buttons
 const buttons = computed(() =>  [
-  { index: SIDEBAR.LIBRARY, icon: IconStack, component: Library, text: localeMsg.value.sidebar.library },
   { index: SIDEBAR.ALBUM, icon: IconFolders, component: AlbumList, text: localeMsg.value.sidebar.album, props: { selectionSource: 'album' } },
   { index: SIDEBAR.SMART_ALBUM, icon: IconFolderCog, component: SmartAlbumList, text: localeMsg.value.album.smart_album_list },
   { index: SIDEBAR.SEARCH, icon: IconSearch, component: ImageSearch, text: localeMsg.value.sidebar.search },
   { index: SIDEBAR.CALENDAR, icon: IconCalendarDay, component: Calendar, text: localeMsg.value.sidebar.calendar },
   { index: SIDEBAR.TAG, icon: IconTag, component: Tag, text: localeMsg.value.sidebar.tag },
   { index: SIDEBAR.PERSON, icon: IconPerson, component: Person, text: localeMsg.value.sidebar.people, hidden: !config.settings.face.enabled },
-  { index: SIDEBAR.LOCATION, icon: IconLocation, component: Location, text: localeMsg.value.sidebar.location },
-  { index: SIDEBAR.CAMERA, icon: IconCamera, component: Camera, text: localeMsg.value.sidebar.camera },
   // { icon: IconMapDefault, component: null, text: localeMsg.value.sidebar.map },
 ]);
 
+const removedSidebarIndices = new Set<number>([
+  SIDEBAR.LIBRARY,
+  SIDEBAR.LOCATION,
+  SIDEBAR.CAMERA,
+]);
+
 const activeSidebarButton = computed(() =>
-  buttons.value.find(item => item.index === config.main.sidebarIndex) || buttons.value[SIDEBAR.LIBRARY]
+  buttons.value.find(item => item.index === config.main.sidebarIndex)
+  || buttons.value.find(item => item.index === SIDEBAR.ALBUM)
+  || buttons.value[0]
 );
 
 const leftPanelWidth = computed(() =>
@@ -378,6 +377,16 @@ const visibleButtons = computed(() =>
     .map((item) => ({ ...item, disabled: libraryEmpty.value && item.index !== SIDEBAR.ALBUM }))
     .filter(item => !item.hidden)
     .sort((a, b) => a.index - b.index)
+);
+
+watch(
+  () => config.main.sidebarIndex,
+  (index) => {
+    if (removedSidebarIndices.has(index)) {
+      config.main.sidebarIndex = SIDEBAR.ALBUM;
+    }
+  },
+  { immediate: true },
 );
 
 watch(() => config.settings.face.enabled, (enabled) => {

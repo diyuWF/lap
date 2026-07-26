@@ -107,13 +107,16 @@ Completed:
 
 ## Validation status
 
-Automated validation has passed:
+Automated validation has passed on the Phase 4–5 feature baseline:
 
 - frontend production build
 - strict Simplified Chinese audit
 - Rust cargo check
 - browser extension validation
 - Windows x64 validation package build
+
+Every source-alignment change must receive a fresh successful PR build and
+Windows validation-package build before that package is used for manual testing.
 
 Current state:
 
@@ -143,7 +146,10 @@ Record all results in:
 
 ### Validation package vs source
 
-The Windows validation workflow performs some build-time source transformations. Always compare workflow scripts against source files before assuming the packaged application exactly matches repository source.
+The sidebar cleanup is now represented directly in `src-vite/src/views/Home.vue`.
+The Windows validation workflow no longer rewrites that source file during the
+build, so the checked-in sidebar implementation and packaged implementation use
+the same code.
 
 ### AI providers
 
