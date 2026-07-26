@@ -3,15 +3,15 @@
     <div v-if="loading" class="absolute inset-0 flex items-center justify-center">
       <div class="flex flex-col items-center gap-3 text-sm text-base-content/55">
         <span class="loading loading-spinner loading-md"></span>
-        <span>正在准备预览…</span>
+        <span>{{ $t('dam_features.preview.preparing') }}</span>
       </div>
     </div>
 
     <div v-else-if="errorMessage" class="absolute inset-0 flex items-center justify-center p-8">
       <div class="max-w-lg rounded-box border border-error/25 bg-base-200 p-5 text-center shadow-xl">
-        <h3 class="mb-2 font-semibold text-error">无法打开预览</h3>
+        <h3 class="mb-2 font-semibold text-error">{{ $t('dam_features.preview.failed') }}</h3>
         <p class="break-words text-sm text-base-content/60">{{ errorMessage }}</p>
-        <button class="btn btn-sm mt-4" type="button" @click="revealFile">在资源管理器中显示</button>
+        <button class="btn btn-sm mt-4" type="button" @click="revealFile">{{ $t('dam_features.preview.reveal') }}</button>
       </div>
     </div>
 
@@ -45,10 +45,10 @@
         </div>
         <h3 class="truncate font-semibold" :title="descriptor?.fileName">{{ descriptor?.fileName }}</h3>
         <p class="mt-2 text-sm leading-6 text-base-content/55">
-          {{ descriptor?.message || '该文件暂不支持内置预览。' }}
+          {{ descriptor?.message || $t('dam_features.preview.unsupported') }}
         </p>
         <div class="mt-5 flex justify-center gap-2">
-          <button class="btn btn-sm" type="button" @click="revealFile">在资源管理器中显示</button>
+          <button class="btn btn-sm" type="button" @click="revealFile">{{ $t('dam_features.preview.reveal') }}</button>
         </div>
       </div>
     </div>
@@ -57,6 +57,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import { getPreviewDescriptor } from '@/common/dam-api';
 import Model3dViewer from '@/components/Model3dViewer.vue';
@@ -64,6 +65,7 @@ import Model3dViewer from '@/components/Model3dViewer.vue';
 const props = defineProps<{
   file: Record<string, any> | null;
 }>();
+const { t } = useI18n();
 
 const descriptor = ref<any>(null);
 const loading = ref(false);
@@ -86,7 +88,7 @@ async function loadDescriptor() {
   descriptor.value = null;
   errorMessage.value = '';
   if (!fileId) {
-    errorMessage.value = '文件记录无效。';
+    errorMessage.value = t('dam_features.preview.invalid_file');
     return;
   }
 

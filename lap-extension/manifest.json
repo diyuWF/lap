@@ -16,6 +16,12 @@
     "service_worker": "background.js",
     "type": "module"
   },
+  "icons": {
+    "16": "icon.png",
+    "32": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
   "content_scripts": [
     {
       "matches": [
@@ -32,9 +38,26 @@
       "all_frames": false
     }
   ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "icon.png"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
+    }
+  ],
   "action": {
     "default_title": "Lap 素材采集器",
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon.png",
+      "32": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
   },
   "options_page": "options.html"
 }

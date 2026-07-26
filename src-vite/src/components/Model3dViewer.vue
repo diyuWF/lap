@@ -3,29 +3,29 @@
     <canvas ref="canvas" class="block h-full w-full"></canvas>
 
     <div class="absolute left-3 top-3 z-20 flex items-center gap-2 rounded-box border border-base-content/10 bg-base-200/85 p-2 shadow backdrop-blur">
-      <button class="btn btn-ghost btn-xs" type="button" :disabled="loading" @click="resetCamera">重置视角</button>
+      <button class="btn btn-ghost btn-xs" type="button" :disabled="loading" @click="resetCamera">{{ $t('dam_features.model3d.reset') }}</button>
       <label class="flex cursor-pointer items-center gap-2 text-xs">
         <input v-model="wireframe" class="toggle toggle-primary toggle-xs" type="checkbox" @change="applyWireframe" />
-        线框
+        {{ $t('dam_features.model3d.wireframe') }}
       </label>
     </div>
 
     <div v-if="loading" class="absolute inset-0 z-30 flex items-center justify-center bg-base-300/75">
       <div class="flex flex-col items-center gap-3 text-sm text-base-content/60">
         <span class="loading loading-spinner loading-md"></span>
-        <span>正在加载三维模型…</span>
+        <span>{{ $t('dam_features.model3d.loading') }}</span>
       </div>
     </div>
 
     <div v-else-if="errorMessage" class="absolute inset-0 z-30 flex items-center justify-center p-8">
       <div class="max-w-lg rounded-box border border-error/30 bg-base-200 p-5 text-center shadow-xl">
-        <h3 class="mb-2 font-semibold text-error">三维模型加载失败</h3>
+        <h3 class="mb-2 font-semibold text-error">{{ $t('dam_features.model3d.failed') }}</h3>
         <p class="break-words text-sm text-base-content/60">{{ errorMessage }}</p>
       </div>
     </div>
 
     <div v-else class="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-box bg-base-200/70 px-3 py-1.5 text-xs text-base-content/55 backdrop-blur">
-      左键旋转 · 滚轮缩放 · 右键平移
+      {{ $t('dam_features.model3d.controls') }}
     </div>
   </div>
 </template>
@@ -33,6 +33,7 @@
 <script setup lang="ts">
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -43,6 +44,7 @@ const props = defineProps<{
   filePath: string;
   extension?: string;
 }>();
+const { t } = useI18n();
 
 const host = ref<HTMLElement | null>(null);
 const canvas = ref<HTMLCanvasElement | null>(null);
@@ -138,7 +140,7 @@ function clearModel() {
 
 function normalizeObject(root: THREE.Object3D) {
   const box = new THREE.Box3().setFromObject(root);
-  if (box.isEmpty()) throw new Error('模型中没有可显示的几何体');
+  if (box.isEmpty()) throw new Error(t('dam_features.model3d.empty_geometry'));
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
   root.position.sub(center);
@@ -207,7 +209,9 @@ async function loadModel() {
         new THREE.MeshStandardMaterial({ color: 0xb8bec9, roughness: 0.72, metalness: 0.08 }),
       );
     } else {
-      throw new Error(`暂不支持 .${extension || '未知'} 三维格式`);
+      throw new Error(t('dam_features.model3d.unsupported', {
+        extension: extension || t('dam_features.common.unknown'),
+      }));
     }
 
     modelRoot = normalizeObject(loaded);

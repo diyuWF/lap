@@ -102,7 +102,7 @@ Functions:
 - [ ] Page title saved
 - [ ] Duplicate handling works
 
-Result: FAILED — focused rework implemented; awaiting a fresh package
+Result: FAILED — third focused rework implemented; awaiting a fresh package
 
 Evidence:
 
@@ -110,13 +110,43 @@ Evidence:
 - With an invalid Token, the page shows raw English `Invalid pairing token`.
 - In Windows light mode, labels and default-rule controls have insufficient contrast.
 - Dragging an image immediately opens a large destination panel and uses a pointer card. This does not provide a clear intent threshold and is not the requested image-following interaction.
+- The 1.3-second “continue dragging” tutorial appears on every drag and makes the action feel slow.
+- Small/lazy-loaded thumbnails do not reliably begin drag capture.
+- The extension points to an App Token location that does not exist in the current Advanced settings screen.
+- The extension does not use the official Lap icon.
 
 Issues:
 
 - The setup flow needs a one-click local Lap detector that distinguishes “Lap not running”, “Lap found but Token missing”, and “Lap found but Token invalid”.
 - Light-theme labels, placeholders, status messages, and controls need accessible contrast.
-- The dragged image should become semi-transparent and follow the pointer. Only after a 1–2 second hold should a radial folder menu appear.
+- The dragged image should become semi-transparent and follow the pointer. After a one-second hold, a radial folder menu should appear without a repeated tutorial card.
 - Dropping on a radial folder should lead to explicit save confirmation; “More folders” should open the complete folder browser.
+- Small images, `draggable=false` thumbnails, lazy-loaded image sources, and images under a covering element need the same explicit drag flow.
+- `Settings → Advanced → Browser capture` must expose the local address and pairing Token that the extension asks users to copy.
+- The extension Manifest, popup, options page, and in-page save panel should use the official Lap icon.
+
+## 5.1 Localization
+
+Functions:
+
+- [ ] Language names are written in their own language
+- [ ] Changing language updates the Settings window immediately
+- [ ] Changing language updates the main window immediately
+- [ ] Online AI, review, batch, preview, and 3D surfaces do not remain Chinese under a non-Chinese locale
+
+Result: FAILED — localization fixes implemented; awaiting a fresh package
+
+Evidence:
+
+- The language selector displayed every language name in Chinese.
+- The Settings window changed its local i18n state, but the main window event only updated persisted configuration and did not update the global i18n locale.
+- Newly added AI analysis, review, batch, preview, 3D, settings, and manager surfaces contained hard-coded Chinese strings.
+
+Issues:
+
+- Use autonyms such as `English`, `Deutsch`, `Español`, `日本語`, and `한국어`.
+- Synchronize the global i18n locale when the persisted language changes.
+- Move newly added AI and preview text into the locale catalogs; non-Chinese locales must not fall back to hard-coded Chinese.
 
 ## 6. Online AI
 
@@ -166,3 +196,6 @@ Issues:
 | LAP-VAL-003 | HTTP 429 shows raw upstream JSON and an internal user identifier instead of a safe, actionable Chinese rate-limit message. | High | Fix implemented; awaiting automated and manual retest |
 | LAP-VAL-004 | Extension setup lacks local auto-detection, exposes a raw English Token error, and has insufficient light-theme contrast. | High | Fix implemented; awaiting automated and manual retest |
 | LAP-VAL-005 | Drag capture opens the destination UI without a clear intent threshold; expected behavior is a semi-transparent pointer-following image followed by a delayed radial folder menu. | High | Fix implemented; awaiting automated and manual retest |
+| LAP-VAL-006 | The 1.3-second tutorial appears on every drag, feels slow, and small/lazy-loaded thumbnails do not reliably enter drag capture. | High | Fix implemented with a silent one-second threshold and thumbnail source/drag recovery; awaiting automated and manual retest |
+| LAP-VAL-007 | Language names are shown in Chinese, the main window does not switch locale immediately, and new AI/preview surfaces stay hard-coded in Chinese. | High | Fix implemented; awaiting automated and manual retest |
+| LAP-VAL-008 | Extension setup points to a missing App Token screen, and the extension does not use the official Lap icon. | High | Fix implemented; awaiting automated and manual retest |

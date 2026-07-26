@@ -1,6 +1,6 @@
 (() => {
   const HOVER_EXPAND_MS = 520;
-  const INTENT_CONFIRM_MS = 1300;
+  const INTENT_CONFIRM_MS = 1000;
   const CLOSE_AFTER_DRAG_MS = 160;
   const RADIAL_SIZE = 328;
 
@@ -19,6 +19,8 @@
   let radialAnchor = null;
   let selectedFolder = null;
   let dragGhost = null;
+  let armedImage = null;
+  let armedDraggableValue = null;
   let captureSession = 0;
 
   function sendMessage(message) {
@@ -54,21 +56,87 @@
     }
   }
 
-  function findDraggedImage(target) {
-    const image = target instanceof HTMLImageElement
-      ? target
-      : target instanceof Element
-        ? target.closest('img')
-        : null;
-    if (!(image instanceof HTMLImageElement)) return null;
-    const sourceUrl = image.currentSrc || image.src;
-    if (!sourceUrl || sourceUrl.startsWith('data:') || sourceUrl.startsWith('blob:')) return null;
-    return image;
+  function normalizeHttpUrl(value) {
+    if (!value) return '';
+    try {
+      const url = new URL(value, location.href);
+      return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+    } catch {
+      return '';
+    }
+  }
+
+  function resolveImageSource(image) {
+    if (!(image instanceof HTMLImageElement)) return '';
+    const candidates = [
+      image.currentSrc,
+      image.src,
+      image.getAttribute('data-src'),
+      image.getAttribute('data-original'),
+      image.getAttribute('data-lazy-src'),
+      image.getAttribute('data-pin-media'),
+    ];
+    const srcset = image.getAttribute('srcset') || image.getAttribute('data-srcset') || '';
+    candidates.push(
+      ...srcset
+        .split(',')
+        .map((entry) => entry.trim().split(/\s+/)[0])
+        .reverse(),
+    );
+    const linkedSource = image.closest('a[href]')?.getAttribute('href');
+    if (linkedSource && /\.(?:avif|gif|jpe?g|png|webp)(?:[?#]|$)/i.test(linkedSource)) {
+      candidates.push(linkedSource);
+    }
+    for (const candidate of candidates) {
+      const sourceUrl = normalizeHttpUrl(candidate);
+      if (sourceUrl) return sourceUrl;
+    }
+    return '';
+  }
+
+  function imageFromElement(target) {
+    if (target instanceof HTMLImageElement) return target;
+    if (!(target instanceof Element)) return null;
+    const direct = target.closest('img');
+    if (direct instanceof HTMLImageElement) return direct;
+    const container = target.closest('a, button, figure, [role="button"]');
+    const nested = container?.querySelector('img');
+    return nested instanceof HTMLImageElement ? nested : null;
+  }
+
+  function findDraggedImage(target, clientX = 0, clientY = 0) {
+    const candidates = [imageFromElement(target)];
+    if (typeof document.elementsFromPoint === 'function' && clientX > 0 && clientY > 0) {
+      for (const element of document.elementsFromPoint(clientX, clientY)) {
+        candidates.push(imageFromElement(element));
+      }
+    }
+    for (const image of candidates) {
+      if (image instanceof HTMLImageElement && resolveImageSource(image)) return image;
+    }
+    return null;
+  }
+
+  function restoreArmedImage() {
+    if (!(armedImage instanceof HTMLImageElement)) return;
+    if (armedDraggableValue === null) armedImage.removeAttribute('draggable');
+    else armedImage.setAttribute('draggable', armedDraggableValue);
+    armedImage = null;
+    armedDraggableValue = null;
+  }
+
+  function armImageForNativeDrag(event) {
+    const image = findDraggedImage(event.target, event.clientX, event.clientY);
+    if (!image || image === armedImage) return;
+    restoreArmedImage();
+    armedImage = image;
+    armedDraggableValue = image.getAttribute('draggable');
+    image.setAttribute('draggable', 'true');
   }
 
   function createAsset(image) {
     return {
-      sourceUrl: image.currentSrc || image.src,
+      sourceUrl: resolveImageSource(image),
       altText: image.alt || image.getAttribute('aria-label') || '',
       naturalWidth: image.naturalWidth || 0,
       naturalHeight: image.naturalHeight || 0,
@@ -132,12 +200,12 @@
     dragGhost.removeAttribute('style');
     dragGhost.removeAttribute('width');
     dragGhost.removeAttribute('height');
-    dragGhost.src = image.currentSrc || image.src;
+    dragGhost.src = currentAsset.sourceUrl;
     dragGhost.alt = '';
     dragGhost.draggable = false;
 
-    const sourceWidth = Math.max(currentAsset.displayWidth, currentAsset.naturalWidth, 120);
-    const sourceHeight = Math.max(currentAsset.displayHeight, currentAsset.naturalHeight, 90);
+    const sourceWidth = Math.max(currentAsset.displayWidth, currentAsset.naturalWidth, 16);
+    const sourceHeight = Math.max(currentAsset.displayHeight, currentAsset.naturalHeight, 16);
     const scale = Math.min(180 / sourceWidth, 140 / sourceHeight, 1);
     const width = Math.max(12, Math.round(sourceWidth * scale));
     const height = Math.max(12, Math.round(sourceHeight * scale));
@@ -158,14 +226,8 @@
     mode = 'intent';
     overlay = document.createElement('div');
     overlay.className = 'lap-capture-overlay';
+    const extensionIconUrl = chrome.runtime.getURL('icon.png');
     overlay.innerHTML = `
-      <div class="lap-capture-intent" aria-live="polite">
-        <div class="lap-capture-intent-copy">
-          <strong>继续拖住以保存</strong>
-          <span>约 1.3 秒后显示文件夹菜单</span>
-        </div>
-        <span class="lap-capture-intent-progress" aria-hidden="true"></span>
-      </div>
       <div class="lap-capture-radial" role="menu" aria-label="保存到文件夹" hidden>
         <div class="lap-capture-radial-center">
           <strong>保存到 Lap</strong>
@@ -176,7 +238,7 @@
       <section class="lap-capture-panel" role="dialog" aria-label="保存到 Lap" hidden>
         <header class="lap-capture-header">
           <div class="lap-capture-brand">
-            <span class="lap-capture-logo">L</span>
+            <img class="lap-capture-logo" src="${escapeHtml(extensionIconUrl)}" alt="" />
             <div>
               <strong>保存到 Lap</strong>
               <span>选择文件夹后确认保存</span>
@@ -239,14 +301,6 @@
     const y = Number.isFinite(clientY) && clientY > 0 ? clientY : window.innerHeight / 2;
     lastDragPoint = { x, y };
 
-    const intent = overlay.querySelector('.lap-capture-intent');
-    if (intent && !intent.hidden) {
-      const left = Math.min(Math.max(12, x + 24), Math.max(12, window.innerWidth - 286));
-      const top = Math.min(Math.max(12, y + 22), Math.max(12, window.innerHeight - 82));
-      intent.style.left = `${left}px`;
-      intent.style.top = `${top}px`;
-    }
-
     const radial = overlay.querySelector('.lap-capture-radial');
     if (radial && !radial.hidden) {
       const anchor = radialAnchor || { x, y };
@@ -265,7 +319,6 @@
 
   function hideIntentUi() {
     if (!overlay) return;
-    overlay.querySelector('.lap-capture-intent').hidden = true;
     overlay.querySelector('.lap-capture-radial').hidden = true;
   }
 
@@ -395,7 +448,6 @@
   function showRadialMenu() {
     if (!overlay || !foldersReady || folderLoadError) return;
     mode = 'radial';
-    const intent = overlay.querySelector('.lap-capture-intent');
     const radial = overlay.querySelector('.lap-capture-radial');
     const items = overlay.querySelector('.lap-capture-radial-items');
     const candidates = radialFolderCandidates();
@@ -403,7 +455,6 @@
     const total = candidates.length + (showMore ? 1 : 0);
 
     radialAnchor = { ...lastDragPoint };
-    intent.hidden = true;
     radial.hidden = false;
     items.textContent = '';
     candidates.forEach((folder, index) => {
@@ -456,11 +507,7 @@
     }
     if (foldersReady) {
       showRadialMenu();
-      return;
     }
-    overlay.querySelector('.lap-capture-intent-copy').innerHTML = `
-      <strong>已确认保存意图</strong>
-      <span>正在读取 Lap 文件夹…</span>`;
   }
 
   function startIntentConfirmation() {
@@ -708,8 +755,15 @@
     }
   }
 
+  document.addEventListener('pointerdown', armImageForNativeDrag, true);
+  document.addEventListener('mousedown', armImageForNativeDrag, true);
+
+  document.addEventListener('pointerup', () => {
+    if (!overlay) restoreArmedImage();
+  }, true);
+
   document.addEventListener('dragstart', (event) => {
-    const image = findDraggedImage(event.target);
+    const image = findDraggedImage(event.target, event.clientX, event.clientY) || armedImage;
     if (!image) return;
     beginCapture(image, event);
   }, true);
@@ -728,6 +782,7 @@
   }, true);
 
   document.addEventListener('dragend', () => {
+    restoreArmedImage();
     removeDragGhost();
     if (!overlay || !['intent', 'radial'].includes(mode)) return;
     setTimeout(() => {

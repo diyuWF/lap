@@ -35,7 +35,7 @@
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.general.select_language') }}</div>
-                <div class="text-xs text-base-content/30">选择应用界面所使用的语言</div>
+                <div class="text-xs text-base-content/30">{{ $t('settings.general.language_hint') }}</div>
               </div>
               <select class="select  select-bordered select-sm min-w-32" v-model="config.settings.language">
                 <option v-for="(lang, index) in languages" :key="index" :value="lang.value">{{ lang.label }}</option>
@@ -578,31 +578,78 @@
             </div>
           </div>
 
+          <!-- browser capture -->
+          <div class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">
+            <div class="flex items-center justify-between gap-2 text-base-content/30">
+              <span class="font-bold uppercase text-[10px] tracking-widest">{{ $t('settings.advanced.section_browser_capture') }}</span>
+              <span class="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-semibold text-success">
+                {{ $t('settings.advanced.browser_capture_local_only') }}
+              </span>
+            </div>
+            <div class="px-1 text-xs leading-5 text-base-content/45">
+              {{ $t('settings.advanced.browser_capture_hint') }}
+            </div>
+            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.advanced.browser_capture_address') }}</div>
+                <div class="truncate font-mono text-xs text-base-content/40" :title="captureServerInfo?.baseUrl || ''">
+                  {{ captureServerInfo?.baseUrl || (captureLoading ? $t('tooltip.loading') : '-') }}
+                </div>
+              </div>
+              <button
+                class="btn btn-sm btn-ghost shrink-0 rounded-box bg-base-100 border border-base-content/30"
+                :disabled="captureLoading || !captureServerInfo?.baseUrl"
+                @click="copyCaptureValue('address')"
+              >
+                {{ copiedCaptureField === 'address' ? $t('settings.advanced.browser_capture_copied') : $t('settings.advanced.browser_capture_copy_address') }}
+              </button>
+            </div>
+            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.advanced.browser_capture_token') }}</div>
+                <div class="truncate font-mono text-xs tracking-widest text-base-content/40">
+                  {{ captureTokenPreview }}
+                </div>
+              </div>
+              <button
+                class="btn btn-sm btn-primary shrink-0 rounded-box"
+                :disabled="captureLoading || !captureServerInfo?.token"
+                @click="copyCaptureValue('token')"
+              >
+                {{ copiedCaptureField === 'token' ? $t('settings.advanced.browser_capture_copied') : $t('settings.advanced.browser_capture_copy_token') }}
+              </button>
+            </div>
+            <div v-if="captureServerError" class="px-1 text-xs text-error">
+              {{ $t('settings.advanced.browser_capture_unavailable') }}
+              <button class="ml-2 underline" type="button" @click="loadCaptureServerInfo">{{ $t('settings.advanced.browser_capture_retry') }}</button>
+            </div>
+          </div>
+
           <!-- online AI -->
           <div class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">
             <div class="flex items-center gap-2 text-base-content/30">
-              <span class="font-bold uppercase text-[10px] tracking-widest">AI 自动整理</span>
+              <span class="font-bold uppercase text-[10px] tracking-widest">{{ $t('settings.advanced.section_ai_organization') }}</span>
             </div>
             <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">
-                <div>在线 AI 服务</div>
-                <div class="text-xs text-base-content/30">配置 OpenAI 兼容、Gemini 或 Anthropic 视觉模型</div>
+                <div>{{ $t('settings.advanced.online_ai_title') }}</div>
+                <div class="text-xs text-base-content/30">{{ $t('settings.advanced.online_ai_hint') }}</div>
               </div>
-              <button class="btn btn-sm btn-ghost rounded-box bg-base-100 border border-base-content/30" @click="showOnlineAiManager = true">管理服务</button>
+              <button class="btn btn-sm btn-ghost rounded-box bg-base-100 border border-base-content/30" @click="showOnlineAiManager = true">{{ $t('settings.advanced.manage_services') }}</button>
             </div>
             <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">
-                <div>AI 建议审核</div>
-                <div class="text-xs text-base-content/30">接受或拒绝自动生成的标签、标题、描述和颜色建议</div>
+                <div>{{ $t('settings.advanced.ai_review_title') }}</div>
+                <div class="text-xs text-base-content/30">{{ $t('settings.advanced.ai_review_hint') }}</div>
               </div>
-              <button class="btn btn-sm btn-ghost rounded-box bg-base-100 border border-base-content/30" @click="showAiReviewQueue = true">打开队列</button>
+              <button class="btn btn-sm btn-ghost rounded-box bg-base-100 border border-base-content/30" @click="showAiReviewQueue = true">{{ $t('settings.advanced.open_queue') }}</button>
             </div>
             <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">
-                <div>AI 批量整理工作台</div>
-                <div class="text-xs text-base-content/30">批量发现未整理素材并生成结构化建议</div>
+                <div>{{ $t('settings.advanced.ai_batch_title') }}</div>
+                <div class="text-xs text-base-content/30">{{ $t('settings.advanced.ai_batch_hint') }}</div>
               </div>
-              <button class="btn btn-sm btn-primary rounded-box" @click="showAiInboxWorkbench = true">开始整理</button>
+              <button class="btn btn-sm btn-primary rounded-box" @click="showAiInboxWorkbench = true">{{ $t('settings.advanced.start_organizing') }}</button>
             </div>
           </div>
 
@@ -693,6 +740,7 @@ import {
   cancelMultilingualImageSearchModelDownload,
   listenImageSearchModelDownloadProgress,
 } from '@/common/api';
+import { getCaptureServerInfo } from '@/common/dam-api';
 import { formatFileSize, isLinux, isMac, setTheme, SCALE_VALUES } from '@/common/utils';
 import { getShortcutLabels, ShortcutActionId, ShortcutPlatform } from '@/common/shortcuts';
 import { useToast } from '@/common/toast';
@@ -709,8 +757,8 @@ import AiInboxWorkbench from '@/components/AiInboxWorkbench.vue';
 import TButton from '@/components/TButton.vue';
 
 /// i18n
-const { locale, messages } = useI18n();
-const localeMsg = computed(() => messages.value[config.settings.language] as any);
+const { t, locale, messages } = useI18n();
+const localeMsg = computed(() => (messages.value[config.settings.language] || messages.value.en) as any);
 const toast = useToast();
 const shortcutPlatform: ShortcutPlatform = isMac ? 'mac' : (isLinux ? 'linux' : 'windows');
 const settingsTabs = [
@@ -744,7 +792,12 @@ const multilingualModelDownloadProgress = ref(0);
 const multilingualModelDownloadedBytes = ref(0);
 const multilingualModelTotalBytes = ref(0);
 const isMultilingualModelAvailable = ref(false);
+const captureLoading = ref(true);
+const captureServerInfo = ref<{ baseUrl: string; token: string; port: number; apiVersion: number } | null>(null);
+const captureServerError = ref('');
+const copiedCaptureField = ref<'address' | 'token' | ''>('');
 let unlistenImageSearchModelDownloadProgress: (() => void) | null = null;
+let copiedCaptureTimer: number | null = null;
 
 const onRestoreDone = () => {
   showRestoreDialog.value = false;
@@ -757,16 +810,74 @@ const openAiReviewFromInbox = () => {
 };
 
 const languages = [
-  { label: '英语', value: 'en' },
-  { label: '德语', value: 'de' },
-  { label: '西班牙语', value: 'es' },
-  { label: '法语', value: 'fr' },
-  { label: '葡萄牙语', value: 'pt' },
-  { label: '俄语', value: 'ru' },
+  { label: 'English', value: 'en' },
+  { label: 'Deutsch', value: 'de' },
+  { label: 'Español', value: 'es' },
+  { label: 'Français', value: 'fr' },
+  { label: 'Português', value: 'pt' },
+  { label: 'Русский', value: 'ru' },
   { label: '简体中文', value: 'zh' },
-  { label: '日语', value: 'ja' },
-  { label: '韩语', value: 'ko' },
+  { label: '日本語', value: 'ja' },
+  { label: '한국어', value: 'ko' },
 ];
+
+const captureTokenPreview = computed(() => {
+  if (captureLoading.value) return t('tooltip.loading');
+  if (!captureServerInfo.value?.token) return '-';
+  return `••••••••${captureServerInfo.value.token.slice(-4)}`;
+});
+
+async function loadCaptureServerInfo() {
+  captureLoading.value = true;
+  captureServerError.value = '';
+  try {
+    captureServerInfo.value = await getCaptureServerInfo() as {
+      baseUrl: string;
+      token: string;
+      port: number;
+      apiVersion: number;
+    };
+  } catch (error) {
+    captureServerInfo.value = null;
+    captureServerError.value = String(error);
+  } finally {
+    captureLoading.value = false;
+  }
+}
+
+async function writeClipboardText(value: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const input = document.createElement('textarea');
+  input.value = value;
+  input.style.position = 'fixed';
+  input.style.opacity = '0';
+  document.body.appendChild(input);
+  input.select();
+  const copied = document.execCommand('copy');
+  input.remove();
+  if (!copied) throw new Error('Clipboard is unavailable');
+}
+
+async function copyCaptureValue(field: 'address' | 'token') {
+  const value = field === 'address'
+    ? captureServerInfo.value?.baseUrl
+    : captureServerInfo.value?.token;
+  if (!value) return;
+  try {
+    await writeClipboardText(value);
+    copiedCaptureField.value = field;
+    if (copiedCaptureTimer) window.clearTimeout(copiedCaptureTimer);
+    copiedCaptureTimer = window.setTimeout(() => {
+      copiedCaptureField.value = '';
+      copiedCaptureTimer = null;
+    }, 1600);
+  } catch {
+    toast.error(t('settings.advanced.browser_capture_copy_failed'));
+  }
+}
 
 const appearanceOptions = computed(() => {
   const options = localeMsg.value.settings.general.appearance_options;
@@ -1294,6 +1405,7 @@ onMounted(async () => {
     multilingualModelTotalBytes.value = Math.max(0, Number(event?.payload?.totalBytes ?? 0));
   });
   await syncImageSearchModelStatus();
+  await loadCaptureServerInfo();
   applyWindowScale(Number(config.settings.scale || 1));
   dbStorageDir.value = (await getDbStorageDir()) || '';
   hasCustomDbStorage.value = await isUsingCustomDbStorage();
@@ -1329,6 +1441,10 @@ onUnmounted(() => {
   if (unlistenImageSearchModelDownloadProgress) {
     unlistenImageSearchModelDownloadProgress();
     unlistenImageSearchModelDownloadProgress = null;
+  }
+  if (copiedCaptureTimer) {
+    window.clearTimeout(copiedCaptureTimer);
+    copiedCaptureTimer = null;
   }
   document.documentElement.style.fontSize = '';
   window.removeEventListener('keydown', handleKeyDown);

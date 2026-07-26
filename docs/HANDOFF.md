@@ -120,23 +120,30 @@ Windows validation-package build before that package is used for manual testing.
 
 Current state:
 
-`FAILED — SECOND FOCUSED VALIDATION FIX IMPLEMENTED`
+`FAILED — THIRD FOCUSED VALIDATION FIX IMPLEMENTED`
 
 Reason:
 
-The first focused package (`Lap-0.4.1-Chat-Delivery-10`) passed its automated
-checks. Manual retest confirmed that OpenRouter now reaches the correct JSON API,
-then identified three remaining UX defects:
+The second focused package (`Lap-0.4.1-Chat-Delivery-11`) passed its automated
+checks. Manual retest then identified four usability and source-alignment defects:
 
-- OpenRouter/Google AI Studio `HTTP 429` responses expose raw provider JSON and
-  internal identifiers instead of a concise rate-limit explanation.
-- Browser capture setup has no local auto-detection, does not distinguish Token
-  problems from a stopped Lap service, and has insufficient light-theme contrast.
-- Drag capture needs a semi-transparent image following the pointer, a deliberate
-  1.3-second intent threshold, and then a radial destination menu.
+- The 1.3-second drag tutorial is repeated for every capture and makes an ordinary
+  action feel slower. The only pre-menu feedback should be the semi-transparent
+  image, with a one-second threshold.
+- Small or lazy-loaded thumbnails may use `draggable=false`, a covering element,
+  a data URI, or a deferred source attribute and therefore never enter the capture
+  flow.
+- The extension tells users to copy the pairing Token from
+  `Settings → Advanced → Browser capture`, but the App does not expose that UI.
+- Language names are shown in Chinese, the main window does not update its locale
+  immediately, and the new AI/preview settings and dialogs are hard-coded in
+  Chinese. The extension also lacks the official Lap icon.
 
-Focused fixes are implemented in the working branch. Local validation, a new
-GitHub PR build, and a new Windows validation package are still required.
+Focused fixes are implemented in the working branch. Frontend, localization,
+extension syntax/resources, drag/setup DOM regressions, and repository hygiene
+pass locally. Local Rust checks are blocked because this workstation has no
+Cargo/rustfmt; a fresh GitHub PR build and Windows validation package are still
+required.
 
 Do not start future phases. Produce a fresh Windows validation package and
 return to manual validation.
@@ -185,8 +192,9 @@ the complete provider payload or internal user identifiers.
 ### Browser extension drag capture
 
 The next package must be manually checked on a real Chromium page. Verify the
-native semi-transparent drag image follows the pointer, the radial folder menu
-does not appear before the 1.3-second threshold, folder drop opens confirmation,
+native semi-transparent drag image follows the pointer with no repeated tutorial
+card, the radial folder menu does not appear before the one-second threshold,
+small/lazy-loaded thumbnails enter the same flow, folder drop opens confirmation,
 and releasing early does not leave an overlay behind.
 
 ### Browser extension setup
@@ -195,6 +203,18 @@ The capture service remains bound to `127.0.0.1:47821`. `/health` is intentional
 available without a Token so the extension can detect a running local Lap. All
 folder and capture endpoints remain Token-protected; do not expose the Token
 through an unauthenticated discovery endpoint.
+
+The App now exposes the local address and a masked pairing Token under
+`Settings → Advanced → Browser capture`, with explicit copy buttons. The
+extension setup instructions must continue to point to that exact location.
+
+### Localization
+
+The language selector uses language autonyms. Locale changes must update both the
+settings window and the main window immediately. New AI analysis, batch, review,
+preview, 3D, and settings surfaces use the i18n catalog; locales without new
+feature translations fall back to English rather than rendering hard-coded
+Chinese.
 
 ### Professional formats
 

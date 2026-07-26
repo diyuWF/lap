@@ -3,26 +3,26 @@
     <section class="flex h-[88vh] w-[1120px] max-w-[97vw] flex-col overflow-hidden rounded-box border border-base-content/10 bg-base-200 shadow-2xl">
       <header class="flex items-start justify-between border-b border-base-content/10 px-5 py-4">
         <div>
-          <h2 class="font-semibold">AI Inbox 工作台</h2>
-          <p class="mt-1 text-xs text-base-content/45">批量发现未整理素材，生成建议后进入人工审核队列。</p>
+          <h2 class="font-semibold">{{ $t('dam_features.inbox.title') }}</h2>
+          <p class="mt-1 text-xs text-base-content/45">{{ $t('dam_features.inbox.subtitle') }}</p>
         </div>
-        <button class="btn btn-ghost btn-sm" type="button" @click="$emit('close')">关闭</button>
+        <button class="btn btn-ghost btn-sm" type="button" @click="$emit('close')">{{ $t('dam_features.common.close') }}</button>
       </header>
 
       <div class="grid grid-cols-[180px_1fr_180px_auto] items-end gap-3 border-b border-base-content/10 bg-base-300/20 px-5 py-3">
         <label class="form-control gap-1">
-          <span class="text-xs text-base-content/55">工作流状态</span>
+          <span class="text-xs text-base-content/55">{{ $t('dam_features.inbox.workflow_status') }}</span>
           <select v-model="workflowStatus" class="select select-bordered select-sm" @change="loadCandidates">
-            <option value="inbox">待整理</option>
-            <option value="reviewed">已审核</option>
-            <option value="selected">已选用</option>
-            <option value="archived">已归档</option>
-            <option value="all">全部</option>
+            <option value="inbox">{{ $t('dam_features.workflow.inbox') }}</option>
+            <option value="reviewed">{{ $t('dam_features.workflow.reviewed') }}</option>
+            <option value="selected">{{ $t('dam_features.workflow.selected') }}</option>
+            <option value="archived">{{ $t('dam_features.workflow.archived') }}</option>
+            <option value="all">{{ $t('dam_features.common.all') }}</option>
           </select>
         </label>
 
         <label class="form-control gap-1">
-          <span class="text-xs text-base-content/55">在线 AI 服务</span>
+          <span class="text-xs text-base-content/55">{{ $t('dam_features.inbox.service') }}</span>
           <select v-model="providerId" class="select select-bordered select-sm" :disabled="!providers.length">
             <option v-for="provider in providers" :key="provider.id" :value="provider.id">
               {{ provider.name }} · {{ provider.model }}
@@ -32,24 +32,24 @@
 
         <label class="flex h-8 items-center gap-2 text-sm">
           <input v-model="includeAnalyzed" class="toggle toggle-primary toggle-sm" type="checkbox" @change="loadCandidates" />
-          包含已分析素材
+          {{ $t('dam_features.inbox.include_analyzed') }}
         </label>
 
-        <button class="btn btn-ghost btn-sm" type="button" :disabled="loading || running" @click="loadCandidates">刷新候选</button>
+        <button class="btn btn-ghost btn-sm" type="button" :disabled="loading || running" @click="loadCandidates">{{ $t('dam_features.inbox.refresh') }}</button>
       </div>
 
       <div class="flex items-center justify-between border-b border-base-content/10 px-5 py-2.5">
         <label class="flex items-center gap-2 text-sm">
           <input v-model="selectAll" class="checkbox checkbox-sm" type="checkbox" :disabled="!candidates.length || running" @change="toggleAll" />
-          已选择 {{ selectedIds.size }} / {{ candidates.length }}
+          {{ $t('dam_features.inbox.selected_count', { selected: selectedIds.size, total: candidates.length }) }}
         </label>
         <div class="flex items-center gap-3">
           <label class="flex items-center gap-2 text-sm">
             <input v-model="forceAutoApply" class="toggle toggle-primary toggle-sm" type="checkbox" :disabled="running" />
-            达到阈值后直接应用标签
+            {{ $t('dam_features.inbox.force_apply') }}
           </label>
           <button class="btn btn-primary btn-sm" type="button" :disabled="running || !selectedIds.size || !providerId" @click="runBatch">
-            {{ running ? '批量分析中…' : `分析 ${selectedIds.size} 个素材` }}
+            {{ running ? $t('dam_features.inbox.running') : $t('dam_features.inbox.analyze_count', { count: selectedIds.size }) }}
           </button>
         </div>
       </div>
@@ -61,13 +61,13 @@
 
         <div v-else-if="!providers.length" class="flex h-full items-center justify-center">
           <div class="max-w-lg rounded-box border border-warning/25 bg-warning/10 p-5 text-center text-sm leading-6">
-            没有已启用且配置了密钥的在线 AI 服务。请先在设置中的“在线 AI 服务”完成配置。
+            {{ $t('dam_features.inbox.no_provider') }}
           </div>
         </div>
 
         <div v-else-if="!candidates.length" class="flex h-full flex-col items-center justify-center gap-2 text-base-content/45">
-          <p class="text-sm">当前筛选条件下没有待整理素材</p>
-          <p class="text-xs">关闭“跳过已分析素材”后可重新分析历史素材。</p>
+          <p class="text-sm">{{ $t('dam_features.inbox.empty') }}</p>
+          <p class="text-xs">{{ $t('dam_features.inbox.empty_hint') }}</p>
         </div>
 
         <div v-else class="space-y-2">
@@ -90,7 +90,7 @@
             <span class="badge badge-ghost badge-sm justify-self-start">{{ fileTypeLabel(item.fileType) }}</span>
             <div class="text-right text-xs text-base-content/45">
               <span>{{ workflowLabel(item.workflowStatus) }}</span>
-              <span v-if="item.hasAiSuggestions" class="ml-2 text-warning">已有建议</span>
+              <span v-if="item.hasAiSuggestions" class="ml-2 text-warning">{{ $t('dam_features.inbox.has_suggestions') }}</span>
             </div>
           </article>
         </div>
@@ -99,26 +99,28 @@
       <footer class="border-t border-base-content/10 px-5 py-3">
         <div v-if="running" class="flex items-center gap-3 text-sm text-base-content/55">
           <span class="loading loading-spinner loading-sm"></span>
-          正在逐个提交分析。为了避免 API 限流，本批任务按顺序执行。
+          {{ $t('dam_features.inbox.sequential_hint') }}
         </div>
         <div v-else-if="batchResult" class="flex items-center justify-between gap-4 text-sm">
           <span>
-            本批完成 {{ batchResult.completed }} / {{ batchResult.total }}，成功
-            <strong class="text-success">{{ batchResult.succeeded }}</strong>，失败
-            <strong :class="batchResult.failed ? 'text-error' : 'text-base-content/55'">{{ batchResult.failed }}</strong>。
+            {{ $t('dam_features.inbox.batch_completed', { completed: batchResult.completed, total: batchResult.total }) }}
+            {{ $t('dam_features.inbox.succeeded') }}
+            <strong class="text-success">{{ batchResult.succeeded }}</strong>
+            {{ $t('dam_features.inbox.failed') }}
+            <strong :class="batchResult.failed ? 'text-error' : 'text-base-content/55'">{{ batchResult.failed }}</strong>
           </span>
           <div class="flex gap-2">
             <button v-if="batchResult.failed" class="btn btn-ghost btn-xs" type="button" @click="showFailures = !showFailures">
-              {{ showFailures ? '收起失败项' : '查看失败项' }}
+              {{ showFailures ? $t('dam_features.inbox.hide_failures') : $t('dam_features.inbox.show_failures') }}
             </button>
-            <button class="btn btn-primary btn-xs" type="button" @click="$emit('open-review')">打开审核队列</button>
+            <button class="btn btn-primary btn-xs" type="button" @click="$emit('open-review')">{{ $t('dam_features.inbox.open_review') }}</button>
           </div>
         </div>
-        <div v-else class="text-xs text-base-content/40">单次最多处理 200 个素材。默认跳过已经产生 AI 建议的素材。</div>
+        <div v-else class="text-xs text-base-content/40">{{ $t('dam_features.inbox.limit_hint') }}</div>
 
         <div v-if="showFailures && batchResult?.failures?.length" class="mt-3 max-h-32 overflow-y-auto rounded-box border border-error/20 bg-error/5 p-3 text-xs">
           <div v-for="failure in batchResult.failures" :key="failure.fileId" class="mb-1 last:mb-0">
-            文件 {{ failure.fileId }}：{{ failure.error }}
+            {{ $t('dam_features.common.file_id', { id: failure.fileId }) }}: {{ failure.error }}
           </div>
         </div>
       </footer>
@@ -128,6 +130,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   analyzeFilesWithOnlineAi,
   listOnlineAiBatchCandidates,
@@ -136,6 +139,7 @@ import {
 import { useToast } from '@/common/toast';
 
 const emit = defineEmits(['close', 'open-review']);
+const { t } = useI18n();
 const toast = useToast();
 const providers = ref<any[]>([]);
 const candidates = ref<any[]>([]);
@@ -203,9 +207,9 @@ async function runBatch() {
       continueOnError: true,
     });
     if (batchResult.value.failed) {
-      toast.warning(`批量分析完成，${batchResult.value.failed} 个素材失败`);
+      toast.warning(t('dam_features.inbox.complete_with_failures', { count: batchResult.value.failed }));
     } else {
-      toast.success(`已完成 ${batchResult.value.succeeded} 个素材的 AI 分析`);
+      toast.success(t('dam_features.inbox.complete_success', { count: batchResult.value.succeeded }));
     }
     await loadCandidates();
   } catch (error) {
@@ -216,11 +220,20 @@ async function runBatch() {
 }
 
 function fileTypeLabel(fileType: number) {
-  return ({ 1: '图片', 2: '视频', 3: 'RAW' } as Record<number, string>)[fileType] || '素材';
+  return ({
+    1: t('dam_features.common.image'),
+    2: t('dam_features.common.video'),
+    3: 'RAW',
+  } as Record<number, string>)[fileType] || t('dam_features.common.asset');
 }
 
 function workflowLabel(value: string) {
-  return ({ inbox: 'Inbox', reviewed: '已审核', selected: '已选用', archived: '已归档' } as Record<string, string>)[value] || value;
+  return ({
+    inbox: t('dam_features.workflow.inbox'),
+    reviewed: t('dam_features.workflow.reviewed'),
+    selected: t('dam_features.workflow.selected'),
+    archived: t('dam_features.workflow.archived'),
+  } as Record<string, string>)[value] || value;
 }
 
 onMounted(loadCandidates);

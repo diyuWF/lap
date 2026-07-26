@@ -3,30 +3,30 @@
     <section class="flex h-[82vh] w-[1040px] max-w-[96vw] flex-col overflow-hidden rounded-box border border-base-content/10 bg-base-200 shadow-2xl">
       <header class="flex items-center justify-between border-b border-base-content/10 px-5 py-4">
         <div>
-          <h2 class="font-semibold">AI 建议审核</h2>
-          <p class="mt-0.5 text-xs text-base-content/45">只有接受后的标签才会进入正式素材库。</p>
+          <h2 class="font-semibold">{{ $t('dam_features.review.title') }}</h2>
+          <p class="mt-0.5 text-xs text-base-content/45">{{ $t('dam_features.review.subtitle') }}</p>
         </div>
         <div class="flex items-center gap-2">
           <select v-model="status" class="select select-bordered select-sm" @change="load">
-            <option value="pending">待审核</option>
-            <option value="accepted">已接受</option>
-            <option value="rejected">已拒绝</option>
-            <option value="applied">已自动应用</option>
-            <option value="all">全部</option>
+            <option value="pending">{{ $t('dam_features.review.pending') }}</option>
+            <option value="accepted">{{ $t('dam_features.review.accepted') }}</option>
+            <option value="rejected">{{ $t('dam_features.review.rejected') }}</option>
+            <option value="applied">{{ $t('dam_features.review.applied') }}</option>
+            <option value="all">{{ $t('dam_features.common.all') }}</option>
           </select>
-          <button class="btn btn-ghost btn-sm" type="button" :disabled="loading" @click="load">刷新</button>
-          <button class="btn btn-ghost btn-sm" type="button" @click="$emit('close')">关闭</button>
+          <button class="btn btn-ghost btn-sm" type="button" :disabled="loading" @click="load">{{ $t('dam_features.common.refresh') }}</button>
+          <button class="btn btn-ghost btn-sm" type="button" @click="$emit('close')">{{ $t('dam_features.common.close') }}</button>
         </div>
       </header>
 
       <div v-if="status === 'pending' && rows.length" class="flex items-center justify-between border-b border-base-content/10 bg-base-300/30 px-5 py-2">
         <label class="flex items-center gap-2 text-sm">
           <input v-model="selectAll" class="checkbox checkbox-sm" type="checkbox" @change="toggleAll" />
-          已选择 {{ selectedIds.size }} 条
+          {{ $t('dam_features.review.selected_count', { count: selectedIds.size }) }}
         </label>
         <div class="flex gap-2">
-          <button class="btn btn-ghost btn-xs" type="button" :disabled="busy || !selectedIds.size" @click="reviewSelected('reject')">批量拒绝</button>
-          <button class="btn btn-primary btn-xs" type="button" :disabled="busy || !selectedIds.size" @click="reviewSelected('accept')">批量接受</button>
+          <button class="btn btn-ghost btn-xs" type="button" :disabled="busy || !selectedIds.size" @click="reviewSelected('reject')">{{ $t('dam_features.review.batch_reject') }}</button>
+          <button class="btn btn-primary btn-xs" type="button" :disabled="busy || !selectedIds.size" @click="reviewSelected('accept')">{{ $t('dam_features.review.batch_accept') }}</button>
         </div>
       </div>
 
@@ -35,7 +35,7 @@
           <span class="loading loading-spinner loading-md"></span>
         </div>
         <div v-else-if="!rows.length" class="flex h-full flex-col items-center justify-center text-base-content/45">
-          <p class="text-sm">当前没有 AI 建议</p>
+          <p class="text-sm">{{ $t('dam_features.review.empty') }}</p>
         </div>
         <div v-else class="space-y-2">
           <article
@@ -53,8 +53,8 @@
             <span v-else class="text-center text-xs text-base-content/30">—</span>
 
             <div class="min-w-0">
-              <div class="truncate text-sm font-medium" :title="row.fileName">{{ row.fileName || `文件 ${row.fileId}` }}</div>
-              <div class="truncate text-[11px] text-base-content/40" :title="row.filePath">{{ row.filePath || '路径不可用' }}</div>
+              <div class="truncate text-sm font-medium" :title="row.fileName">{{ row.fileName || $t('dam_features.common.file_id', { id: row.fileId }) }}</div>
+              <div class="truncate text-[11px] text-base-content/40" :title="row.filePath">{{ row.filePath || $t('dam_features.review.path_unavailable') }}</div>
             </div>
 
             <span class="badge badge-ghost badge-sm justify-self-start">{{ kindLabel(row.kind) }}</span>
@@ -66,8 +66,8 @@
             </div>
 
             <div v-if="row.status === 'pending'" class="flex justify-end gap-1">
-              <button class="btn btn-ghost btn-xs" type="button" :disabled="busy" @click="reviewOne(row.id, 'reject')">拒绝</button>
-              <button class="btn btn-primary btn-xs" type="button" :disabled="busy" @click="reviewOne(row.id, 'accept')">接受</button>
+              <button class="btn btn-ghost btn-xs" type="button" :disabled="busy" @click="reviewOne(row.id, 'reject')">{{ $t('dam_features.review.reject') }}</button>
+              <button class="btn btn-primary btn-xs" type="button" :disabled="busy" @click="reviewOne(row.id, 'accept')">{{ $t('dam_features.review.accept') }}</button>
             </div>
             <div v-else class="text-right text-xs text-base-content/45">{{ statusLabel(row.status) }}</div>
           </article>
@@ -75,8 +75,8 @@
       </main>
 
       <footer class="flex items-center justify-between border-t border-base-content/10 px-5 py-3 text-xs text-base-content/45">
-        <span>共 {{ rows.length }} 条</span>
-        <button v-if="status !== 'pending'" class="btn btn-ghost btn-xs text-error" type="button" :disabled="busy" @click="clearReviewed">清理已处理记录</button>
+        <span>{{ $t('dam_features.review.total', { count: rows.length }) }}</span>
+        <button v-if="status !== 'pending'" class="btn btn-ghost btn-xs text-error" type="button" :disabled="busy" @click="clearReviewed">{{ $t('dam_features.review.clear') }}</button>
       </footer>
     </section>
   </div>
@@ -84,10 +84,12 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { clearReviewedAiSuggestions, listAiSuggestions, reviewAiSuggestion } from '@/common/ai-review-api';
 import { useToast } from '@/common/toast';
 
 const emit = defineEmits(['close']);
+const { t } = useI18n();
 const toast = useToast();
 const status = ref('pending');
 const rows = ref<any[]>([]);
@@ -127,7 +129,9 @@ async function reviewOne(id: number, action: 'accept' | 'reject') {
   busy.value = true;
   try {
     await reviewAiSuggestion(id, action);
-    toast.success(action === 'accept' ? '已接受 AI 建议' : '已拒绝 AI 建议');
+    toast.success(action === 'accept'
+      ? t('dam_features.review.accepted_toast')
+      : t('dam_features.review.rejected_toast'));
     await load();
   } catch (error) {
     toast.error(String(error));
@@ -145,10 +149,10 @@ async function reviewSelected(action: 'accept' | 'reject') {
       await reviewAiSuggestion(id, action);
       completed += 1;
     }
-    toast.success(`已处理 ${completed} 条 AI 建议`);
+    toast.success(t('dam_features.review.processed', { count: completed }));
     await load();
   } catch (error) {
-    toast.error(`已处理 ${completed} 条，随后失败：${String(error)}`);
+    toast.error(t('dam_features.review.failed_after', { count: completed, error: String(error) }));
     await load();
   } finally {
     busy.value = false;
@@ -156,11 +160,11 @@ async function reviewSelected(action: 'accept' | 'reject') {
 }
 
 async function clearReviewed() {
-  if (!confirm('清理所有已经接受、拒绝或自动应用的 AI 建议记录？')) return;
+  if (!confirm(t('dam_features.review.clear_confirm'))) return;
   busy.value = true;
   try {
     const count = await clearReviewedAiSuggestions();
-    toast.success(`已清理 ${count} 条记录`);
+    toast.success(t('dam_features.review.cleared', { count }));
     await load();
   } catch (error) {
     toast.error(String(error));
@@ -170,11 +174,21 @@ async function clearReviewed() {
 }
 
 function kindLabel(kind: string) {
-  return ({ tag: '标签', title: '标题', description: '描述', color: '颜色' } as Record<string, string>)[kind] || kind;
+  return ({
+    tag: t('dam_features.review.kind_tag'),
+    title: t('dam_features.review.kind_title'),
+    description: t('dam_features.review.kind_description'),
+    color: t('dam_features.review.kind_color'),
+  } as Record<string, string>)[kind] || kind;
 }
 
 function statusLabel(value: string) {
-  return ({ pending: '待审核', accepted: '已接受', rejected: '已拒绝', applied: '已自动应用' } as Record<string, string>)[value] || value;
+  return ({
+    pending: t('dam_features.review.pending'),
+    accepted: t('dam_features.review.accepted'),
+    rejected: t('dam_features.review.rejected'),
+    applied: t('dam_features.review.applied'),
+  } as Record<string, string>)[value] || value;
 }
 
 function confidenceLabel(value: number | null) {

@@ -32,6 +32,19 @@ header {
   margin-bottom: 28px;
 }
 
+.brand-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.brand-icon {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  border-radius: 12px;
+}
+
 .eyebrow {
   margin: 0 0 8px;
   color: #9da5b4;
@@ -388,6 +401,10 @@ button:disabled {
   header {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .brand-heading {
+    align-items: center;
   }
 
   .detect-button {

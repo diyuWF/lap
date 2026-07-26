@@ -96,7 +96,7 @@
             v-if="onlineAiEligible"
             :icon="IconSparkles"
             :disabled="fileIndex < 0 || isSlideShow || !canInteract"
-            :tooltip="'在线 AI 分析'"
+            :tooltip="$t('dam_features.analyze.title')"
             @click="showAiAnalyzeDialog = true"
           />
           <TButton
