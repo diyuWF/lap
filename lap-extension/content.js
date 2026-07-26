@@ -10,6 +10,7 @@
   let expanded = new Set();
   let hoverTimer = null;
   let selectedFolder = null;
+  let dragGhost = null;
 
   function sendMessage(message) {
     return new Promise((resolve, reject) => {
@@ -72,8 +73,14 @@
     hoverTimer = null;
   }
 
+  function removeDragGhost() {
+    dragGhost?.remove();
+    dragGhost = null;
+  }
+
   function closeOverlay() {
     clearHoverTimer();
+    removeDragGhost();
     overlay?.remove();
     overlay = null;
     mode = 'idle';
@@ -93,8 +100,43 @@
       .replaceAll("'", '&#039;');
   }
 
+  function createDragGhost(image, dataTransfer) {
+    if (!dataTransfer) return;
+    removeDragGhost();
+
+    dragGhost = document.createElement('div');
+    dragGhost.className = 'lap-capture-drag-ghost';
+
+    const thumbnail = image.cloneNode(false);
+    thumbnail.className = 'lap-capture-drag-ghost-image';
+    thumbnail.removeAttribute('id');
+    thumbnail.removeAttribute('srcset');
+    thumbnail.removeAttribute('sizes');
+    thumbnail.src = image.currentSrc || image.src;
+    thumbnail.alt = '';
+    thumbnail.draggable = false;
+
+    const copy = document.createElement('div');
+    copy.className = 'lap-capture-drag-ghost-copy';
+    copy.innerHTML = '<strong>保存到 Lap</strong><span>拖到文件夹，松开后确认</span>';
+
+    const badge = document.createElement('span');
+    badge.className = 'lap-capture-drag-ghost-badge';
+    badge.textContent = '复制';
+
+    dragGhost.append(thumbnail, copy, badge);
+    document.documentElement.appendChild(dragGhost);
+
+    try {
+      dataTransfer.effectAllowed = 'copy';
+      dataTransfer.setData('application/x-lap-capture', currentAsset.sourceUrl);
+      dataTransfer.setDragImage(dragGhost, 30, 30);
+    } catch {
+      // Some pages restrict custom drag data. The overlay remains usable.
+    }
+  }
+
   function createOverlay() {
-    closeOverlay();
     mode = 'loading';
     overlay = document.createElement('div');
     overlay.className = 'lap-capture-overlay';
@@ -114,6 +156,11 @@
           <aside class="lap-capture-preview">
             <div class="lap-capture-preview-frame">
               <img class="lap-capture-preview-image" alt="待保存素材预览" />
+              <div class="lap-capture-preview-fallback" hidden>
+                <span class="lap-capture-preview-fallback-icon">图</span>
+                <strong>网页预览不可用</strong>
+                <span>仍可保存原始图片地址</span>
+              </div>
             </div>
             <div class="lap-capture-preview-meta"></div>
           </aside>
@@ -141,6 +188,11 @@
     document.documentElement.appendChild(overlay);
 
     const preview = overlay.querySelector('.lap-capture-preview-image');
+    const previewFallback = overlay.querySelector('.lap-capture-preview-fallback');
+    preview.addEventListener('error', () => {
+      preview.hidden = true;
+      previewFallback.hidden = false;
+    }, { once: true });
     preview.src = currentAsset.sourceUrl;
     const dimensions = currentAsset.naturalWidth && currentAsset.naturalHeight
       ? `${currentAsset.naturalWidth} × ${currentAsset.naturalHeight}`
@@ -304,6 +356,7 @@
   function showConfirmation() {
     mode = 'confirming';
     clearHoverTimer();
+    removeDragGhost();
     overlay.querySelector('.lap-capture-folder-area').hidden = true;
     overlay.querySelector('.lap-capture-status').hidden = true;
     const confirm = overlay.querySelector('.lap-capture-confirm');
@@ -413,9 +466,10 @@
   }
 
   async function beginCapture(image, event) {
+    closeOverlay();
     currentAsset = createAsset(image);
-    if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy';
     createOverlay();
+    createDragGhost(image, event.dataTransfer);
     try {
       await loadFolderState();
     } catch (error) {
@@ -438,6 +492,7 @@
   }, true);
 
   document.addEventListener('dragend', () => {
+    removeDragGhost();
     if (!overlay || !['loading', 'picking'].includes(mode)) return;
     setTimeout(() => {
       if (overlay && ['loading', 'picking'].includes(mode)) closeOverlay();

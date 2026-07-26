@@ -3,7 +3,7 @@ use crate::t_dam;
 use crate::t_sqlite::{self, AFile, AThumb};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use chrono::Utc;
-use reqwest::header::{CONTENT_TYPE, HeaderName, HeaderValue};
+use reqwest::header::{ACCEPT, CONTENT_TYPE, HeaderName, HeaderValue};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value as JsonValue, json};
@@ -481,14 +481,31 @@ fn analysis_prompt(provider: &StoredOnlineAiProvider) -> String {
 }
 
 fn endpoint(base_url: &str, suffix: &str) -> String {
-    if base_url.ends_with(suffix) {
-        base_url.to_string()
+    let base = base_url.trim().trim_end_matches('/');
+    let suffix = suffix.trim().trim_start_matches('/');
+    if base
+        .to_ascii_lowercase()
+        .ends_with(&suffix.to_ascii_lowercase())
+    {
+        base.to_string()
     } else {
-        format!(
-            "{}/{}",
-            base_url.trim_end_matches('/'),
-            suffix.trim_start_matches('/')
-        )
+        format!("{}/{}", base, suffix)
+    }
+}
+
+fn is_openrouter(base_url: &str) -> bool {
+    reqwest::Url::parse(base_url.trim())
+        .ok()
+        .and_then(|url| url.host_str().map(str::to_string))
+        .map(|host| host.eq_ignore_ascii_case("openrouter.ai"))
+        .unwrap_or(false)
+}
+
+fn openai_compatible_endpoint(base_url: &str) -> String {
+    if is_openrouter(base_url) {
+        "https://openrouter.ai/api/v1/chat/completions".to_string()
+    } else {
+        endpoint(base_url, "chat/completions")
     }
 }
 
@@ -521,6 +538,7 @@ async fn send_request(
     let mut request = client
         .post(url)
         .header(CONTENT_TYPE, "application/json")
+        .header(ACCEPT, "application/json")
         .body(serde_json::to_vec(&body).map_err(|error| error.to_string())?);
 
     if use_custom_auth && !provider.auth_header.trim().is_empty() {
@@ -538,22 +556,53 @@ async fn send_request(
     }
     request = apply_extra_headers(request, provider)?;
 
-    let response = request.send().await.map_err(|error| error.to_string())?;
+    let response = request
+        .send()
+        .await
+        .map_err(|error| format!("AI 服务连接失败：{}；请求地址：{}", error, url))?;
     let status = response.status();
+    let content_type = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("未知")
+        .to_string();
     let bytes = response.bytes().await.map_err(|error| error.to_string())?;
+    let response_start = String::from_utf8_lossy(&bytes)
+        .trim_start()
+        .chars()
+        .take(32)
+        .collect::<String>()
+        .to_ascii_lowercase();
+    let looks_like_html = content_type.to_ascii_lowercase().contains("text/html")
+        || response_start.starts_with("<!doctype html")
+        || response_start.starts_with("<html");
+
+    if looks_like_html {
+        return Err(format!(
+            "AI 服务返回了网页 HTML 而不是 JSON（HTTP {}）。请求地址：{}。请检查 API 地址是否为服务商提供的 API 基础地址。",
+            status, url
+        ));
+    }
+
     let value: JsonValue = serde_json::from_slice(&bytes).map_err(|error| {
+        let preview = String::from_utf8_lossy(&bytes)
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .chars()
+            .take(240)
+            .collect::<String>();
         format!(
-            "AI 服务返回内容无法解析（HTTP {}）：{}；{}",
-            status,
-            error,
-            String::from_utf8_lossy(&bytes)
-                .chars()
-                .take(500)
-                .collect::<String>()
+            "AI 服务返回内容无法解析（HTTP {}，响应类型 {}）：{}。请求地址：{}。响应摘要：{}",
+            status, content_type, error, url, preview
         )
     })?;
     if !status.is_success() {
-        return Err(format!("AI 服务请求失败（HTTP {}）：{}", status, value));
+        return Err(format!(
+            "AI 服务请求失败（HTTP {}）：{}。请求地址：{}",
+            status, value, url
+        ));
     }
     Ok(value)
 }
@@ -620,7 +669,7 @@ async fn call_provider(
     let prompt = analysis_prompt(provider);
     match provider.kind {
         OnlineAiProviderKind::OpenaiCompatible => {
-            let url = endpoint(&provider.base_url, "chat/completions");
+            let url = openai_compatible_endpoint(&provider.base_url);
             let mut content = vec![json!({ "type": "text", "text": prompt })];
             if let Some(image) = image {
                 content.push(json!({
@@ -639,7 +688,15 @@ async fn call_provider(
                     { "role": "user", "content": content }
                 ]
             });
-            extract_openai_text(&send_request(provider, &url, body, &[], true).await?)
+            let headers = if is_openrouter(&provider.base_url) {
+                vec![
+                    ("HTTP-Referer", "https://github.com/diyuWF/lap".to_string()),
+                    ("X-OpenRouter-Title", "Lap".to_string()),
+                ]
+            } else {
+                Vec::new()
+            };
+            extract_openai_text(&send_request(provider, &url, body, &headers, true).await?)
         }
         OnlineAiProviderKind::Gemini => {
             let url = endpoint(

@@ -120,11 +120,22 @@ Windows validation-package build before that package is used for manual testing.
 
 Current state:
 
-`BLOCKED`
+`FIX IMPLEMENTED — AWAITING AUTOMATED AND MANUAL REVALIDATION`
 
 Reason:
 
-The remaining work requires real user validation on Windows and with real AI credentials.
+Manual Windows validation confirmed two focused defects, and focused fixes are
+now implemented:
+
+- OpenRouter root URLs are routed to website HTML instead of the JSON API endpoint.
+- The browser drag-capture confirmation and overlay presentation are incomplete.
+
+Local frontend, extension syntax, extension DOM regression, CSS parsing, and
+patch checks pass. Rust validation and the fresh Windows package remain pending
+on GitHub Actions.
+
+Do not start future phases. Produce a fresh Windows validation package and
+return to manual validation.
 
 ## Manual validation priority
 
@@ -159,6 +170,15 @@ Real API behavior depends on:
 - vision model capability
 - API limits
 - user configuration
+
+OpenRouter compatibility must accept both its root URL and `/api/v1` base URL,
+and route both to `/api/v1/chat/completions`.
+
+### Browser extension drag capture
+
+The capture overlay stylesheet in the current validation package is truncated.
+The replacement must restore the complete overlay layout and add an explicit
+pointer-following drag confirmation before the next manual package is issued.
 
 ### Professional formats
 

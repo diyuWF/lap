@@ -49,6 +49,10 @@
           <label class="form-control col-span-2 gap-1">
             <span class="text-xs text-base-content/60">API 地址</span>
             <input v-model="form.baseUrl" class="input input-bordered input-sm font-mono" required :placeholder="baseUrlPlaceholder" />
+            <span v-if="isOpenRouter" class="text-[11px] text-base-content/50">
+              OpenRouter 将自动请求
+              <span class="font-mono">https://openrouter.ai/api/v1/chat/completions</span>
+            </span>
           </label>
           <label class="form-control gap-1">
             <span class="text-xs text-base-content/60">模型</span>
@@ -100,7 +104,9 @@
             <textarea v-model="form.systemPrompt" class="textarea textarea-bordered min-h-28" placeholder="留空使用内置素材分类提示词"></textarea>
           </label>
 
-          <div v-if="message" class="alert col-span-2 py-2 text-sm" :class="messageType === 'error' ? 'alert-error' : 'alert-success'">{{ message }}</div>
+          <div v-if="message" class="alert col-span-2 max-h-40 overflow-y-auto whitespace-pre-wrap break-words py-2 text-sm" :class="messageType === 'error' ? 'alert-error' : 'alert-success'">
+            {{ message }}
+          </div>
 
           <div class="col-span-2 flex items-center justify-between pt-2">
             <button v-if="form.id" class="btn btn-ghost btn-sm text-error" type="button" @click="remove">删除服务</button>
@@ -160,6 +166,15 @@ const baseUrlPlaceholder = computed(() => {
   if (form.kind === 'gemini') return 'https://generativelanguage.googleapis.com/v1beta';
   if (form.kind === 'anthropic') return 'https://api.anthropic.com/v1';
   return 'https://api.openai.com/v1';
+});
+
+const isOpenRouter = computed(() => {
+  if (form.kind !== 'openai_compatible') return false;
+  try {
+    return new URL(form.baseUrl).hostname.toLowerCase() === 'openrouter.ai';
+  } catch {
+    return false;
+  }
 });
 
 async function load() {
