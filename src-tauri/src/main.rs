@@ -373,6 +373,8 @@ async fn main() {
             t_ai_online::analyze_file_with_online_ai,
             t_ai_batch::list_online_ai_batch_candidates,
             t_ai_batch::analyze_files_with_online_ai,
+            t_ai_batch::list_ai_folder_suggestions,
+            t_ai_batch::execute_ai_folder_suggestions,
             // AI suggestion review
             t_ai_review::list_ai_suggestions,
             t_ai_review::review_ai_suggestion,

@@ -146,6 +146,28 @@ pub struct OnlineAiAnalysis {
     pub dominant_colors: Vec<String>,
     #[serde(default)]
     pub confidence: f64,
+    #[serde(default)]
+    pub target_folder_id: Option<i64>,
+    #[serde(default)]
+    pub target_folder_path: Option<String>,
+    #[serde(default)]
+    pub organization_reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OnlineAiFolderOption {
+    pub folder_id: i64,
+    pub display_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiFolderSuggestionValue {
+    pub folder_id: i64,
+    pub display_path: String,
+    #[serde(default)]
+    pub reason: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -159,6 +181,7 @@ pub struct OnlineAiAnalysisResult {
     pub applied_tag_ids: Vec<i64>,
     pub tags_applied: bool,
     pub workflow_updated: bool,
+    pub folder_suggestion_id: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -480,6 +503,17 @@ fn analysis_prompt(provider: &StoredOnlineAiProvider) -> String {
     )
 }
 
+fn organization_prompt(
+    provider: &StoredOnlineAiProvider,
+    folders: &[OnlineAiFolderOption],
+) -> Result<String, String> {
+    let folder_json = serde_json::to_string(folders).map_err(|error| error.to_string())?;
+    Ok(format!(
+        "使用 {} 分析素材，最多生成 {} 个 namespace:value 标签，并从给定已有文件夹中选择唯一最合适的目标。不得创造文件夹，不得返回列表外的 folderId。只输出严格 JSON：{{\"title\":\"\",\"description\":\"\",\"tags\":[\"namespace:value\"],\"dominantColors\":[\"#RRGGBB\"],\"confidence\":0.0,\"targetFolderId\":0,\"targetFolderPath\":\"必须逐字复制候选 displayPath\",\"organizationReason\":\"一句简短理由\"}}。可选目标文件夹：{}",
+        provider.language, provider.max_tags, folder_json
+    ))
+}
+
 fn endpoint(base_url: &str, suffix: &str) -> String {
     let base = base_url.trim().trim_end_matches('/');
     let suffix = suffix.trim().trim_start_matches('/');
@@ -735,8 +769,8 @@ fn extract_anthropic_text(value: &JsonValue) -> Result<String, String> {
 async fn call_provider(
     provider: &StoredOnlineAiProvider,
     image: Option<&ImagePayload>,
+    prompt: &str,
 ) -> Result<String, String> {
-    let prompt = analysis_prompt(provider);
     match provider.kind {
         OnlineAiProviderKind::OpenaiCompatible => {
             let url = openai_compatible_endpoint(&provider.base_url);
@@ -871,6 +905,16 @@ fn normalize_analysis(
     analysis.confidence = analysis.confidence.clamp(0.0, 1.0);
     analysis.title = analysis.title.trim().chars().take(180).collect();
     analysis.description = analysis.description.trim().chars().take(1200).collect();
+    analysis.target_folder_path = analysis
+        .target_folder_path
+        .map(|path| path.trim().chars().take(500).collect::<String>())
+        .filter(|path| !path.is_empty());
+    analysis.organization_reason = analysis
+        .organization_reason
+        .trim()
+        .chars()
+        .take(500)
+        .collect();
     analysis
 }
 
@@ -894,7 +938,7 @@ fn save_suggestions(
     provider: &StoredOnlineAiProvider,
     analysis: &OnlineAiAnalysis,
     tags_applied: bool,
-) -> Result<(), String> {
+) -> Result<Option<i64>, String> {
     t_dam::ensure_schema()?;
     let mut conn = t_sqlite::open_conn()?;
     let transaction = conn.transaction().map_err(|error| error.to_string())?;
@@ -905,10 +949,22 @@ fn save_suggestions(
         )
         .map_err(|error| error.to_string())?;
     let now = Utc::now().timestamp_millis();
+    if analysis.target_folder_id.is_some() {
+        transaction
+            .execute(
+                "UPDATE dam_ai_suggestions
+                 SET status = 'rejected', reviewed_at = ?2
+                 WHERE file_id = ?1
+                   AND kind = 'folder'
+                   AND status IN ('pending', 'accepted')",
+                params![file_id, now],
+            )
+            .map_err(|error| error.to_string())?;
+    }
 
-    let insert = |kind: &str, value: &str, status: &str| -> Result<(), String> {
+    let insert = |kind: &str, value: &str, status: &str| -> Result<Option<i64>, String> {
         if value.trim().is_empty() {
-            return Ok(());
+            return Ok(None);
         }
         transaction
             .execute(
@@ -916,18 +972,34 @@ fn save_suggestions(
                 params![file_id, kind, value, analysis.confidence, provider.id, provider.model, status, now],
             )
             .map_err(|error| error.to_string())?;
-        Ok(())
+        Ok(Some(transaction.last_insert_rowid()))
     };
 
-    insert("title", &analysis.title, "pending")?;
-    insert("description", &analysis.description, "pending")?;
+    let _ = insert("title", &analysis.title, "pending")?;
+    let _ = insert("description", &analysis.description, "pending")?;
     for tag in &analysis.tags {
-        insert("tag", tag, if tags_applied { "applied" } else { "pending" })?;
+        let _ = insert("tag", tag, if tags_applied { "applied" } else { "pending" })?;
     }
     for color in &analysis.dominant_colors {
-        insert("color", color, "pending")?;
+        let _ = insert("color", color, "pending")?;
     }
-    transaction.commit().map_err(|error| error.to_string())
+    let folder_suggestion_id = match (
+        analysis.target_folder_id,
+        analysis.target_folder_path.as_deref(),
+    ) {
+        (Some(folder_id), Some(display_path)) => {
+            let value = serde_json::to_string(&AiFolderSuggestionValue {
+                folder_id,
+                display_path: display_path.to_string(),
+                reason: analysis.organization_reason.clone(),
+            })
+            .map_err(|error| error.to_string())?;
+            insert("folder", &value, "pending")?
+        }
+        _ => None,
+    };
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(folder_suggestion_id)
 }
 
 #[tauri::command]
@@ -936,7 +1008,8 @@ pub async fn test_online_ai_provider(
 ) -> Result<OnlineAiProviderTestResult, String> {
     let provider = find_provider(&provider_id)?;
     let started = Instant::now();
-    let raw = call_provider(&provider, None).await?;
+    let prompt = analysis_prompt(&provider);
+    let raw = call_provider(&provider, None, &prompt).await?;
     let _ = parse_analysis(&raw, &provider)?;
     Ok(OnlineAiProviderTestResult {
         ok: true,
@@ -955,7 +1028,8 @@ pub async fn analyze_file_with_online_ai(
 ) -> Result<OnlineAiAnalysisResult, String> {
     let provider = find_provider(&provider_id)?;
     let image = load_image_payload(file_id)?;
-    let raw = call_provider(&provider, Some(&image)).await?;
+    let prompt = analysis_prompt(&provider);
+    let raw = call_provider(&provider, Some(&image), &prompt).await?;
     let analysis = parse_analysis(&raw, &provider)?;
     let should_apply = force_auto_apply.unwrap_or(provider.auto_apply_tags)
         && analysis.confidence >= provider.min_confidence
@@ -971,7 +1045,7 @@ pub async fn analyze_file_with_online_ai(
     } else {
         false
     };
-    save_suggestions(file_id, &provider, &analysis, should_apply)?;
+    let folder_suggestion_id = save_suggestions(file_id, &provider, &analysis, should_apply)?;
 
     Ok(OnlineAiAnalysisResult {
         provider_id: provider.id,
@@ -982,5 +1056,52 @@ pub async fn analyze_file_with_online_ai(
         applied_tag_ids,
         tags_applied: should_apply,
         workflow_updated,
+        folder_suggestion_id,
+    })
+}
+
+pub async fn analyze_file_for_organization(
+    file_id: i64,
+    provider_id: String,
+    folders: Vec<OnlineAiFolderOption>,
+    force_auto_apply: Option<bool>,
+) -> Result<OnlineAiAnalysisResult, String> {
+    if folders.is_empty() {
+        return Err("没有可供 AI 选择的目标文件夹".to_string());
+    }
+    let provider = find_provider(&provider_id)?;
+    let image = load_image_payload(file_id)?;
+    let prompt = organization_prompt(&provider, &folders)?;
+    let raw = call_provider(&provider, Some(&image), &prompt).await?;
+    let mut analysis = parse_analysis(&raw, &provider)?;
+    let target_folder_id = analysis
+        .target_folder_id
+        .ok_or_else(|| "AI 没有返回目标文件夹".to_string())?;
+    let target = folders
+        .iter()
+        .find(|folder| folder.folder_id == target_folder_id)
+        .ok_or_else(|| "AI 返回了候选范围外的文件夹，请重试".to_string())?;
+    analysis.target_folder_path = Some(target.display_path.clone());
+
+    let should_apply = force_auto_apply.unwrap_or(provider.auto_apply_tags)
+        && analysis.confidence >= provider.min_confidence
+        && !analysis.tags.is_empty();
+    let applied_tag_ids = if should_apply {
+        t_dam::apply_tags(file_id, &analysis.tags)?
+    } else {
+        Vec::new()
+    };
+    let folder_suggestion_id = save_suggestions(file_id, &provider, &analysis, should_apply)?;
+
+    Ok(OnlineAiAnalysisResult {
+        provider_id: provider.id,
+        provider_name: provider.name,
+        model: provider.model,
+        file_id,
+        analysis,
+        applied_tag_ids,
+        tags_applied: should_apply,
+        workflow_updated: false,
+        folder_suggestion_id,
     })
 }

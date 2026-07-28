@@ -8,9 +8,9 @@ Date: 2026-07-26
 
 Branch: `feat/phase4-ai-preview-pipeline`
 
-Manual feedback baseline commit: `a1ab547aafa9845432d2384e5f0e0e38a3722ca0`
+Manual feedback baseline commit: `d541af4f97cea3cd069ece8139324cb18b11d809`
 
-Manual feedback baseline package: `Lap-0.4.1-Chat-Delivery-10`
+Manual feedback baseline package: `Lap-0.4.1-Chat-Delivery-12`
 
 Environment: Windows desktop application and Chromium browser extension; Pinterest image detail page
 
@@ -102,7 +102,7 @@ Functions:
 - [ ] Page title saved
 - [ ] Duplicate handling works
 
-Result: FAILED — third focused rework implemented; awaiting a fresh package
+Result: FAILED — fourth focused rework implemented; awaiting a fresh package
 
 Evidence:
 
@@ -119,7 +119,8 @@ Issues:
 
 - The setup flow needs a one-click local Lap detector that distinguishes “Lap not running”, “Lap found but Token missing”, and “Lap found but Token invalid”.
 - Light-theme labels, placeholders, status messages, and controls need accessible contrast.
-- The dragged image should become semi-transparent and follow the pointer. After a one-second hold, a radial folder menu should appear without a repeated tutorial card.
+- The dragged image should become semi-transparent and follow the pointer. After a 0.5-second hold, a radial folder menu should appear without a repeated tutorial card.
+- The radial center action should read “保存到待整理区域” and save into the logical pending workflow.
 - Dropping on a radial folder should lead to explicit save confirmation; “More folders” should open the complete folder browser.
 - Small images, `draggable=false` thumbnails, lazy-loaded image sources, and images under a covering element need the same explicit drag flow.
 - `Settings → Advanced → Browser capture` must expose the local address and pairing Token that the extension asks users to copy.
@@ -167,6 +168,12 @@ Functions:
 - [ ] Accept applies tags
 - [ ] Reject does not apply tags
 - [ ] Restart preserves configuration
+- [ ] Pending assets can generate folder plans
+- [ ] Scope can be limited to one selected root and its descendants
+- [ ] Scope can include the whole existing folder hierarchy
+- [ ] Folder plans require confirmation before files move
+- [ ] Confirmed plans move files with conflict-safe naming
+- [ ] Missing/deleted destinations are rejected without data loss
 
 Result: FAILED — endpoint retest passed; rate-limit UX rework implemented; awaiting a fresh package
 
@@ -199,3 +206,43 @@ Issues:
 | LAP-VAL-006 | The 1.3-second tutorial appears on every drag, feels slow, and small/lazy-loaded thumbnails do not reliably enter drag capture. | High | Fix implemented with a silent one-second threshold and thumbnail source/drag recovery; awaiting automated and manual retest |
 | LAP-VAL-007 | Language names are shown in Chinese, the main window does not switch locale immediately, and new AI/preview surfaces stay hard-coded in Chinese. | High | Fix implemented; awaiting automated and manual retest |
 | LAP-VAL-008 | Extension setup points to a missing App Token screen, and the extension does not use the official Lap icon. | High | Fix implemented; awaiting automated and manual retest |
+| LAP-VAL-009 | The one-second drag threshold still feels slow and the center action uses the ambiguous “保存到 Lap” label. | High | Fix implemented with a 500 ms threshold and “保存到待整理区域”; awaiting automated and manual retest |
+| LAP-VAL-010 | Pending assets cannot be safely planned into existing nested folders and executed after user confirmation. | High | Fix implemented with scoped AI folder plans and a validating internal executor; awaiting automated and manual retest |
+
+## 7. AI pending-area organization
+
+Test setup:
+
+- [ ] Create `游戏原画`
+- [ ] Under it create `三渲二`, `写实`, `中国风`, and `欧美风`
+- [ ] Create a separate top-level folder `风景摄影`
+- [ ] Capture several mixed images into the pending area
+
+Selected-root mode:
+
+- [ ] Select `游戏原画`
+- [ ] Generate plans
+- [ ] Every proposed destination is `游戏原画` or one of its descendants
+- [ ] `风景摄影` is never proposed in this mode
+
+Whole-library mode:
+
+- [ ] Generate plans without a selected root
+- [ ] AI can select suitable existing folders under either top-level folder
+- [ ] AI cannot invent a folder that does not exist
+- [ ] Inbox/待整理 is not offered as a destination
+
+Review and execution:
+
+- [ ] Plans show destination, confidence, and reason
+- [ ] No file moves before explicit confirmation
+- [ ] Confirmed plans move to the selected existing folder
+- [ ] Name conflicts keep both files
+- [ ] Delete a proposed destination before execution and confirm the item fails safely
+- [ ] Restart preserves unexecuted plans
+
+Result:
+
+Evidence:
+
+Issues:

@@ -85,7 +85,7 @@ function isInvalidToken(error) {
 async function loadFolders(config) {
   const data = await request('/folders', config);
   const selected = elements.folderPath.value || config.folderPath || '';
-  elements.folderPath.innerHTML = '<option value="">自动选择 Inbox 或第一个可用目录</option>';
+  elements.folderPath.innerHTML = '<option value="">自动选择“待整理”或第一个可用目录</option>';
   for (const folder of data.folders || []) {
     const option = document.createElement('option');
     option.value = folder.path;

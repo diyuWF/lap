@@ -1,6 +1,6 @@
 (() => {
   const HOVER_EXPAND_MS = 520;
-  const INTENT_CONFIRM_MS = 1000;
+  const INTENT_CONFIRM_MS = 500;
   const CLOSE_AFTER_DRAG_MS = 160;
   const RADIAL_SIZE = 328;
 
@@ -229,19 +229,19 @@
     const extensionIconUrl = chrome.runtime.getURL('icon.png');
     overlay.innerHTML = `
       <div class="lap-capture-radial" role="menu" aria-label="保存到文件夹" hidden>
-        <div class="lap-capture-radial-center">
-          <strong>保存到 Lap</strong>
-          <span>拖到文件夹并松开</span>
-        </div>
+        <button class="lap-capture-radial-center" type="button" role="menuitem">
+          <strong>保存到待整理区域</strong>
+          <span>松开后可交给 AI 分类</span>
+        </button>
         <div class="lap-capture-radial-items"></div>
       </div>
-      <section class="lap-capture-panel" role="dialog" aria-label="保存到 Lap" hidden>
+      <section class="lap-capture-panel" role="dialog" aria-label="保存到待整理区域" hidden>
         <header class="lap-capture-header">
           <div class="lap-capture-brand">
             <img class="lap-capture-logo" src="${escapeHtml(extensionIconUrl)}" alt="" />
             <div>
-              <strong>保存到 Lap</strong>
-              <span>选择文件夹后确认保存</span>
+              <strong>保存到待整理区域</strong>
+              <span>先收集，再由 AI 生成分类方案</span>
             </div>
           </div>
           <button class="lap-capture-close" type="button" aria-label="关闭">×</button>
@@ -457,6 +457,38 @@
     radialAnchor = { ...lastDragPoint };
     radial.hidden = false;
     items.textContent = '';
+    const inboxTarget = radial.querySelector('.lap-capture-radial-center');
+    const selectInbox = () => {
+      selectedFolder = {
+        id: null,
+        name: '待整理区域',
+        path: '',
+        isInbox: true,
+      };
+      showConfirmation();
+    };
+    inboxTarget.classList.remove('is-target');
+    inboxTarget.ondragenter = (event) => {
+      if (mode !== 'radial') return;
+      event.preventDefault();
+      inboxTarget.classList.add('is-target');
+    };
+    inboxTarget.ondragover = (event) => {
+      if (mode !== 'radial') return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    };
+    inboxTarget.ondragleave = (event) => {
+      if (inboxTarget.contains(event.relatedTarget)) return;
+      inboxTarget.classList.remove('is-target');
+    };
+    inboxTarget.ondrop = (event) => {
+      if (mode !== 'radial') return;
+      event.preventDefault();
+      event.stopPropagation();
+      selectInbox();
+    };
+    inboxTarget.onclick = selectInbox;
     candidates.forEach((folder, index) => {
       items.appendChild(createRadialFolder(folder, index, total));
     });
@@ -632,29 +664,30 @@
     overlay.querySelector('.lap-capture-folder-area').hidden = true;
     overlay.querySelector('.lap-capture-status').hidden = true;
     const confirm = overlay.querySelector('.lap-capture-confirm');
+    const isInbox = Boolean(selectedFolder?.isInbox);
+    const destinationLabel = isInbox ? '待整理区域' : selectedFolder.path;
     confirm.hidden = false;
     confirm.innerHTML = `
       <div class="lap-capture-confirm-heading">
         <span class="lap-capture-confirm-icon">✓</span>
         <div>
-          <strong>确认保存位置</strong>
-          <span>${escapeHtml(selectedFolder.path)}</span>
+          <strong>${isInbox ? '确认进入待整理区域' : '确认保存位置'}</strong>
+          <span>${escapeHtml(destinationLabel)}</span>
         </div>
       </div>
       <label class="lap-capture-field">
         <span>标签</span>
         <textarea rows="3" placeholder="每行一个，例如：style:minimal"></textarea>
       </label>
-      <label class="lap-capture-check">
-        <input type="checkbox" checked />
+      <div class="lap-capture-check">
         <span>
-          <strong>保存后交给 AI 自动整理</strong>
-          <small>在线 AI 配置可用时生成标题、描述、标签和分类建议</small>
+          <strong>保存后进入待整理列表</strong>
+          <small>之后可在 Lap 中选择整理范围，让 AI 生成标签和目标文件夹方案</small>
         </span>
-      </label>
+      </div>
       <div class="lap-capture-actions">
         <button class="lap-capture-button is-secondary" data-action="back" type="button">返回选择</button>
-        <button class="lap-capture-button is-primary" data-action="save" type="button">保存到此文件夹</button>
+        <button class="lap-capture-button is-primary" data-action="save" type="button">${isInbox ? '保存到待整理' : '保存到此文件夹'}</button>
       </div>`;
 
     confirm.querySelector('[data-action="back"]').addEventListener('click', () => {
@@ -690,7 +723,6 @@
     const confirm = overlay.querySelector('.lap-capture-confirm');
     const saveButton = confirm.querySelector('[data-action="save"]');
     const tags = parseTags(confirm.querySelector('textarea').value);
-    const aiAutoOrganize = confirm.querySelector('input[type="checkbox"]').checked;
     saveButton.disabled = true;
     saveButton.textContent = '正在保存…';
 
@@ -703,12 +735,12 @@
           pageTitle: document.title,
           siteName: location.hostname,
           altText: currentAsset.altText,
-          folderPath: selectedFolder.path,
+          folderPath: selectedFolder.path || null,
           tags,
           metadata: {
             capturedBy: 'lap-drag-capture',
             capturedAt: new Date().toISOString(),
-            aiAutoOrganize,
+            organizationQueue: 'inbox',
             naturalWidth: currentAsset.naturalWidth,
             naturalHeight: currentAsset.naturalHeight,
             displayWidth: currentAsset.displayWidth,
@@ -726,8 +758,8 @@
       confirm.innerHTML = `
         <div class="lap-capture-complete">
           <span class="lap-capture-complete-icon">✓</span>
-          <strong>${response.result?.duplicate ? '素材已存在' : '已保存到 Lap'}</strong>
-          <span>${escapeHtml(selectedFolder.path)}</span>
+          <strong>${response.result?.duplicate ? '素材已存在' : (selectedFolder.isInbox ? '已进入待整理区域' : '已保存到 Lap')}</strong>
+          <span>${escapeHtml(response.result?.folder?.path || selectedFolder.path || '待整理区域')}</span>
         </div>`;
       setTimeout(closeOverlay, 1100);
     } catch (error) {
@@ -776,7 +808,10 @@
 
   document.addEventListener('drop', (event) => {
     if (!overlay || mode !== 'radial') return;
-    if (event.target instanceof Element && event.target.closest('.lap-capture-radial-item')) return;
+    if (
+      event.target instanceof Element
+      && event.target.closest('.lap-capture-radial-item, .lap-capture-radial-center')
+    ) return;
     event.preventDefault();
     closeOverlay();
   }, true);

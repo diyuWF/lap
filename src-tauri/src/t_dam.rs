@@ -198,7 +198,12 @@ pub fn find_folder(path: Option<&str>) -> Result<Option<DamFolder>, String> {
 
     Ok(folders
         .iter()
-        .find(|folder| folder.name.eq_ignore_ascii_case("inbox"))
+        .find(|folder| {
+            matches!(
+                folder.name.trim().to_lowercase().as_str(),
+                "inbox" | "待整理" | "待整理区域"
+            )
+        })
         .cloned()
         .or_else(|| folders.into_iter().next()))
 }

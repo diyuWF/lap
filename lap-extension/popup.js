@@ -120,7 +120,7 @@ function renderFolders(folders) {
   elements.folderSelect.replaceChildren();
   const fallback = document.createElement('option');
   fallback.value = '';
-  fallback.textContent = '自动选择 Inbox 或首个目录';
+  fallback.textContent = '自动保存到待整理区域';
   elements.folderSelect.append(fallback);
   for (const folder of folders) {
     const option = document.createElement('option');

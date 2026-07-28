@@ -179,6 +179,7 @@ function kindLabel(kind: string) {
     title: t('dam_features.review.kind_title'),
     description: t('dam_features.review.kind_description'),
     color: t('dam_features.review.kind_color'),
+    folder: t('dam_features.review.kind_folder'),
   } as Record<string, string>)[kind] || kind;
 }
 

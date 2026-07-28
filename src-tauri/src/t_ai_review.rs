@@ -66,13 +66,22 @@ pub fn list_ai_suggestions(
                     .to_string_lossy()
                     .into_owned()
             });
+            let kind: String = row.get(4)?;
+            let raw_value: String = row.get(5)?;
+            let value = if kind == "folder" {
+                serde_json::from_str::<crate::t_ai_online::AiFolderSuggestionValue>(&raw_value)
+                    .map(|plan| plan.display_path)
+                    .unwrap_or(raw_value)
+            } else {
+                raw_value
+            };
             Ok(AiSuggestionRow {
                 id: row.get(0)?,
                 file_id: row.get(1)?,
                 file_name,
                 file_path,
-                kind: row.get(4)?,
-                value: row.get(5)?,
+                kind,
+                value,
                 confidence: row.get(6)?,
                 provider: row.get(7)?,
                 model: row.get(8)?,
@@ -153,7 +162,9 @@ pub fn clear_reviewed_ai_suggestions() -> Result<usize, String> {
     t_dam::ensure_schema()?;
     t_sqlite::open_conn()?
         .execute(
-            "DELETE FROM dam_ai_suggestions WHERE status IN ('accepted', 'rejected', 'applied')",
+            "DELETE FROM dam_ai_suggestions
+             WHERE status IN ('accepted', 'rejected', 'applied')
+               AND NOT (kind = 'folder' AND status = 'accepted')",
             [],
         )
         .map_err(|error| error.to_string())

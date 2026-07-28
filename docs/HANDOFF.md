@@ -120,30 +120,31 @@ Windows validation-package build before that package is used for manual testing.
 
 Current state:
 
-`FAILED — THIRD FOCUSED VALIDATION FIX IMPLEMENTED`
+`FAILED — FOURTH FOCUSED VALIDATION FIX IMPLEMENTED`
 
 Reason:
 
-The second focused package (`Lap-0.4.1-Chat-Delivery-11`) passed its automated
-checks. Manual retest then identified four usability and source-alignment defects:
+The third focused package (`Lap-0.4.1-Chat-Delivery-12`) passed its automated
+checks. Manual retest then identified that the one-second drag threshold still
+feels slow and that browser captures need a clear Inbox-to-AI-organization flow.
 
-- The 1.3-second drag tutorial is repeated for every capture and makes an ordinary
-  action feel slower. The only pre-menu feedback should be the semi-transparent
-  image, with a one-second threshold.
-- Small or lazy-loaded thumbnails may use `draggable=false`, a covering element,
-  a data URI, or a deferred source attribute and therefore never enter the capture
-  flow.
-- The extension tells users to copy the pairing Token from
-  `Settings → Advanced → Browser capture`, but the App does not expose that UI.
-- Language names are shown in Chinese, the main window does not update its locale
-  immediately, and the new AI/preview settings and dialogs are hard-coded in
-  Chinese. The extension also lacks the official Lap icon.
+Focused fixes are implemented in the working branch:
 
-Focused fixes are implemented in the working branch. Frontend, localization,
-extension syntax/resources, drag/setup DOM regressions, and repository hygiene
-pass locally. Local Rust checks are blocked because this workstation has no
-Cargo/rustfmt; a fresh GitHub PR build and Windows validation package are still
-required.
+- drag intent confirmation is now 500 ms;
+- the radial center action is named “保存到待整理区域”;
+- captured assets keep the existing `dam_file_workflow.status = inbox` workflow;
+- AI can plan against either one selected root and its descendants or the whole
+  existing folder hierarchy;
+- AI output is limited to existing database folder IDs and relative display paths;
+- folder plans are persisted and reviewed before execution;
+- an internal executor revalidates the current asset and destination folder, then
+  moves with the existing `keep_both` conflict policy;
+- AI cannot invent folders, receive absolute paths, or move files directly.
+
+Frontend, localization, extension syntax/resources, drag DOM regressions, and
+repository hygiene pass locally. Local Rust checks are blocked because this
+workstation has no Cargo/rustfmt; a fresh GitHub PR build and Windows validation
+package are still required.
 
 Do not start future phases. Produce a fresh Windows validation package and
 return to manual validation.
@@ -154,11 +155,12 @@ return to manual validation.
 2. Confirm existing Lap libraries open correctly.
 3. Test SVG/PDF preview.
 4. Test GLB/glTF/OBJ/STL model loading.
-5. Test browser extension capture workflow.
+5. Test browser extension capture into the pending area.
 6. Configure a real AI provider.
 7. Test single-file AI analysis.
-8. Test batch AI analysis.
-9. Test AI review queue acceptance/rejection.
+8. Test both AI folder-planning scopes.
+9. Review and execute AI folder plans.
+10. Test AI review queue acceptance/rejection.
 
 Record all results in:
 
@@ -193,9 +195,23 @@ the complete provider payload or internal user identifiers.
 
 The next package must be manually checked on a real Chromium page. Verify the
 native semi-transparent drag image follows the pointer with no repeated tutorial
-card, the radial folder menu does not appear before the one-second threshold,
-small/lazy-loaded thumbnails enter the same flow, folder drop opens confirmation,
-and releasing early does not leave an overlay behind.
+card, the radial folder menu appears after the 500 ms threshold, the center reads
+“保存到待整理区域”, small/lazy-loaded thumbnails enter the same flow, dropping
+on the center opens confirmation, and releasing early does not leave an overlay
+behind.
+
+### AI pending-area organization
+
+The organizer has two explicit scopes:
+
+- `within_folder`: a selected root folder and all of its existing descendants;
+- `library`: all existing folders in the current library.
+
+Inbox/待整理 folders are excluded as destinations. Folder candidates are capped
+at 800 and a single batch is capped at 200 assets. Suggestions persist as folder
+plans and must be confirmed before execution. The executor rejects missing assets,
+deleted destinations, and stale or malformed suggestion IDs. It does not create
+or delete folders.
 
 ### Browser extension setup
 

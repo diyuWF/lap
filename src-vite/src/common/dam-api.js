@@ -87,3 +87,13 @@ export async function listOnlineAiBatchCandidates(
 export async function analyzeFilesWithOnlineAi(input) {
   return invoke('analyze_files_with_online_ai', { input });
 }
+
+export async function listAiFolderSuggestions(limit = 200) {
+  return invoke('list_ai_folder_suggestions', { limit });
+}
+
+export async function executeAiFolderSuggestions(suggestionIds) {
+  return invoke('execute_ai_folder_suggestions', {
+    input: { suggestionIds },
+  });
+}

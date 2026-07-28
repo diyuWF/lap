@@ -48,12 +48,13 @@
 }
 
 .lap-capture-radial-center {
+  appearance: none;
   position: absolute;
   top: 50%;
   left: 50%;
   display: grid;
-  width: 110px;
-  height: 110px;
+  width: 146px;
+  height: 146px;
   place-content: center;
   gap: 2px;
   border: 1px solid rgba(255, 255, 255, 0.3);
@@ -61,14 +62,26 @@
   background: rgba(29, 31, 42, 0.92);
   box-shadow: 0 16px 44px rgba(13, 15, 23, 0.32);
   color: #fff;
+  cursor: copy;
+  font: inherit;
+  pointer-events: auto;
   text-align: center;
   transform: translate(-50%, -50%);
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.lap-capture-radial-center.is-target,
+.lap-capture-radial-center:hover {
+  border-color: rgba(139, 123, 255, 0.9);
+  box-shadow: 0 0 0 7px rgba(113, 91, 255, 0.18), 0 20px 48px rgba(20, 16, 42, 0.4);
+  transform: translate(-50%, -50%) scale(1.04);
 }
 
 .lap-capture-radial-center strong {
   color: #fff;
   font-size: 13px;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .lap-capture-radial-center span {
