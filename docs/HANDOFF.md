@@ -66,6 +66,26 @@ Branch:
 
 The PR is intentionally kept Draft until manual validation is complete.
 
+## Current validation candidate
+
+Remote candidate commit:
+
+`8e4c41d559297c2864403f807d45cda68ac29362`
+
+Automated validation:
+
+- PASS — PR Build #68, run `30366546582`
+- PASS — Chat Validation Package #13, run `30366545915`
+- PASS — artifact `Lap-0.4.1-Chat-Delivery-13`
+- Artifact ID: `8692268324`
+- Artifact SHA256 digest:
+  `ea12989aaaa9c4094cf9a5652fd01a346883a0224fd8cbfc9a3a3731f7288904`
+- Artifact expires: 2026-08-27
+
+The automated gate is complete. Stop feature development and perform the
+manual checks in `docs/MANUAL_VALIDATION.md`. Keep PR #2 in Draft until those
+checks pass.
+
 ## Completed milestones
 
 ### Phase 1–3
@@ -142,12 +162,12 @@ Focused fixes are implemented in the working branch:
 - AI cannot invent folders, receive absolute paths, or move files directly.
 
 Frontend, localization, extension syntax/resources, drag DOM regressions, and
-repository hygiene pass locally. Local Rust checks are blocked because this
-workstation has no Cargo/rustfmt; a fresh GitHub PR build and Windows validation
-package are still required.
+repository hygiene pass locally. GitHub PR Build #68 also passed the Rust backend
+check, and Chat Validation Package #13 produced the Windows/browser validation
+artifact.
 
-Do not start future phases. Produce a fresh Windows validation package and
-return to manual validation.
+Do not start future phases. Return to manual validation with
+`Lap-0.4.1-Chat-Delivery-13`.
 
 ## Manual validation priority
 

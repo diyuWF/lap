@@ -12,6 +12,18 @@ Manual feedback baseline commit: `d541af4f97cea3cd069ece8139324cb18b11d809`
 
 Manual feedback baseline package: `Lap-0.4.1-Chat-Delivery-12`
 
+Current candidate commit: `8e4c41d559297c2864403f807d45cda68ac29362`
+
+Current candidate package: `Lap-0.4.1-Chat-Delivery-13`
+
+Automated gate:
+
+- PASS — PR Build #68 (`30366546582`)
+- PASS — Chat Validation Package #13 (`30366545915`)
+- Artifact ID: `8692268324`
+- Artifact SHA256:
+  `ea12989aaaa9c4094cf9a5652fd01a346883a0224fd8cbfc9a3a3731f7288904`
+
 Environment: Windows desktop application and Chromium browser extension; Pinterest image detail page
 
 ## 1. Installation and startup
@@ -175,7 +187,7 @@ Functions:
 - [ ] Confirmed plans move files with conflict-safe naming
 - [ ] Missing/deleted destinations are rejected without data loss
 
-Result: FAILED — endpoint retest passed; rate-limit UX rework implemented; awaiting a fresh package
+Result: BLOCKED — automated package passed; awaiting manual provider retest
 
 Evidence:
 
@@ -191,8 +203,8 @@ Issues:
 ## Final status
 
 - [ ] PASS — ready for merge
-- [x] FAILED — defects require fixes
-- [ ] BLOCKED — waiting for environment, credentials, or decision
+- [ ] FAILED — defects require fixes
+- [x] BLOCKED — automated gate passed; waiting for manual validation
 
 ## Defect log
 
@@ -200,14 +212,14 @@ Issues:
 |---|---|---|---|
 | LAP-VAL-001 | OpenRouter root URL reached website HTML instead of the OpenAI-compatible JSON API. | High | Retest PASS — correct endpoint returned provider JSON |
 | LAP-VAL-002 | Browser drag capture lacked feedback and the overlay stylesheet was truncated. | High | Partial retest PASS; interaction design superseded by LAP-VAL-005 |
-| LAP-VAL-003 | HTTP 429 shows raw upstream JSON and an internal user identifier instead of a safe, actionable Chinese rate-limit message. | High | Fix implemented; awaiting automated and manual retest |
-| LAP-VAL-004 | Extension setup lacks local auto-detection, exposes a raw English Token error, and has insufficient light-theme contrast. | High | Fix implemented; awaiting automated and manual retest |
-| LAP-VAL-005 | Drag capture opens the destination UI without a clear intent threshold; expected behavior is a semi-transparent pointer-following image followed by a delayed radial folder menu. | High | Fix implemented; awaiting automated and manual retest |
-| LAP-VAL-006 | The 1.3-second tutorial appears on every drag, feels slow, and small/lazy-loaded thumbnails do not reliably enter drag capture. | High | Fix implemented with a silent one-second threshold and thumbnail source/drag recovery; awaiting automated and manual retest |
-| LAP-VAL-007 | Language names are shown in Chinese, the main window does not switch locale immediately, and new AI/preview surfaces stay hard-coded in Chinese. | High | Fix implemented; awaiting automated and manual retest |
-| LAP-VAL-008 | Extension setup points to a missing App Token screen, and the extension does not use the official Lap icon. | High | Fix implemented; awaiting automated and manual retest |
-| LAP-VAL-009 | The one-second drag threshold still feels slow and the center action uses the ambiguous “保存到 Lap” label. | High | Fix implemented with a 500 ms threshold and “保存到待整理区域”; awaiting automated and manual retest |
-| LAP-VAL-010 | Pending assets cannot be safely planned into existing nested folders and executed after user confirmation. | High | Fix implemented with scoped AI folder plans and a validating internal executor; awaiting automated and manual retest |
+| LAP-VAL-003 | HTTP 429 shows raw upstream JSON and an internal user identifier instead of a safe, actionable Chinese rate-limit message. | High | Candidate 13 built successfully; awaiting manual retest |
+| LAP-VAL-004 | Extension setup lacks local auto-detection, exposes a raw English Token error, and has insufficient light-theme contrast. | High | Candidate 13 built successfully; awaiting manual retest |
+| LAP-VAL-005 | Drag capture opens the destination UI without a clear intent threshold; expected behavior is a semi-transparent pointer-following image followed by a delayed radial folder menu. | High | Candidate 13 built successfully; awaiting manual retest |
+| LAP-VAL-006 | The 1.3-second tutorial appears on every drag, feels slow, and small/lazy-loaded thumbnails do not reliably enter drag capture. | High | Candidate 13 built successfully; awaiting manual retest |
+| LAP-VAL-007 | Language names are shown in Chinese, the main window does not switch locale immediately, and new AI/preview surfaces stay hard-coded in Chinese. | High | Candidate 13 built successfully; awaiting manual retest |
+| LAP-VAL-008 | Extension setup points to a missing App Token screen, and the extension does not use the official Lap icon. | High | Candidate 13 built successfully; awaiting manual retest |
+| LAP-VAL-009 | The one-second drag threshold still feels slow and the center action uses the ambiguous “保存到 Lap” label. | High | Candidate 13 built successfully with the 500 ms threshold and “保存到待整理区域”; awaiting manual retest |
+| LAP-VAL-010 | Pending assets cannot be safely planned into existing nested folders and executed after user confirmation. | High | Candidate 13 built successfully with scoped plans and the validating executor; awaiting manual retest |
 
 ## 7. AI pending-area organization
 
