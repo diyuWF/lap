@@ -68,23 +68,26 @@ The PR is intentionally kept Draft until manual validation is complete.
 
 ## Current validation candidate
 
-Remote candidate commit:
+Latest packaged candidate commit:
 
-`8e4c41d559297c2864403f807d45cda68ac29362`
+`2ade8ef1cc9b5108d2a9cb5a356134a24fedf3f0`
 
 Automated validation:
 
-- PASS — PR Build #68, run `30366546582`
-- PASS — Chat Validation Package #13, run `30366545915`
-- PASS — artifact `Lap-0.4.1-Chat-Delivery-13`
-- Artifact ID: `8692268324`
+- PASS — PR Build #69
+- PASS — Chat Validation Package #14
+- PASS — artifact `Lap-0.4.1-Chat-Delivery-14`
+- Artifact ID: `8693682758`
 - Artifact SHA256 digest:
-  `ea12989aaaa9c4094cf9a5652fd01a346883a0224fd8cbfc9a3a3731f7288904`
-- Artifact expires: 2026-08-27
+  `8646da3c284b0beee6485223520499e331e9bdfb41b7b10f63cc9df1224ce43f`
+- Windows installer SHA256:
+  `ae7aacb5091b61d1d9fc53f29114a392940f55ea3aa69ea22c81e8ed6fa01ea4`
+- Chromium extension SHA256:
+  `c28c4d6fd6390509aac26e471467c611da84768de87f9e1767c03fbb232a6b3d`
 
-The automated gate is complete. Stop feature development and perform the
-manual checks in `docs/MANUAL_VALIDATION.md`. Keep PR #2 in Draft until those
-checks pass.
+The next focused browser-capture fix is implemented in commit `15419e5` and
+requires a fresh PR build plus Windows validation package before manual testing.
+Keep PR #2 in Draft until the updated checks and manual validation pass.
 
 ## Completed milestones
 
@@ -140,34 +143,43 @@ Windows validation-package build before that package is used for manual testing.
 
 Current state:
 
-`FAILED — FOURTH FOCUSED VALIDATION FIX IMPLEMENTED`
+`FAILED — FIFTH FOCUSED VALIDATION FIX IMPLEMENTED`
 
 Reason:
 
-The third focused package (`Lap-0.4.1-Chat-Delivery-12`) passed its automated
-checks. Manual retest then identified that the one-second drag threshold still
-feels slow and that browser captures need a clear Inbox-to-AI-organization flow.
+The fourth focused package (`Lap-0.4.1-Chat-Delivery-14`) passed its automated
+checks. Manual review then identified that the remaining drag delay still felt
+slow, the light radial visual direction was wrong, and the center action should
+only exist when an online AI model is configured.
 
 Focused fixes are implemented in the working branch:
 
-- drag intent confirmation is now 500 ms;
-- the radial center action is named “保存到待整理区域”;
-- captured assets keep the existing `dam_file_workflow.status = inbox` workflow;
-- AI can plan against either one selected root and its descendants or the whole
-  existing folder hierarchy;
-- AI output is limited to existing database folder IDs and relative display paths;
-- folder plans are persisted and reviewed before execution;
-- an internal executor revalidates the current asset and destination folder, then
-  moves with the existing `keep_both` conflict policy;
-- AI cannot invent folders, receive absolute paths, or move files directly.
+- drag intent confirmation is now 100 ms;
+- the radial UI uses compact dark translucent directory cards and the official
+  Lap icon;
+- the center action is “AI 分类” and is hidden unless at least one enabled online
+  AI provider has a stored API key;
+- dropping on an existing directory saves immediately without the removed
+  confirmation modal and marks the asset workflow as `selected`;
+- AI-center captures retain the logical `inbox` workflow for the existing
+  AI-planning and review process;
+- every radial menu appends “创建目录”; dropping there opens an in-page parent
+  directory/name form, creates one validated child directory, and immediately
+  saves the current image;
+- the authenticated localhost API now supports `POST /folders`; parent directories
+  must already exist in Lap and invalid or Windows-reserved names are rejected;
+- toolbar fallback copy no longer exposes “保存到待整理区域”; its “AI 分类” option
+  is also conditional on the configured AI state.
 
-Frontend, localization, extension syntax/resources, drag DOM regressions, and
-repository hygiene pass locally. GitHub PR Build #68 also passed the Rust backend
-check, and Chat Validation Package #13 produced the Windows/browser validation
-artifact.
+Frontend, localization, extension syntax/resources, drag source regressions,
+radial geometry, and repository hygiene pass locally. Local Rust tools are not
+available in the Work Mode container, so the fresh GitHub PR build remains the
+required Rust check. Browser-rendered visual QA is blocked by the Work Mode
+Chrome session rejecting the otherwise healthy local preview; record the real
+Chromium result during manual validation.
 
-Do not start future phases. Return to manual validation with
-`Lap-0.4.1-Chat-Delivery-13`.
+Do not start future phases. Generate a fresh package from the next pushed
+candidate, then return to manual validation.
 
 ## Manual validation priority
 
@@ -215,10 +227,12 @@ the complete provider payload or internal user identifiers.
 
 The next package must be manually checked on a real Chromium page. Verify the
 native semi-transparent drag image follows the pointer with no repeated tutorial
-card, the radial folder menu appears after the 500 ms threshold, the center reads
-“保存到待整理区域”, small/lazy-loaded thumbnails enter the same flow, dropping
-on the center opens confirmation, and releasing early does not leave an overlay
-behind.
+card, the dark radial folder menu appears after the 100 ms threshold, the
+“AI 分类” center is absent before an AI model is configured and visible after
+configuration, small/lazy-loaded thumbnails enter the same flow, existing-folder
+drops save without confirmation, and releasing early does not leave an overlay.
+Also drop on “创建目录”, choose an existing parent, create a valid child directory,
+and confirm the image is saved there without a second dialog.
 
 ### AI pending-area organization
 
