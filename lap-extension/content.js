@@ -1,8 +1,9 @@
 (() => {
   const HOVER_EXPAND_MS = 520;
-  const INTENT_CONFIRM_MS = 500;
+  const INTENT_CONFIRM_MS = 100;
   const CLOSE_AFTER_DRAG_MS = 160;
-  const RADIAL_SIZE = 328;
+  const RADIAL_SIZE = 420;
+  const RADIAL_ITEM_RADIUS = 154;
 
   let overlay = null;
   let mode = 'idle';
@@ -14,6 +15,7 @@
   let intentTimer = null;
   let intentReady = false;
   let foldersReady = false;
+  let aiConfigured = false;
   let folderLoadError = null;
   let lastDragPoint = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
   let radialAnchor = null;
@@ -175,6 +177,7 @@
     expanded = new Set();
     intentReady = false;
     foldersReady = false;
+    aiConfigured = false;
     folderLoadError = null;
     radialAnchor = null;
   }
@@ -229,29 +232,35 @@
     const extensionIconUrl = chrome.runtime.getURL('icon.png');
     overlay.innerHTML = `
       <div class="lap-capture-radial" role="menu" aria-label="保存到文件夹" hidden>
-        <button class="lap-capture-radial-center" type="button" role="menuitem">
-          <strong>保存到待整理区域</strong>
-          <span>松开后可交给 AI 分类</span>
+        <button class="lap-capture-radial-center" type="button" role="menuitem" hidden>
+          <img src="${escapeHtml(extensionIconUrl)}" alt="" />
+          <span>
+            <strong>AI 分类</strong>
+            <small>松开后进入智能整理</small>
+          </span>
         </button>
         <div class="lap-capture-radial-items"></div>
       </div>
-      <section class="lap-capture-panel" role="dialog" aria-label="保存到待整理区域" hidden>
+      <div class="lap-capture-toast" role="status" aria-live="polite" hidden>
+        <strong></strong>
+        <span></span>
+      </div>
+      <section class="lap-capture-panel" role="dialog" aria-label="选择保存目录" hidden>
         <header class="lap-capture-header">
           <div class="lap-capture-brand">
             <img class="lap-capture-logo" src="${escapeHtml(extensionIconUrl)}" alt="" />
             <div>
-              <strong>保存到待整理区域</strong>
-              <span>先收集，再由 AI 生成分类方案</span>
+              <strong>选择保存目录</strong>
+              <span>松手或点击后立即保存</span>
             </div>
           </div>
-          <button class="lap-capture-close" type="button" aria-label="关闭">×</button>
+          <button class="lap-capture-close" type="button" aria-label="关闭">关闭</button>
         </header>
         <div class="lap-capture-body">
           <aside class="lap-capture-preview">
             <div class="lap-capture-preview-frame">
               <img class="lap-capture-preview-image" alt="待保存素材预览" />
               <div class="lap-capture-preview-fallback" hidden>
-                <span class="lap-capture-preview-fallback-icon">图</span>
                 <strong>网页预览不可用</strong>
                 <span>仍可保存原始图片地址</span>
               </div>
@@ -270,12 +279,32 @@
                 <div class="lap-capture-tree"></div>
               </section>
             </div>
-            <div class="lap-capture-confirm" hidden></div>
+            <form class="lap-capture-create-folder" hidden>
+              <div class="lap-capture-create-heading">
+                <strong>创建目录</strong>
+                <span>新目录会建立在已有 Lap 目录下，完成后立即保存当前图片。</span>
+              </div>
+              <label class="lap-capture-field">
+                <span>上级目录</span>
+                <select name="parentPath"></select>
+              </label>
+              <label class="lap-capture-field">
+                <span>目录名称</span>
+                <input name="folderName" maxlength="100" autocomplete="off" placeholder="例如：中国风" required />
+              </label>
+              <div class="lap-capture-inline-error" hidden></div>
+              <div class="lap-capture-actions">
+                <button class="lap-capture-button is-secondary" data-action="cancel-create" type="button">取消</button>
+                <button class="lap-capture-button is-primary" data-action="create" type="submit">创建并保存</button>
+              </div>
+            </form>
           </main>
         </div>
       </section>`;
 
     overlay.querySelector('.lap-capture-close').addEventListener('click', closeOverlay);
+    overlay.querySelector('[data-action="cancel-create"]').addEventListener('click', showFolderBrowser);
+    overlay.querySelector('.lap-capture-create-folder').addEventListener('submit', createFolderAndSave);
     document.documentElement.appendChild(overlay);
     positionCaptureUi(lastDragPoint.x, lastDragPoint.y);
 
@@ -404,12 +433,12 @@
     button.setAttribute('role', 'menuitem');
     button.title = folder.path;
     button.innerHTML = `
-      <span class="lap-capture-radial-folder-mark" aria-hidden="true">目录</span>
-      <span>${escapeHtml(folder.name)}</span>`;
+      <strong>${escapeHtml(folder.name)}</strong>
+      <span>${escapeHtml(folder.path)}</span>`;
 
     const angle = -Math.PI / 2 + (Math.PI * 2 * index) / total;
-    button.style.setProperty('--lap-radial-x', `${Math.cos(angle) * 116}px`);
-    button.style.setProperty('--lap-radial-y', `${Math.sin(angle) * 116}px`);
+    button.style.setProperty('--lap-radial-x', `${Math.cos(angle) * RADIAL_ITEM_RADIUS}px`);
+    button.style.setProperty('--lap-radial-y', `${Math.sin(angle) * RADIAL_ITEM_RADIUS}px`);
 
     button.addEventListener('dragenter', (event) => {
       if (mode !== 'radial') return;
@@ -430,7 +459,12 @@
       event.preventDefault();
       event.stopPropagation();
       selectedFolder = folder;
-      showConfirmation();
+      saveSelectedAsset();
+    });
+    button.addEventListener('click', () => {
+      if (mode !== 'radial') return;
+      selectedFolder = folder;
+      saveSelectedAsset();
     });
     return button;
   }
@@ -439,8 +473,9 @@
     if (!overlay) return;
     mode = 'browsing';
     openPanel();
+    setPanelBrand('选择保存目录', '点击目录后立即保存');
     overlay.querySelector('.lap-capture-status').hidden = true;
-    overlay.querySelector('.lap-capture-confirm').hidden = true;
+    overlay.querySelector('.lap-capture-create-folder').hidden = true;
     overlay.querySelector('.lap-capture-folder-area').hidden = false;
     renderFolders();
   }
@@ -452,29 +487,30 @@
     const items = overlay.querySelector('.lap-capture-radial-items');
     const candidates = radialFolderCandidates();
     const showMore = folders.length > candidates.length;
-    const total = candidates.length + (showMore ? 1 : 0);
+    const total = candidates.length + 1 + (showMore ? 1 : 0);
 
     radialAnchor = { ...lastDragPoint };
     radial.hidden = false;
     items.textContent = '';
     const inboxTarget = radial.querySelector('.lap-capture-radial-center');
-    const selectInbox = () => {
+    const selectAiClassification = () => {
       selectedFolder = {
         id: null,
-        name: '待整理区域',
+        name: 'AI 分类',
         path: '',
         isInbox: true,
       };
-      showConfirmation();
+      saveSelectedAsset();
     };
+    inboxTarget.hidden = !aiConfigured;
     inboxTarget.classList.remove('is-target');
     inboxTarget.ondragenter = (event) => {
-      if (mode !== 'radial') return;
+      if (mode !== 'radial' || !aiConfigured) return;
       event.preventDefault();
       inboxTarget.classList.add('is-target');
     };
     inboxTarget.ondragover = (event) => {
-      if (mode !== 'radial') return;
+      if (mode !== 'radial' || !aiConfigured) return;
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
     };
@@ -483,15 +519,51 @@
       inboxTarget.classList.remove('is-target');
     };
     inboxTarget.ondrop = (event) => {
-      if (mode !== 'radial') return;
+      if (mode !== 'radial' || !aiConfigured) return;
       event.preventDefault();
       event.stopPropagation();
-      selectInbox();
+      selectAiClassification();
     };
-    inboxTarget.onclick = selectInbox;
+    inboxTarget.onclick = aiConfigured ? selectAiClassification : null;
     candidates.forEach((folder, index) => {
       items.appendChild(createRadialFolder(folder, index, total));
     });
+
+    const createFolder = document.createElement('button');
+    createFolder.type = 'button';
+    createFolder.className = 'lap-capture-radial-item is-create';
+    createFolder.setAttribute('role', 'menuitem');
+    createFolder.innerHTML = '<strong>创建目录</strong><span>新建后保存</span>';
+    const createIndex = candidates.length;
+    const createAngle = -Math.PI / 2 + (Math.PI * 2 * createIndex) / total;
+    createFolder.style.setProperty(
+      '--lap-radial-x',
+      `${Math.cos(createAngle) * RADIAL_ITEM_RADIUS}px`,
+    );
+    createFolder.style.setProperty(
+      '--lap-radial-y',
+      `${Math.sin(createAngle) * RADIAL_ITEM_RADIUS}px`,
+    );
+    createFolder.addEventListener('dragenter', (event) => {
+      if (mode !== 'radial') return;
+      event.preventDefault();
+      createFolder.classList.add('is-target');
+    });
+    createFolder.addEventListener('dragover', (event) => {
+      if (mode !== 'radial') return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    });
+    createFolder.addEventListener('dragleave', () => createFolder.classList.remove('is-target'));
+    createFolder.addEventListener('drop', (event) => {
+      if (mode !== 'radial') return;
+      event.preventDefault();
+      event.stopPropagation();
+      removeDragGhost();
+      showCreateFolderPanel();
+    });
+    createFolder.addEventListener('click', showCreateFolderPanel);
+    items.appendChild(createFolder);
 
     if (showMore) {
       const more = document.createElement('button');
@@ -499,9 +571,15 @@
       more.className = 'lap-capture-radial-item is-more';
       more.setAttribute('role', 'menuitem');
       more.innerHTML = '<strong>更多</strong><span>全部文件夹</span>';
-      const angle = -Math.PI / 2 + (Math.PI * 2 * candidates.length) / total;
-      more.style.setProperty('--lap-radial-x', `${Math.cos(angle) * 116}px`);
-      more.style.setProperty('--lap-radial-y', `${Math.sin(angle) * 116}px`);
+      const angle = -Math.PI / 2 + (Math.PI * 2 * (candidates.length + 1)) / total;
+      more.style.setProperty(
+        '--lap-radial-x',
+        `${Math.cos(angle) * RADIAL_ITEM_RADIUS}px`,
+      );
+      more.style.setProperty(
+        '--lap-radial-y',
+        `${Math.sin(angle) * RADIAL_ITEM_RADIUS}px`,
+      );
       more.addEventListener('dragenter', (event) => {
         if (mode !== 'radial') return;
         event.preventDefault();
@@ -575,8 +653,7 @@
     const hasChildren = folder.children?.length > 0;
     const isExpanded = expanded.has(folder.key);
     row.innerHTML = `
-      <span class="lap-capture-chevron ${hasChildren ? '' : 'is-empty'}">${hasChildren ? (isExpanded ? '⌄' : '›') : ''}</span>
-      <span class="lap-capture-folder-icon">${isExpanded && hasChildren ? '▾' : '▪'}</span>
+      <span class="lap-capture-chevron ${hasChildren ? '' : 'is-empty'}">${hasChildren ? (isExpanded ? '收起' : '展开') : ''}</span>
       <span class="lap-capture-folder-name">${escapeHtml(folder.name)}</span>
       ${hasChildren ? `<span class="lap-capture-child-count">${folder.children.length}</span>` : ''}`;
 
@@ -602,7 +679,7 @@
       event.stopPropagation();
       cancelExpand(row);
       selectedFolder = folder;
-      showConfirmation();
+      saveSelectedAsset();
     });
     row.querySelector('.lap-capture-chevron').addEventListener('click', (event) => {
       event.stopPropagation();
@@ -614,7 +691,7 @@
     row.addEventListener('click', () => {
       if (mode !== 'browsing') return;
       selectedFolder = folder;
-      showConfirmation();
+      saveSelectedAsset();
     });
     return row;
   }
@@ -650,81 +727,133 @@
     if (!response?.ok) throw new Error(response?.error || '无法读取 Lap 文件夹');
     folders = response.folders || [];
     recentFolderPaths = response.recentFolders || [];
+    aiConfigured = Boolean(response.aiConfigured);
     if (!folders.length) throw new Error('Lap 中还没有可用文件夹，请先添加资料库文件夹。');
 
     foldersReady = true;
     resolveIntentState();
   }
 
-  function showConfirmation() {
-    mode = 'confirming';
+  function setPanelBrand(title, subtitle) {
+    const brand = overlay?.querySelector('.lap-capture-brand div');
+    if (!brand) return;
+    brand.querySelector('strong').textContent = title;
+    brand.querySelector('span').textContent = subtitle;
+  }
+
+  function showCreateFolderPanel() {
+    if (!overlay || !folders.length) return;
+    mode = 'creating-folder';
     clearHoverTimer();
+    clearIntentTimer();
     removeDragGhost();
     openPanel();
-    overlay.querySelector('.lap-capture-folder-area').hidden = true;
+    setPanelBrand('创建目录', '创建成功后立即保存当前图片');
+
     overlay.querySelector('.lap-capture-status').hidden = true;
-    const confirm = overlay.querySelector('.lap-capture-confirm');
-    const isInbox = Boolean(selectedFolder?.isInbox);
-    const destinationLabel = isInbox ? '待整理区域' : selectedFolder.path;
-    confirm.hidden = false;
-    confirm.innerHTML = `
-      <div class="lap-capture-confirm-heading">
-        <span class="lap-capture-confirm-icon">✓</span>
-        <div>
-          <strong>${isInbox ? '确认进入待整理区域' : '确认保存位置'}</strong>
-          <span>${escapeHtml(destinationLabel)}</span>
-        </div>
-      </div>
-      <label class="lap-capture-field">
-        <span>标签</span>
-        <textarea rows="3" placeholder="每行一个，例如：style:minimal"></textarea>
-      </label>
-      <div class="lap-capture-check">
-        <span>
-          <strong>保存后进入待整理列表</strong>
-          <small>之后可在 Lap 中选择整理范围，让 AI 生成标签和目标文件夹方案</small>
-        </span>
-      </div>
-      <div class="lap-capture-actions">
-        <button class="lap-capture-button is-secondary" data-action="back" type="button">返回选择</button>
-        <button class="lap-capture-button is-primary" data-action="save" type="button">${isInbox ? '保存到待整理' : '保存到此文件夹'}</button>
-      </div>`;
+    overlay.querySelector('.lap-capture-folder-area').hidden = true;
+    const form = overlay.querySelector('.lap-capture-create-folder');
+    const parentSelect = form.querySelector('select[name="parentPath"]');
+    const nameInput = form.querySelector('input[name="folderName"]');
+    const error = form.querySelector('.lap-capture-inline-error');
+    const submitButton = form.querySelector('[data-action="create"]');
+    const preferredParent = recentFolderPaths.find((path) =>
+      folders.some((folder) => normalizePath(folder.path) === normalizePath(path)),
+    );
 
-    confirm.querySelector('[data-action="back"]').addEventListener('click', () => {
-      selectedFolder = null;
-      showFolderBrowser();
-    });
-    confirm.querySelector('[data-action="save"]').addEventListener('click', saveConfirmedAsset);
+    parentSelect.textContent = '';
+    [...folders]
+      .sort((left, right) => left.path.localeCompare(right.path, 'zh-CN', { numeric: true }))
+      .forEach((folder) => {
+        const option = document.createElement('option');
+        option.value = folder.path;
+        option.textContent = `${folder.name} — ${folder.path}`;
+        option.selected = normalizePath(folder.path) === normalizePath(preferredParent);
+        parentSelect.appendChild(option);
+      });
+    nameInput.value = '';
+    error.hidden = true;
+    error.textContent = '';
+    submitButton.disabled = false;
+    submitButton.textContent = '创建并保存';
+    form.hidden = false;
+    requestAnimationFrame(() => nameInput.focus());
   }
 
-  function parseTags(value) {
-    return String(value || '')
-      .split(/[\n,]/)
-      .map((tag) => tag.trim())
-      .filter(Boolean)
-      .filter((tag, index, all) => all.findIndex((item) => item.toLowerCase() === tag.toLowerCase()) === index)
-      .slice(0, 50);
+  function showCreateError(message) {
+    const form = overlay?.querySelector('.lap-capture-create-folder');
+    if (!form) return;
+    mode = 'creating-folder';
+    const error = form.querySelector('.lap-capture-inline-error');
+    const submitButton = form.querySelector('[data-action="create"]');
+    error.textContent = message || '创建目录失败';
+    error.hidden = false;
+    submitButton.disabled = false;
+    submitButton.textContent = '创建并保存';
   }
 
-  function showSaveError(confirm, saveButton, message) {
-    mode = 'confirming';
-    saveButton.disabled = false;
-    saveButton.textContent = '重试保存';
-    confirm.querySelector('.lap-capture-inline-error')?.remove();
-    const error = document.createElement('div');
-    error.className = 'lap-capture-inline-error';
-    error.textContent = message || '保存失败';
-    confirm.insertBefore(error, confirm.querySelector('.lap-capture-actions'));
+  async function createFolderAndSave(event) {
+    event.preventDefault();
+    if (!overlay || !currentAsset || mode !== 'creating-folder') return;
+    const form = event.currentTarget;
+    const parentPath = form.elements.parentPath.value.trim();
+    const name = form.elements.folderName.value.trim();
+    const submitButton = form.querySelector('[data-action="create"]');
+    const error = form.querySelector('.lap-capture-inline-error');
+    if (!parentPath || !name) {
+      showCreateError(!parentPath ? '请选择上级目录' : '请输入目录名称');
+      return;
+    }
+
+    mode = 'creating-folder-pending';
+    error.hidden = true;
+    submitButton.disabled = true;
+    submitButton.textContent = '正在创建…';
+    try {
+      const response = await sendMessage({
+        type: 'lap:create-folder',
+        parentPath,
+        name,
+      });
+      if (!response?.ok || !response.folder) {
+        showCreateError(response?.error || '创建目录失败');
+        return;
+      }
+      folders.push(response.folder);
+      selectedFolder = response.folder;
+      await saveSelectedAsset();
+    } catch (errorValue) {
+      showCreateError(errorValue instanceof Error ? errorValue.message : String(errorValue));
+    }
   }
 
-  async function saveConfirmedAsset() {
-    if (!currentAsset || !selectedFolder || mode === 'saving') return;
+  function showCaptureToast(title, detail, kind = 'normal') {
+    if (!overlay) return;
+    hideIntentUi();
+    overlay.classList.remove('is-panel-open');
+    overlay.querySelector('.lap-capture-panel').hidden = true;
+    const toast = overlay.querySelector('.lap-capture-toast');
+    toast.className = `lap-capture-toast is-${kind}`;
+    toast.querySelector('strong').textContent = title;
+    toast.querySelector('span').textContent = detail || '';
+    toast.hidden = false;
+
+    const width = 280;
+    const anchor = radialAnchor || lastDragPoint;
+    const left = Math.min(Math.max(14, anchor.x - width / 2), Math.max(14, innerWidth - width - 14));
+    const top = Math.min(Math.max(14, anchor.y - 42), Math.max(14, innerHeight - 82));
+    toast.style.left = `${left}px`;
+    toast.style.top = `${top}px`;
+  }
+
+  async function saveSelectedAsset() {
+    if (!currentAsset || !selectedFolder || ['saving', 'complete'].includes(mode)) return;
     mode = 'saving';
-    const confirm = overlay.querySelector('.lap-capture-confirm');
-    const saveButton = confirm.querySelector('[data-action="save"]');
-    const tags = parseTags(confirm.querySelector('textarea').value);
-    saveButton.disabled = true;
-    saveButton.textContent = '正在保存…';
+    clearHoverTimer();
+    clearIntentTimer();
+    removeDragGhost();
+    const isInbox = Boolean(selectedFolder.isInbox);
+    showCaptureToast('正在保存…', isInbox ? 'AI 分类' : selectedFolder.path, 'saving');
 
     try {
       const response = await sendMessage({
@@ -736,11 +865,12 @@
           siteName: location.hostname,
           altText: currentAsset.altText,
           folderPath: selectedFolder.path || null,
-          tags,
+          workflowStatus: isInbox ? 'inbox' : 'selected',
+          tags: [],
           metadata: {
             capturedBy: 'lap-drag-capture',
             capturedAt: new Date().toISOString(),
-            organizationQueue: 'inbox',
+            organizationQueue: isInbox ? 'inbox' : 'organized',
             naturalWidth: currentAsset.naturalWidth,
             naturalHeight: currentAsset.naturalHeight,
             displayWidth: currentAsset.displayWidth,
@@ -750,20 +880,27 @@
       });
 
       if (!response?.ok) {
-        showSaveError(confirm, saveButton, response?.error || '保存失败');
+        mode = 'error';
+        showCaptureToast('保存失败', response?.error || '请检查 Lap 连接后重试', 'error');
+        setTimeout(closeOverlay, 2400);
         return;
       }
 
       mode = 'complete';
-      confirm.innerHTML = `
-        <div class="lap-capture-complete">
-          <span class="lap-capture-complete-icon">✓</span>
-          <strong>${response.result?.duplicate ? '素材已存在' : (selectedFolder.isInbox ? '已进入待整理区域' : '已保存到 Lap')}</strong>
-          <span>${escapeHtml(response.result?.folder?.path || selectedFolder.path || '待整理区域')}</span>
-        </div>`;
-      setTimeout(closeOverlay, 1100);
+      const resultFolder = response.result?.folder?.path || selectedFolder.path;
+      const title = response.result?.duplicate
+        ? '素材已存在'
+        : (isInbox ? '已交给 AI 分类' : '已保存到目录');
+      showCaptureToast(title, resultFolder || 'AI 分类', 'success');
+      setTimeout(closeOverlay, response.result?.duplicate ? 1200 : 900);
     } catch (error) {
-      showSaveError(confirm, saveButton, error instanceof Error ? error.message : String(error));
+      mode = 'error';
+      showCaptureToast(
+        '保存失败',
+        error instanceof Error ? error.message : String(error),
+        'error',
+      );
+      setTimeout(closeOverlay, 2400);
     }
   }
 

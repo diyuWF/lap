@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
   font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   background: #111318;
   color: #f4f5f7;
@@ -54,11 +54,3 @@ footer { margin-top: auto; display: grid; gap: 8px; }
 .progress-text { min-height: 18px; color: #99a2b5; font-size: 12px; }
 .primary-button { width: 100%; border: 0; border-radius: 10px; padding: 11px 14px; background: #6388ff; color: white; font-weight: 650; }
 .primary-button:disabled { cursor: not-allowed; opacity: .45; }
-
-@media (prefers-color-scheme: light) {
-  :root, body { background: #f4f5f8; color: #15171c; }
-  .status-card, select, input[type="text"] { background: white; border-color: #dfe2e8; color: #15171c; }
-  .status-card p, .section-heading p, .progress-text { color: #6f7787; }
-  .icon-button, .secondary-button { background: #e8eaf0; color: #272b34; }
-  .asset-card { background: #e5e7ec; }
-}

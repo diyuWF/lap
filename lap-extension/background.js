@@ -83,9 +83,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         return {
           ok: true,
           folders: foldersResponse.folders || [],
+          aiConfigured: Boolean(foldersResponse.aiConfigured),
           recentFolders: config.recentFolders || [],
           configured: Boolean(config.token),
         };
+      }
+      case 'lap:create-folder': {
+        const result = await apiRequest('/folders', {
+          method: 'POST',
+          body: JSON.stringify({
+            parentPath: message.parentPath || '',
+            name: message.name || '',
+          }),
+        });
+        return { ok: true, folder: result.folder };
       }
       case 'lap:capture':
         return { ok: true, result: await capture(message.payload || {}) };

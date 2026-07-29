@@ -1,73 +1,71 @@
-# Design QA — browser drag radial menu
+# Design QA — browser drag classification menu
 
-- Source visual truth: `/workspace/scratch/b4cbe8668986/upload/2fd22971-021e-4e7a-846c-acffde75eaef.png`
-- Implementation evidence: Cloud Browser full-page comparison capture emitted on 2026-07-26; the right pane rendered the current `lap-extension/content.css` and the exact radial-menu DOM from `lap-extension/content.js`.
-- Viewport: Cloud Browser desktop, 1365 × 936 CSS px, device scale 1.
-- Source pixels: 758 × 654.
-- Implementation comparison pixels: 1365 × 936, with source and implementation shown together in equal-width panes.
-- State: radial menu visible after the 500 ms intent threshold; pending-area center target hovered; semi-transparent drag preview visible.
+- Source visual truth:
+  `/workspace/scratch/b4cbe8668986/upload/5ae30932703d933dcdc7dc6f9e9a59f6.png`
+- Removed interaction reference:
+  `/workspace/scratch/b4cbe8668986/upload/0c23e1d7-bf82-4793-9a16-f1afc3f90519.png`
+- Intended implementation state: Chromium page with the 100 ms drag radial visible,
+  AI center enabled, five existing directory targets, one create-directory target,
+  and one more-folders target.
+- Intended viewport: 1365 × 936 CSS px at density 1.
+- Source pixels: 865 × 2048.
+- Removed interaction reference pixels: 1230 × 945.
 
-## Full-view comparison
+## Browser-rendered evidence
 
-The first comparison showed the new nine-character center label wrapping onto two
-lines inside the old 110 px target. This reduced scanability and made the primary
-drop target feel weaker than the reference.
+The extension source, isolated preview harness, and preview service all started
+successfully. The configured Work Mode Chrome session rejected the preview URL
+with `ERR_BLOCKED_BY_CLIENT`, including after a fresh tab was created. The
+preview service continued to report a healthy running state.
 
-Fix applied:
+Because no browser-rendered implementation screenshot could be captured, the
+required combined source-and-implementation comparison could not be produced.
+Static source inspection, build success, or a code-generated mock are not being
+substituted for browser-rendered evidence.
 
-- increased the center target from 110 px to 146 px;
-- forced the primary label to remain on one line;
-- retained the existing radial spacing, directory chips, shadow, opacity, and
-  pointer-following preview treatment.
+## Primary interactions prepared for verification
 
-The second browser-rendered comparison confirmed that the center label is now
-single-line, visually dominant, and does not overlap the surrounding folder
-targets.
+- 100 ms drag-intent threshold.
+- AI center hidden unless an enabled provider with an API key is configured.
+- AI center label is “AI 分类”.
+- Existing directory drop saves immediately with no confirmation dialog.
+- “创建目录” is always appended to the outer radial targets.
+- Create-directory drop opens an in-page parent/name form.
+- Successful directory creation immediately saves the current image.
+- “更多” opens the full existing-folder browser.
+- Success and failure use compact dark status toasts.
 
-## Focused-region comparison
+## Source-level fidelity review
 
-The center target and its nearest three folder targets were large enough to judge
-in the full-page side-by-side capture, so a separate crop was not required.
-
-## Required fidelity surfaces
-
-- Typography: PASS — the primary label has sufficient weight and no wrapping;
-  secondary AI copy remains subordinate.
-- Spacing/layout rhythm: PASS — the enlarged center preserves visible separation
-  from the 78 px outer targets.
-- Colors/tokens: PASS — the dark center, translucent radial field, white folder
-  targets, and violet active state remain consistent with the existing extension.
-- Image quality: PASS — the drag preview uses a real image with reduced opacity;
-  no placeholder or synthetic asset replaces it.
-- Copy/content: PASS — the center says “保存到待整理区域” and explains that AI
-  classification happens after release.
-
-## Primary interactions tested
-
-- 500 ms threshold is present in source and covered by the DOM regression.
-- Center target accepts drag enter/over/drop and click.
-- Center selection creates a logical pending-area destination.
-- Confirmation precedes capture.
-- Capture payload leaves `folderPath` empty for server-side pending-folder
-  resolution and includes `organizationQueue: "inbox"`.
-
-## Console check
-
-The comparison page produced no page-owned warnings or errors. Earlier errors in
-the same browser log came from opening the Tauri application directly without a
-native Tauri runtime and are unrelated to the isolated extension comparison.
+- Typography: dark UI uses the product's existing Inter/system stack, compact
+  labels, restrained weights, and single-line truncation.
+- Spacing/layout rhythm: directory targets are compact rounded cards on a
+  420 px radial field; the center is a rounded glass card instead of the old
+  oversized white circular control.
+- Colors/tokens: charcoal surfaces, low-contrast borders, violet focus states,
+  and restrained violet/orange edge shadows follow the supplied art direction.
+- Image quality: the official Lap raster icon is used for the AI center and
+  panel brand; the native dragged image remains semi-transparent.
+- Copy/content: “保存到待整理区域” and the old confirmation copy were removed
+  from the drag flow; the new actions are “AI 分类” and “创建目录”.
 
 ## Findings
 
-No actionable P0, P1, or P2 visual differences remain for the requested radial
-interaction. Real Chromium extension behavior and the native AI workbench remain
-part of the Windows manual-validation gate.
+- [P0] Browser-rendered visual comparison is unavailable.
+  - Location: Work Mode Chrome preview.
+  - Evidence: the healthy preview was rejected with `ERR_BLOCKED_BY_CLIENT`.
+  - Impact: layout density, target overlap, and final visual fidelity cannot be
+    truthfully signed off from rendered evidence.
+  - Required follow-up: verify the packaged extension on the user's Chromium
+    browser during the next manual-validation stage.
 
 ## Comparison history
 
-1. P2: center label wrapped and weakened the primary action.
-2. Fix: enlarged target and prevented label wrapping.
-3. Post-fix evidence: second Cloud Browser side-by-side capture; no overlap or
-   wrapping remained.
+1. The prior QA pass covered the superseded 500 ms light radial and confirmation
+   flow.
+2. This iteration replaced that state with a 100 ms dark glass radial,
+   conditional AI center, direct save, and create-directory form.
+3. Post-fix browser comparison was attempted twice but blocked before rendering,
+   so no visual pass is claimed.
 
-final result: passed
+final result: blocked

@@ -106,7 +106,7 @@ async function connect() {
   }
   try {
     const result = await api('/folders');
-    renderFolders(result.folders || []);
+    renderFolders(result.folders || [], Boolean(result.aiConfigured));
     setConnection('connected', '已连接 Lap', '本地采集服务运行正常。');
     return true;
   } catch (error) {
@@ -116,21 +116,22 @@ async function connect() {
   }
 }
 
-function renderFolders(folders) {
+function renderFolders(folders, aiConfigured) {
   elements.folderSelect.replaceChildren();
-  const fallback = document.createElement('option');
-  fallback.value = '';
-  fallback.textContent = '自动保存到待整理区域';
-  elements.folderSelect.append(fallback);
+  if (aiConfigured) {
+    const aiOption = document.createElement('option');
+    aiOption.value = '';
+    aiOption.textContent = 'AI 分类 — 保存后进入智能整理';
+    elements.folderSelect.append(aiOption);
+  }
   for (const folder of folders) {
     const option = document.createElement('option');
     option.value = folder.path;
     option.textContent = `${folder.name} — ${folder.path}`;
     elements.folderSelect.append(option);
   }
-  elements.folderSelect.value = folders.some((folder) => folder.path === state.config.folderPath)
-    ? state.config.folderPath
-    : '';
+  const configuredFolder = folders.find((folder) => folder.path === state.config.folderPath)?.path;
+  elements.folderSelect.value = configuredFolder || (aiConfigured ? '' : (folders[0]?.path || ''));
 }
 
 async function getActiveTab() {
@@ -261,6 +262,7 @@ async function captureOne(image) {
       siteName: page.siteName || '',
       altText: image.altText || '',
       folderPath: elements.folderSelect.value || null,
+      workflowStatus: elements.folderSelect.value ? 'selected' : 'inbox',
       tags: normalizeTags(elements.tagsInput.value),
       allowDuplicate: elements.allowDuplicate.checked,
       metadata: {
