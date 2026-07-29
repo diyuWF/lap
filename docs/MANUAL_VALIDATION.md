@@ -4,7 +4,7 @@
 
 Tester: User
 
-Date: 2026-07-26
+Date: 2026-07-29
 
 Branch: `feat/phase4-ai-preview-pipeline`
 
@@ -12,21 +12,21 @@ Manual feedback baseline commit: `d541af4f97cea3cd069ece8139324cb18b11d809`
 
 Manual feedback baseline package: `Lap-0.4.1-Chat-Delivery-12`
 
-Latest packaged candidate commit: `2ade8ef1cc9b5108d2a9cb5a356134a24fedf3f0`
+Latest packaged candidate commit: `19050567b2159b5dcaa8ea23ceef7bde1ddc94a7`
 
-Latest packaged candidate: `Lap-0.4.1-Chat-Delivery-14`
+Latest packaged candidate: `Lap-0.4.1-Chat-Delivery-15`
 
-Next implementation commit: `15419e5`
+Next implementation commit: pending signature-theme commit
 
 Next candidate package: pending fresh GitHub build
 
 Automated gate:
 
-- PASS — PR Build #69
-- PASS — Chat Validation Package #14
-- Artifact ID: `8693682758`
+- PASS — PR Build #70
+- PASS — Chat Validation Package #15
+- Artifact ID: `8719050322`
 - Artifact SHA256:
-  `8646da3c284b0beee6485223520499e331e9bdfb41b7b10f63cc9df1224ce43f`
+  `d701c41100cbd06c0df2d07bdc5818db223c5bcd130e6c51852b77103529ed0c`
 
 Environment: Windows desktop application and Chromium browser extension; Pinterest image detail page
 
@@ -231,7 +231,8 @@ Issues:
 | LAP-VAL-008 | Extension setup points to a missing App Token screen, and the extension does not use the official Lap icon. | High | Candidate 13 built successfully; awaiting manual retest |
 | LAP-VAL-009 | The one-second drag threshold still feels slow and the center action uses the ambiguous “保存到 Lap” label. | High | Superseded by the conditional “AI 分类” flow in LAP-VAL-011 |
 | LAP-VAL-010 | Pending assets cannot be safely planned into existing nested folders and executed after user confirmation. | High | Candidate 13 built successfully with scoped plans and the validating executor; awaiting manual retest |
-| LAP-VAL-011 | The 500 ms radial still feels slow; the light circular visual, unconditional pending center, and post-drop confirmation do not match the requested direct-save/conditional-AI flow. | High | Implemented in `15419e5`; awaiting fresh package and manual retest |
+| LAP-VAL-011 | The 500 ms radial still feels slow; the light circular visual, unconditional pending center, and post-drop confirmation do not match the requested direct-save/conditional-AI flow. | High | Candidate 15 built successfully; awaiting manual retest |
+| LAP-VAL-012 | The desktop application's default day/night themes do not yet use the selected compact charcoal-glass visual language and its warm light counterpart. | Medium | Implemented in the working branch; awaiting fresh package and manual validation |
 
 ## 5.2 Browser radial classification follow-up
 
@@ -299,5 +300,42 @@ Review and execution:
 Result:
 
 Evidence:
+
+Issues:
+
+## 8. Lap signature day/night themes
+
+Dark theme:
+
+- [ ] Default Dark + Default Theme resolves to the new Lap dark visual system
+- [ ] Main canvas is near-black without crushing image or text contrast
+- [ ] Title bar, sidebar, toolbar, cards, popovers, fields, buttons, and toggles
+  use consistent charcoal/glass surfaces and subtle borders
+- [ ] Purple/amber accent glow stays restrained and does not distract from assets
+
+Light theme:
+
+- [ ] Default Light + Default Theme resolves to the new Lap light visual system
+- [ ] Canvas is warm off-white/gray rather than harsh pure white
+- [ ] Translucent white cards remain distinct without washed-out labels
+- [ ] Primary actions and selected navigation retain the shared purple accent
+
+Coverage:
+
+- [ ] Home library view
+- [ ] Settings General and Advanced
+- [ ] Image viewer
+- [ ] Dialogs and dropdown menus
+- [ ] Empty, loading, disabled, selected, hover, and focus states
+- [ ] Dense image grids at 100% and 125% Windows scaling
+- [ ] Theme selection persists after restart
+
+Result: BLOCKED — fresh packaged candidate required
+
+Evidence:
+
+- Browser-rendered Settings passed at 1363 × 936 in both `lap-dark` and
+  `lap-light`, with no overflow and no Lap application console errors.
+- Native Home/viewer/data-backed screens require the Windows Tauri package.
 
 Issues:

@@ -70,23 +70,24 @@ The PR is intentionally kept Draft until manual validation is complete.
 
 Latest packaged candidate commit:
 
-`2ade8ef1cc9b5108d2a9cb5a356134a24fedf3f0`
+`19050567b2159b5dcaa8ea23ceef7bde1ddc94a7`
 
 Automated validation:
 
-- PASS — PR Build #69
-- PASS — Chat Validation Package #14
-- PASS — artifact `Lap-0.4.1-Chat-Delivery-14`
-- Artifact ID: `8693682758`
+- PASS — PR Build #70
+- PASS — Chat Validation Package #15
+- PASS — artifact `Lap-0.4.1-Chat-Delivery-15`
+- Artifact ID: `8719050322`
 - Artifact SHA256 digest:
-  `8646da3c284b0beee6485223520499e331e9bdfb41b7b10f63cc9df1224ce43f`
+  `d701c41100cbd06c0df2d07bdc5818db223c5bcd130e6c51852b77103529ed0c`
 - Windows installer SHA256:
-  `ae7aacb5091b61d1d9fc53f29114a392940f55ea3aa69ea22c81e8ed6fa01ea4`
+  `8adab3f96bff507575156dcf0f7ca91347be40868d2ae4e88e2800b1e9acde0e`
 - Chromium extension SHA256:
-  `c28c4d6fd6390509aac26e471467c611da84768de87f9e1767c03fbb232a6b3d`
+  `22b704b5f69dd1097fe378ebd4d3d9c2f8f44a2a0b04864290625cbaa9399e1d`
 
-The next focused browser-capture fix is implemented in commit `15419e5` and
-requires a fresh PR build plus Windows validation package before manual testing.
+The browser-classification candidate is packaged and ready. The current visual
+theme update requires a fresh PR build plus Windows validation package before
+manual testing.
 Keep PR #2 in Draft until the updated checks and manual validation pass.
 
 ## Completed milestones
@@ -143,14 +144,14 @@ Windows validation-package build before that package is used for manual testing.
 
 Current state:
 
-`FAILED — FIFTH FOCUSED VALIDATION FIX IMPLEMENTED`
+`BLOCKED — SIGNATURE THEME CANDIDATE AWAITING FRESH PACKAGE`
 
 Reason:
 
-The fourth focused package (`Lap-0.4.1-Chat-Delivery-14`) passed its automated
-checks. Manual review then identified that the remaining drag delay still felt
-slow, the light radial visual direction was wrong, and the center action should
-only exist when an online AI model is configured.
+The browser classification package (`Lap-0.4.1-Chat-Delivery-15`) passed its
+automated checks. The next focused change applies the selected compact,
+near-black glass visual language to Lap's default dark theme and maps the same
+hierarchy to a warm, translucent light theme.
 
 Focused fixes are implemented in the working branch:
 
@@ -170,13 +171,17 @@ Focused fixes are implemented in the working branch:
   must already exist in Lap and invalid or Windows-reserved names are rejected;
 - toolbar fallback copy no longer exposes “保存到待整理区域”; its “AI 分类” option
   is also conditional on the configured AI state.
+- the default day/night pair is now `lap-light` and `lap-dark`;
+- title bars, sidebars, content surfaces, settings cards, popovers, buttons,
+  fields, and toggles share the same restrained glass hierarchy;
+- browser preview safely stubs Tauri-only window/event calls so the real
+  Settings screen can be visually checked without changing desktop behavior.
 
-Frontend, localization, extension syntax/resources, drag source regressions,
-radial geometry, and repository hygiene pass locally. Local Rust tools are not
-available in the Work Mode container, so the fresh GitHub PR build remains the
-required Rust check. Browser-rendered visual QA is blocked by the Work Mode
-Chrome session rejecting the otherwise healthy local preview; record the real
-Chromium result during manual validation.
+Browser-rendered Settings visual QA passes for both day and night themes at
+1363 × 936 with no layout overflow or Lap console errors. The native Home,
+viewer, and data-backed surfaces require the Windows Tauri package and remain
+explicit manual checks. Local Rust tools may not be available in the Work Mode
+container, so the fresh GitHub PR build remains the authoritative Rust check.
 
 Do not start future phases. Generate a fresh package from the next pushed
 candidate, then return to manual validation.
@@ -193,6 +198,8 @@ candidate, then return to manual validation.
 8. Test both AI folder-planning scopes.
 9. Review and execute AI folder plans.
 10. Test AI review queue acceptance/rejection.
+11. Switch between the default Lap light and dark themes and inspect Home,
+    Settings, image viewer, dialogs, dropdowns, and dense asset grids.
 
 Record all results in:
 

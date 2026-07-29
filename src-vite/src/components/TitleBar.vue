@@ -3,7 +3,7 @@
   <!-- Custom Title Bar -->
   <div 
     :class="[
-      'w-full flex items-center justify-between select-none cursor-default',
+      'lap-titlebar w-full flex items-center justify-between select-none cursor-default',
       viewName==='ImageViewer' ? 'h-12' : 'h-10',
     ]"
     @contextmenu.prevent
@@ -72,9 +72,9 @@
 <script setup>
 
 import { ref, watch } from 'vue';
-import { emit } from '@tauri-apps/api/event';
+import { emit as tauriEmit } from '@tauri-apps/api/event';
 import { getCurrentWindow  } from '@tauri-apps/api/window';
-import { isWin, isMac, isLinux } from '@/common/utils';
+import { isWin, isMac, isLinux, isTauriRuntime } from '@/common/utils';
 
 import { 
   IconWinMinus,
@@ -104,7 +104,15 @@ const props = defineProps({
 
 const searchValue = ref('');
 
-const appWindow = getCurrentWindow();
+const browserPreviewWindow = {
+  minimize: async () => {},
+  isMaximized: async () => false,
+  unmaximize: async () => {},
+  maximize: async () => {},
+  close: async () => {},
+};
+const appWindow = isTauriRuntime ? getCurrentWindow() : browserPreviewWindow;
+const emit = isTauriRuntime ? tauriEmit : async () => {};
 const isMaximized = ref(false);
 const showDesktopWindowControls = isWin || isLinux;
 

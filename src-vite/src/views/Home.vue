@@ -1,6 +1,6 @@
 <template>
   
-  <div class="w-screen h-screen flex flex-col overflow-hidden select-none bg-base-300 text-base-content/70">
+  <div class="lap-app-shell w-screen h-screen flex flex-col overflow-hidden select-none bg-base-300 text-base-content/70">
     <transition name="fade">
       <div
         v-if="isSwitchingLibrary"
@@ -30,7 +30,7 @@
         @focus="uiStore.setActivePane('left-sidebar')"
       >
           <div
-            class="absolute inset-y-0 left-0 bg-base-200 rounded-box"
+            class="lap-glass-panel lap-sidebar-shell absolute inset-y-0 left-0 bg-base-200 rounded-box"
             :class="isDraggingSplitter ? '' : 'transition-[width] duration-200 ease-in-out'"
             :style="{ width: leftPanelVisualExpanded ? leftPanelWidth : '4rem' }"
           ></div>
@@ -152,7 +152,7 @@
       <!-- content area -->
       <div 
         :class="[
-          'flex-1 flex relative',
+          'lap-main-stage flex-1 flex relative',
           showDesktopTitleBar ? 'rounded-tl-box' : '',
         ]"
       >

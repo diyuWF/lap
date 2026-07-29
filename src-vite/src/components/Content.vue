@@ -3,7 +3,7 @@
   <div
     ref="contentRootRef"
     tabindex="-1"
-    class="relative flex-1 flex flex-col select-none outline-none"
+    class="lap-content-root relative flex-1 flex flex-col select-none outline-none"
     :class="{ 'opacity-50 pointer-events-none': uiStore.isInputActive('ManageLibraries') }"
     @focus="activateContentPane"
     @mousedown.capture="activateContentPane"
@@ -24,7 +24,7 @@
     <!-- title bar -->
     <div
       v-if="!showWelcomeContent"
-      class="absolute top-0 left-0 right-0 px-2 h-12 flex flex-row flex-nowrap items-center justify-between bg-base-300 z-30 overflow-hidden"
+      class="lap-content-toolbar absolute top-0 left-0 right-0 px-2 h-12 flex flex-row flex-nowrap items-center justify-between bg-base-300 z-30 overflow-hidden"
       data-tauri-drag-region
     >
       <!-- title -->

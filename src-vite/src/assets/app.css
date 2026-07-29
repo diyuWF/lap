@@ -6,8 +6,258 @@
   logs: false;
 }
 
+/*
+ * Lap signature themes
+ *
+ * The default day/night pair is intentionally compact and neutral so artwork
+ * remains the visual focus. Purple and amber are reserved for action feedback
+ * and low-intensity ambient light, matching the selected reference direction.
+ */
+[data-theme="lap-light"] {
+  color-scheme: light;
+  --color-base-100: #ffffff;
+  --color-base-200: #f7f6f8;
+  --color-base-300: #efedf1;
+  --color-base-content: #1d1b22;
+  --color-primary: #7257e8;
+  --color-primary-content: #ffffff;
+  --color-secondary: #d66d37;
+  --color-secondary-content: #ffffff;
+  --color-accent: #a542cb;
+  --color-accent-content: #ffffff;
+  --color-neutral: #2a2830;
+  --color-neutral-content: #f9f8fa;
+  --color-info: #377ed6;
+  --color-info-content: #ffffff;
+  --color-success: #258b65;
+  --color-success-content: #ffffff;
+  --color-warning: #b66a16;
+  --color-warning-content: #ffffff;
+  --color-error: #d04b58;
+  --color-error-content: #ffffff;
+  --radius-selector: 0.75rem;
+  --radius-field: 0.75rem;
+  --radius-box: 1rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+[data-theme="lap-dark"] {
+  color-scheme: dark;
+  --color-base-100: #28272b;
+  --color-base-200: #1e1d20;
+  --color-base-300: #151517;
+  --color-base-content: #f4f2f6;
+  --color-primary: #9c7cff;
+  --color-primary-content: #18121f;
+  --color-secondary: #f09a57;
+  --color-secondary-content: #1c120b;
+  --color-accent: #d65ad8;
+  --color-accent-content: #1f1020;
+  --color-neutral: #111113;
+  --color-neutral-content: #f4f2f6;
+  --color-info: #66a7e9;
+  --color-info-content: #0c1822;
+  --color-success: #59ba91;
+  --color-success-content: #081810;
+  --color-warning: #e4a74a;
+  --color-warning-content: #1d1306;
+  --color-error: #ee727f;
+  --color-error-content: #210b0e;
+  --radius-selector: 0.75rem;
+  --radius-field: 0.75rem;
+  --radius-box: 1rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+[data-lap-appearance="light"] {
+  --lap-canvas: #efedf1;
+  --lap-surface: rgba(255, 255, 255, 0.78);
+  --lap-surface-raised: rgba(255, 255, 255, 0.92);
+  --lap-surface-soft: rgba(255, 255, 255, 0.52);
+  --lap-border: rgba(48, 42, 58, 0.11);
+  --lap-border-strong: rgba(48, 42, 58, 0.18);
+  --lap-shadow: 0 14px 40px rgba(42, 34, 55, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  --lap-shadow-soft: 0 8px 24px rgba(42, 34, 55, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  --lap-primary-glow: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  --lap-warm-glow: color-mix(in srgb, var(--color-secondary) 10%, transparent);
+}
+
+[data-lap-appearance="dark"] {
+  --lap-canvas: #151517;
+  --lap-surface: rgba(36, 35, 39, 0.78);
+  --lap-surface-raised: rgba(45, 43, 49, 0.9);
+  --lap-surface-soft: rgba(255, 255, 255, 0.035);
+  --lap-border: rgba(255, 255, 255, 0.075);
+  --lap-border-strong: rgba(255, 255, 255, 0.13);
+  --lap-shadow: 0 18px 52px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  --lap-shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --lap-primary-glow: color-mix(in srgb, var(--color-primary) 18%, transparent);
+  --lap-warm-glow: color-mix(in srgb, var(--color-secondary) 13%, transparent);
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  background: var(--lap-canvas, var(--color-base-300));
+}
+
 html, body {
   overscroll-behavior: none;
+}
+
+body {
+  margin: 0;
+  color: var(--color-base-content);
+  font-family: "Segoe UI Variable", "SF Pro Text", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.lap-app-shell {
+  background-color: var(--lap-canvas, var(--color-base-300));
+  box-shadow:
+    inset 0 0 120px var(--lap-primary-glow, transparent),
+    inset 0 -80px 140px var(--lap-warm-glow, transparent);
+}
+
+.lap-titlebar {
+  position: relative;
+  z-index: 40;
+  background-color: color-mix(in srgb, var(--lap-surface-raised, var(--color-base-200)) 84%, transparent);
+  border-bottom: 1px solid var(--lap-border, transparent);
+  box-shadow: 0 8px 24px color-mix(in srgb, black 10%, transparent);
+  backdrop-filter: blur(20px) saturate(118%);
+}
+
+.lap-glass-panel,
+.lap-popover,
+.modal-box {
+  background-color: var(--lap-surface, var(--color-base-200));
+  border: 1px solid var(--lap-border, transparent);
+  box-shadow: var(--lap-shadow);
+  backdrop-filter: blur(22px) saturate(116%);
+}
+
+.lap-sidebar-shell {
+  box-shadow:
+    var(--lap-shadow),
+    0 0 44px var(--lap-primary-glow, transparent);
+}
+
+.lap-main-stage {
+  margin: 0.25rem;
+  margin-left: 0;
+  overflow: hidden;
+  border: 1px solid var(--lap-border, transparent);
+  border-radius: var(--radius-box);
+  background-color: color-mix(in srgb, var(--color-base-300) 86%, transparent);
+  box-shadow: var(--lap-shadow-soft);
+}
+
+.lap-content-root {
+  background-color: color-mix(in srgb, var(--color-base-300) 92%, transparent);
+}
+
+.lap-content-toolbar {
+  background-color: color-mix(in srgb, var(--lap-surface-raised, var(--color-base-200)) 82%, transparent);
+  border-bottom: 1px solid var(--lap-border, transparent);
+  box-shadow: 0 10px 30px color-mix(in srgb, black 8%, transparent);
+  backdrop-filter: blur(18px) saturate(115%);
+}
+
+.lap-settings-sidebar,
+.lap-settings-card,
+[data-lap-appearance] .rounded-box.border-base-content\/5.shadow-sm {
+  background-color: var(--lap-surface, var(--color-base-200));
+  border: 1px solid var(--lap-border, transparent);
+  box-shadow: var(--lap-shadow-soft);
+  backdrop-filter: blur(18px) saturate(114%);
+}
+
+.lap-settings-card,
+[data-lap-appearance] .rounded-box.border-base-content\/5.shadow-sm {
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.lap-settings-card:hover,
+[data-lap-appearance] .rounded-box.border-base-content\/5.shadow-sm:hover {
+  border-color: var(--lap-border-strong, var(--lap-border));
+  box-shadow:
+    var(--lap-shadow-soft),
+    0 0 28px var(--lap-primary-glow, transparent);
+}
+
+.lap-settings-content {
+  background-color: transparent;
+}
+
+.lap-icon-button,
+.lap-field-button,
+[data-lap-appearance] .btn:not(.btn-primary, .btn-error, .btn-warning, .btn-success) {
+  border-color: var(--lap-border);
+  background-color: var(--lap-surface-soft);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+}
+
+.lap-icon-button:hover,
+.lap-field-button:hover,
+[data-lap-appearance] .btn:not(.btn-primary, .btn-error, .btn-warning, .btn-success):hover {
+  border-color: var(--lap-border-strong);
+  background-color: color-mix(in srgb, var(--color-base-100) 56%, transparent);
+}
+
+[data-lap-appearance] .btn-primary {
+  border-color: color-mix(in srgb, var(--color-primary) 72%, white 14%);
+  box-shadow:
+    0 8px 24px var(--lap-primary-glow),
+    inset 0 1px 0 color-mix(in srgb, white 20%, transparent);
+}
+
+[data-lap-appearance] :is(.input, .select, .textarea) {
+  border-color: var(--lap-border-strong);
+  background-color: color-mix(in srgb, var(--lap-surface-raised) 82%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+}
+
+[data-lap-appearance] :is(.input, .select, .textarea):focus,
+[data-lap-appearance] :is(.input, .select, .textarea):focus-within {
+  border-color: color-mix(in srgb, var(--color-primary) 68%, white 8%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 14%, transparent);
+}
+
+[data-lap-appearance] .menu,
+[data-lap-appearance] [role="menu"] {
+  border-color: var(--lap-border);
+  background-color: var(--lap-surface-raised);
+  box-shadow: var(--lap-shadow);
+  backdrop-filter: blur(22px) saturate(116%);
+}
+
+[data-lap-appearance] .toggle {
+  border-color: var(--lap-border-strong);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, black 16%, transparent);
+}
+
+[data-lap-appearance] ::selection {
+  color: var(--color-primary-content);
+  background-color: var(--color-primary);
 }
 
 .no-scrollbar::-webkit-scrollbar {

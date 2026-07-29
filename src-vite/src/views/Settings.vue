@@ -1,11 +1,11 @@
 <template>
-  <div class="w-screen h-screen flex flex-col bg-base-300 text-base-content/70 overflow-hidden">
+  <div class="lap-app-shell w-screen h-screen flex flex-col bg-base-300 text-base-content/70 overflow-hidden">
     <!-- Title Bar -->
     <TitleBar :titlebar="$t('sidebar.settings')" :resizable="false" viewName="Settings" class="shrink-0 z-50" />
 
     <div class="flex flex-1 overflow-hidden relative">
       <!-- Sidebar -->
-      <div class="w-40 m-1 p-2 bg-base-200/30 flex flex-col rounded-box overflow-y-auto shrink-0 select-none">
+      <div class="lap-settings-sidebar w-40 m-1 p-2 bg-base-200/30 flex flex-col rounded-box overflow-y-auto shrink-0 select-none">
         <div
           v-for="(tab, index) in settingsTabs"
           :key="index"
@@ -22,7 +22,7 @@
       </div>
 
       <!-- Main Content -->
-      <div class="p-2 mr-1 mb-2 flex-1 overflow-y-auto scrollbar-hide bg-base-300 cursor-default select-none">
+      <div class="lap-settings-content p-2 mr-1 mb-2 flex-1 overflow-y-auto scrollbar-hide bg-base-300 cursor-default select-none">
           
         <!-- General Tab -->
         <div v-if="config.settings.tabIndex === 0" class="flex flex-col space-y-2">
@@ -722,7 +722,7 @@
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
 import { LogicalSize } from '@tauri-apps/api/dpi';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { emit } from '@tauri-apps/api/event';
+import { emit as tauriEmit } from '@tauri-apps/api/event';
 import { ask, open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useI18n } from 'vue-i18n';
 import { config, libConfig } from '@/common/config';
@@ -741,7 +741,7 @@ import {
   listenImageSearchModelDownloadProgress,
 } from '@/common/api';
 import { getCaptureServerInfo } from '@/common/dam-api';
-import { formatFileSize, isLinux, isMac, setTheme, SCALE_VALUES } from '@/common/utils';
+import { formatFileSize, isLinux, isMac, isTauriRuntime, setTheme, SCALE_VALUES } from '@/common/utils';
 import { getShortcutLabels, ShortcutActionId, ShortcutPlatform } from '@/common/shortcuts';
 import { useToast } from '@/common/toast';
 import { IconTrash, IconRestore, IconClose } from '@/common/icons';
@@ -772,7 +772,15 @@ const settingsTabs = [
   'settings.about.title',
 ];
 
-const appWindow = getCurrentWebviewWindow()
+const browserPreviewWindow = {
+  label: 'browser-preview',
+  show: async () => {},
+  close: async () => {},
+  setMinSize: async () => {},
+  setSize: async () => {},
+};
+const appWindow = isTauriRuntime ? getCurrentWebviewWindow() : browserPreviewWindow;
+const emit = isTauriRuntime ? tauriEmit : async () => {};
 let gridSizeEmitTimer: number | null = null;
 const SETTINGS_BASE_WIDTH = 600;
 const SETTINGS_BASE_HEIGHT = 620;
@@ -1397,6 +1405,11 @@ onMounted(async () => {
   }
   if (typeof config.settings.imageSearch.model !== 'number') {
     config.settings.imageSearch.model = 0;
+  }
+  if (!isTauriRuntime) {
+    applyWindowScale(Number(config.settings.scale || 1));
+    await appWindow.show();
+    return;
   }
   unlistenImageSearchModelDownloadProgress = await listenImageSearchModelDownloadProgress((event: any) => {
     const progress = Number(event?.payload?.progress ?? 0);

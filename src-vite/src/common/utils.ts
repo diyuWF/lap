@@ -21,6 +21,8 @@ export function getOS() {
 export const isMac = getOS() === 'mac';
 export const isWin = getOS() === 'win';
 export const isLinux = getOS() === 'linux';
+export const isTauriRuntime =
+  typeof window !== 'undefined' && Boolean((window as any).__TAURI_INTERNALS__);
 export const separator = isWin ? '\\' : '/';
 
 // scale values for window size and font size
@@ -29,7 +31,7 @@ export const SCALE_VALUES = [0.8, 0.9, 1, 1.1, 1.2];
 /// set the theme
 export function setTheme(appearance: number, themeId: number) {
   const theme = appearance === 0 ? [
-    "light",
+    "lap-light",
     "cupcake",
     "bumblebee",
     "emerald",
@@ -51,7 +53,7 @@ export function setTheme(appearance: number, themeId: number) {
     "caramellatte",
     "silk"
   ][themeId] || 'light' : [
-    "dark",
+    "lap-dark",
     "synthwave",
     "halloween",
     "forest",
@@ -67,6 +69,8 @@ export function setTheme(appearance: number, themeId: number) {
     "abyss"
   ][themeId] || 'dark';
 
+  document.documentElement.setAttribute('data-lap-appearance', appearance === 0 ? 'light' : 'dark');
+  document.documentElement.setAttribute('data-lap-theme-variant', themeId === 0 ? 'signature' : 'classic');
   document.documentElement.setAttribute('data-theme', theme);
 }
 

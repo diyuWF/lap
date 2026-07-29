@@ -2,12 +2,13 @@ import { createApp, watch } from 'vue'
 import { createI18n } from 'vue-i18n'
 import { createPinia } from 'pinia'
 import piniaPersistedState from 'pinia-plugin-persistedstate'
-import { listen } from '@tauri-apps/api/event'
+import { listen as tauriListen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import 'cally'
 import router from '@/common/router'
 import App from '@/App.vue'
 import { useConfigStore } from '@/stores/configStore'
+import { isTauriRuntime } from '@/common/utils'
 import '@/assets/app.css'
 
 // I18n
@@ -29,6 +30,7 @@ const pinia = createPinia()
 pinia.use(piniaPersistedState)
 app.use(pinia) // Use Pinia
 const config = useConfigStore() // Use the config store
+const listen = isTauriRuntime ? tauriListen : async () => () => {}
 
 const localeMessages = {
   en,
