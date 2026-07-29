@@ -113,7 +113,7 @@ onMounted(async () => {
 
   // Initialize library state from backend
   try {
-    if (isTauriRuntime) {
+    if (isTauriRuntime && win.label !== 'referenceboard') {
       await libConfig.init();
     }
   } catch (error) {

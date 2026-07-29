@@ -12,21 +12,21 @@ Manual feedback baseline commit: `d541af4f97cea3cd069ece8139324cb18b11d809`
 
 Manual feedback baseline package: `Lap-0.4.1-Chat-Delivery-12`
 
-Latest packaged candidate commit: `19050567b2159b5dcaa8ea23ceef7bde1ddc94a7`
+Latest packaged candidate commit: `b503fe8e7f0f7b67a84b22372e930a332f096a42`
 
-Latest packaged candidate: `Lap-0.4.1-Chat-Delivery-15`
+Latest packaged candidate: `Lap-0.4.1-Chat-Delivery-16`
 
-Next implementation commit: pending signature-theme commit
+Next implementation commit: pending distance-radial/reference-board commit
 
 Next candidate package: pending fresh GitHub build
 
 Automated gate:
 
-- PASS — PR Build #70
-- PASS — Chat Validation Package #15
-- Artifact ID: `8719050322`
+- PASS — PR Build #71
+- PASS — Chat Validation Package #16
+- Artifact ID: `8728141366`
 - Artifact SHA256:
-  `d701c41100cbd06c0df2d07bdc5818db223c5bcd130e6c51852b77103529ed0c`
+  `82e405ab25670e105782e7aa7c7f06925ec54ed58d55eafd03883878fe02dd70`
 
 Environment: Windows desktop application and Chromium browser extension; Pinterest image detail page
 
@@ -118,7 +118,7 @@ Functions:
 - [ ] Page title saved
 - [ ] Duplicate handling works
 
-Result: FAILED — fifth focused rework implemented; awaiting a fresh package
+Result: FAILED — distance-based centered rework implemented; awaiting a fresh package
 
 Evidence:
 
@@ -135,11 +135,15 @@ Issues:
 
 - The setup flow needs a one-click local Lap detector that distinguishes “Lap not running”, “Lap found but Token missing”, and “Lap found but Token invalid”.
 - Light-theme labels, placeholders, status messages, and controls need accessible contrast.
-- The dragged image should become semi-transparent and follow the pointer. After
-  a 0.1-second hold, a dark compact radial folder menu should appear without a
-  repeated tutorial card.
-- The radial center should read “AI 分类” and must only exist after an enabled AI
-  provider with an API key is configured.
+- The dragged image should become semi-transparent and follow the pointer. A
+  centered intent rail should animate in, and a dark compact radial folder menu
+  should appear after moving about one third of the viewport's shorter side,
+  without a repeated tutorial card or time-based delay.
+- The intent state should mildly dim/blur the page; the radial state should
+  strengthen the effect while remaining fixed at the viewport center.
+- The radial center should always read “AI 分类”. Without a configured provider
+  it collects into the existing `inbox` workflow for later organization; with a
+  configured provider it enters intelligent organization.
 - Dropping on an existing radial folder should save immediately with no
   confirmation dialog; “更多” should open the complete folder browser.
 - Every radial menu should append “创建目录”; dropping there should open an
@@ -233,19 +237,34 @@ Issues:
 | LAP-VAL-010 | Pending assets cannot be safely planned into existing nested folders and executed after user confirmation. | High | Candidate 13 built successfully with scoped plans and the validating executor; awaiting manual retest |
 | LAP-VAL-011 | The 500 ms radial still feels slow; the light circular visual, unconditional pending center, and post-drop confirmation do not match the requested direct-save/conditional-AI flow. | High | Candidate 15 built successfully; awaiting manual retest |
 | LAP-VAL-012 | The desktop application's default day/night themes do not yet use the selected compact charcoal-glass visual language and its warm light counterpart. | Medium | Implemented in the working branch; awaiting fresh package and manual validation |
+| LAP-VAL-013 | The 100 ms timer does not reflect drag intent; the interaction needs a centered animated rail, distance activation, page dim/blur, a larger fixed-center radial, and a restored AI center. | High | Implemented in the working branch; awaiting fresh package and manual validation |
+| LAP-VAL-014 | Dragging images outside Lap cannot yet create a persistent, always-on-top, pan/zoom reference board. | High | First authorized reference-board slice implemented; awaiting Windows validation |
 
 ## 5.2 Browser radial classification follow-up
 
+Drag intent:
+
+- [ ] Native semi-transparent image follows the pointer
+- [ ] Center intent rail animates in without a repeated tutorial
+- [ ] Progress follows pointer distance rather than elapsed time
+- [ ] Moving less than one third of the shorter viewport side does not open the radial
+- [ ] Moving approximately one third of the shorter viewport side opens the radial
+- [ ] Intent mildly dims/blurs the page
+- [ ] Radial strengthens the dim/blur treatment
+- [ ] Intent rail and radial remain centered while the pointer moves
+
 Without an AI provider configured:
 
-- [ ] Radial appears after approximately 0.1 seconds
-- [ ] Center “AI 分类” card is absent
+- [ ] Center “AI 分类” card remains visible
+- [ ] Subtitle explains that the asset will be collected for later organization
+- [ ] Dropping on “AI 分类” saves with workflow status `inbox`
 - [ ] Existing directory targets remain usable
 - [ ] “创建目录” is present
 
 With an enabled AI provider and stored API key:
 
 - [ ] Center “AI 分类” card appears
+- [ ] Subtitle explains that intelligent organization is available
 - [ ] Dropping on “AI 分类” saves with workflow status `inbox`
 - [ ] Dropping on an existing directory saves immediately with status `selected`
 - [ ] No old confirmation modal appears after either drop
@@ -262,6 +281,43 @@ Create-directory path:
 Result:
 
 Evidence:
+
+Issues:
+
+## 5.3 Desktop reference board
+
+Window creation:
+
+- [ ] Dragging one image to any Lap window edge opens a separate reference board
+- [ ] Dragging multiple selected images opens them together
+- [ ] Later drag-outs reuse the same reference-board window
+- [ ] The drag-out does not also move/copy files inside the Lap library
+- [ ] Non-image files do not open the reference board
+
+Board behavior:
+
+- [ ] Reference board is frameless and stays above normal windows by default
+- [ ] Pin control disables and re-enables always-on-top
+- [ ] Dragging empty space pans the canvas
+- [ ] Mouse wheel zooms around the pointer
+- [ ] Zoom reaches both very small and very large scales without breaking
+- [ ] Fit All frames every image
+- [ ] 100% centers the selected image at actual board size
+- [ ] Images can be rearranged independently
+- [ ] Delete/Backspace removes only the selected board item
+- [ ] Native file drop adds more images to the open board
+- [ ] Closing and reopening restores the board layout and camera
+- [ ] Minimize and close controls work
+
+Result: BLOCKED — fresh Windows package required
+
+Evidence:
+
+- Browser-rendered board passed at 1363 × 936.
+- Continuous wheel zoom reached 270% in the browser check, blank-space panning
+  moved the canvas, and the 100% control restored exact scale.
+- Native Tauri multiwindow, boundary drag-out, always-on-top, file drop, and
+  persistence require the packaged Windows application.
 
 Issues:
 

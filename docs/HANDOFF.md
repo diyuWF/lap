@@ -70,24 +70,24 @@ The PR is intentionally kept Draft until manual validation is complete.
 
 Latest packaged candidate commit:
 
-`19050567b2159b5dcaa8ea23ceef7bde1ddc94a7`
+`b503fe8e7f0f7b67a84b22372e930a332f096a42`
 
 Automated validation:
 
-- PASS — PR Build #70
-- PASS — Chat Validation Package #15
-- PASS — artifact `Lap-0.4.1-Chat-Delivery-15`
-- Artifact ID: `8719050322`
+- PASS — PR Build #71
+- PASS — Chat Validation Package #16
+- PASS — artifact `Lap-0.4.1-Chat-Delivery-16`
+- Artifact ID: `8728141366`
 - Artifact SHA256 digest:
-  `d701c41100cbd06c0df2d07bdc5818db223c5bcd130e6c51852b77103529ed0c`
+  `82e405ab25670e105782e7aa7c7f06925ec54ed58d55eafd03883878fe02dd70`
 - Windows installer SHA256:
-  `8adab3f96bff507575156dcf0f7ca91347be40868d2ae4e88e2800b1e9acde0e`
+  `e3e25f4e02f2d5c7d0fde65004226466ee317adc8ba775c0ad71eea2c8f078ed`
 - Chromium extension SHA256:
-  `22b704b5f69dd1097fe378ebd4d3d9c2f8f44a2a0b04864290625cbaa9399e1d`
+  `31d76426a1007218b14bf3a87de0d3d5eb128734ddb6d6e857d5fd0e079d18c7`
 
-The browser-classification candidate is packaged and ready. The current visual
-theme update requires a fresh PR build plus Windows validation package before
-manual testing.
+The signature-theme candidate is packaged and ready. The distance-based browser
+classification and first desktop reference-board slice require a fresh PR build
+plus Windows validation package before manual testing.
 Keep PR #2 in Draft until the updated checks and manual validation pass.
 
 ## Completed milestones
@@ -144,22 +144,29 @@ Windows validation-package build before that package is used for manual testing.
 
 Current state:
 
-`BLOCKED — SIGNATURE THEME CANDIDATE AWAITING FRESH PACKAGE`
+`BLOCKED — DISTANCE RADIAL + REFERENCE BOARD CANDIDATE AWAITING FRESH PACKAGE`
 
 Reason:
 
-The browser classification package (`Lap-0.4.1-Chat-Delivery-15`) passed its
-automated checks. The next focused change applies the selected compact,
-near-black glass visual language to Lap's default dark theme and maps the same
-hierarchy to a warm, translucent light theme.
+The signature-theme package (`Lap-0.4.1-Chat-Delivery-16`) passed its automated
+checks. The next focused change replaces time-based browser drag intent with a
+distance-based interaction and adds an authorized first PureRef-style desktop
+reference-board slice.
 
 Focused fixes are implemented in the working branch:
 
-- drag intent confirmation is now 100 ms;
-- the radial UI uses compact dark translucent directory cards and the official
-  Lap icon;
-- the center action is “AI 分类” and is hidden unless at least one enabled online
-  AI provider has a stored API key;
+- drag intent no longer uses a timer; progress is calculated from the real
+  pointer path and opens classification after movement equal to one third of
+  the viewport's shorter side, with a 96 px minimum;
+- an animated intent rail appears in the exact viewport center while the
+  semi-transparent native drag image follows the pointer;
+- intent applies mild page dimming/blur, and the expanded radial applies a
+  stronger dim/blur treatment while remaining fixed at the viewport center;
+- the radial UI is enlarged to 560 px where space allows and uses compact dark
+  translucent directory cards plus the official Lap icon;
+- the center action is always “AI 分类”; with AI configured it enters intelligent
+  organization, while without AI it safely collects the asset with `inbox`
+  workflow state for later organization;
 - dropping on an existing directory saves immediately without the removed
   confirmation modal and marks the asset workflow as `selected`;
 - AI-center captures retain the logical `inbox` workflow for the existing
@@ -176,6 +183,11 @@ Focused fixes are implemented in the working branch:
   fields, and toggles share the same restrained glass hierarchy;
 - browser preview safely stubs Tauri-only window/event calls so the real
   Settings screen can be visually checked without changing desktop behavior.
+- dragging one or more image assets to the Lap window boundary opens or reuses a
+  separate frameless always-on-top reference board;
+- the reference board supports blank-space panning, pointer-centered wheel
+  zoom from 5% to 3200%, Fit All, 100%, image arrangement/removal, additional
+  native file drops, and local layout persistence.
 
 Browser-rendered Settings visual QA passes for both day and night themes at
 1363 × 936 with no layout overflow or Lap console errors. The native Home,
@@ -192,13 +204,15 @@ candidate, then return to manual validation.
 2. Confirm existing Lap libraries open correctly.
 3. Test SVG/PDF preview.
 4. Test GLB/glTF/OBJ/STL model loading.
-5. Test browser extension capture into the pending area.
+5. Test the browser extension distance-based radial capture.
 6. Configure a real AI provider.
 7. Test single-file AI analysis.
 8. Test both AI folder-planning scopes.
 9. Review and execute AI folder plans.
 10. Test AI review queue acceptance/rejection.
-11. Switch between the default Lap light and dark themes and inspect Home,
+11. Drag images out of Lap into the reference board and test pan, zoom, arrange,
+    additional drops, persistence, and always-on-top behavior.
+12. Switch between the default Lap light and dark themes and inspect Home,
     Settings, image viewer, dialogs, dropdowns, and dense asset grids.
 
 Record all results in:
@@ -234,12 +248,25 @@ the complete provider payload or internal user identifiers.
 
 The next package must be manually checked on a real Chromium page. Verify the
 native semi-transparent drag image follows the pointer with no repeated tutorial
-card, the dark radial folder menu appears after the 100 ms threshold, the
-“AI 分类” center is absent before an AI model is configured and visible after
-configuration, small/lazy-loaded thumbnails enter the same flow, existing-folder
-drops save without confirmation, and releasing early does not leave an overlay.
+card, the centered intent rail animates in, progress tracks actual drag distance,
+and the dark radial folder menu appears only after moving approximately one third
+of the viewport's shorter side. Verify the page is mildly dimmed/blurred during
+intent and more strongly dimmed/blurred in the radial state. “AI 分类” must remain
+present both before and after model configuration, with the explanatory subtitle
+changing by state. Small/lazy-loaded thumbnails must enter the same flow,
+existing-folder drops must save without confirmation, and releasing early must
+not leave an overlay.
 Also drop on “创建目录”, choose an existing parent, create a valid child directory,
 and confirm the image is saved there without a second dialog.
+
+### Desktop reference board
+
+The reference board is a focused first slice, not full PureRef parity. Native
+Windows validation must verify that dragging an image to any Lap window edge
+opens one `referenceboard` window, that later drag-outs reuse it, and that the
+drag gesture does not also perform an in-library move. Confirm always-on-top,
+frameless window controls, pan, 5%–3200% zoom, Fit All, 100%, image movement,
+Delete removal, external file drops, and persisted layout after close/reopen.
 
 ### AI pending-area organization
 
@@ -286,7 +313,6 @@ Possible future phases:
 - Unreal Engine asset workflow
 - PSD/AI/AE proxy previews
 - material library management
-- PureRef-style infinite canvas
 - AI project classification
 
 These are backlog items only.

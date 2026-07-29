@@ -1,9 +1,8 @@
 (() => {
   const HOVER_EXPAND_MS = 520;
-  const INTENT_CONFIRM_MS = 100;
   const CLOSE_AFTER_DRAG_MS = 160;
-  const RADIAL_SIZE = 420;
-  const RADIAL_ITEM_RADIUS = 154;
+  const DRAG_DISTANCE_VIEWPORT_RATIO = 1 / 3;
+  const RADIAL_ITEM_RADIUS = 214;
 
   let overlay = null;
   let mode = 'idle';
@@ -12,13 +11,12 @@
   let recentFolderPaths = [];
   let expanded = new Set();
   let hoverTimer = null;
-  let intentTimer = null;
   let intentReady = false;
   let foldersReady = false;
   let aiConfigured = false;
   let folderLoadError = null;
   let lastDragPoint = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-  let radialAnchor = null;
+  let dragStartPoint = null;
   let selectedFolder = null;
   let dragGhost = null;
   let armedImage = null;
@@ -152,11 +150,6 @@
     hoverTimer = null;
   }
 
-  function clearIntentTimer() {
-    if (intentTimer) clearTimeout(intentTimer);
-    intentTimer = null;
-  }
-
   function removeDragGhost() {
     dragGhost?.remove();
     dragGhost = null;
@@ -165,7 +158,6 @@
   function closeOverlay() {
     captureSession += 1;
     clearHoverTimer();
-    clearIntentTimer();
     removeDragGhost();
     overlay?.remove();
     overlay = null;
@@ -179,7 +171,7 @@
     foldersReady = false;
     aiConfigured = false;
     folderLoadError = null;
-    radialAnchor = null;
+    dragStartPoint = null;
   }
 
   function escapeHtml(value) {
@@ -228,15 +220,25 @@
   function createOverlay() {
     mode = 'intent';
     overlay = document.createElement('div');
-    overlay.className = 'lap-capture-overlay';
+    overlay.className = 'lap-capture-overlay is-intent-active';
     const extensionIconUrl = chrome.runtime.getURL('icon.png');
     overlay.innerHTML = `
+      <div class="lap-capture-intent-rail" role="status" aria-live="polite">
+        <img src="${escapeHtml(extensionIconUrl)}" alt="" />
+        <span class="lap-capture-intent-copy">
+          <strong>拖动以打开 Lap 分类</strong>
+          <small>继续拖动即可选择保存位置</small>
+        </span>
+        <span class="lap-capture-intent-meter" aria-hidden="true">
+          <i></i>
+        </span>
+      </div>
       <div class="lap-capture-radial" role="menu" aria-label="保存到文件夹" hidden>
-        <button class="lap-capture-radial-center" type="button" role="menuitem" hidden>
+        <button class="lap-capture-radial-center" type="button" role="menuitem">
           <img src="${escapeHtml(extensionIconUrl)}" alt="" />
           <span>
             <strong>AI 分类</strong>
-            <small>松开后进入智能整理</small>
+            <small>先收集，再由 AI 智能整理</small>
           </span>
         </button>
         <div class="lap-capture-radial-items"></div>
@@ -310,14 +312,19 @@
 
     const preview = overlay.querySelector('.lap-capture-preview-image');
     const previewFallback = overlay.querySelector('.lap-capture-preview-fallback');
-    preview.addEventListener('error', () => {
-      preview.hidden = true;
-      previewFallback.hidden = false;
-    }, { once: true });
+    preview.addEventListener(
+      'error',
+      () => {
+        preview.hidden = true;
+        previewFallback.hidden = false;
+      },
+      { once: true },
+    );
     preview.src = currentAsset.sourceUrl;
-    const dimensions = currentAsset.naturalWidth && currentAsset.naturalHeight
-      ? `${currentAsset.naturalWidth} × ${currentAsset.naturalHeight}`
-      : '尺寸未知';
+    const dimensions =
+      currentAsset.naturalWidth && currentAsset.naturalHeight
+        ? `${currentAsset.naturalWidth} × ${currentAsset.naturalHeight}`
+        : '尺寸未知';
     overlay.querySelector('.lap-capture-preview-meta').innerHTML = `
       <strong>${escapeHtml(sourceFileName(currentAsset.sourceUrl))}</strong>
       <span>${escapeHtml(dimensions)}</span>
@@ -329,25 +336,12 @@
     const x = Number.isFinite(clientX) && clientX > 0 ? clientX : window.innerWidth / 2;
     const y = Number.isFinite(clientY) && clientY > 0 ? clientY : window.innerHeight / 2;
     lastDragPoint = { x, y };
-
-    const radial = overlay.querySelector('.lap-capture-radial');
-    if (radial && !radial.hidden) {
-      const anchor = radialAnchor || { x, y };
-      const left = Math.min(
-        Math.max(10, anchor.x - RADIAL_SIZE / 2),
-        Math.max(10, window.innerWidth - RADIAL_SIZE - 10),
-      );
-      const top = Math.min(
-        Math.max(10, anchor.y - RADIAL_SIZE / 2),
-        Math.max(10, window.innerHeight - RADIAL_SIZE - 10),
-      );
-      radial.style.left = `${left}px`;
-      radial.style.top = `${top}px`;
-    }
   }
 
   function hideIntentUi() {
     if (!overlay) return;
+    overlay.classList.remove('is-radial-open');
+    overlay.querySelector('.lap-capture-intent-rail').hidden = true;
     overlay.querySelector('.lap-capture-radial').hidden = true;
   }
 
@@ -417,12 +411,15 @@
       seen.add(folder.key);
       candidates.push(folder);
     };
-    recentFolderPaths
-      .map((path) => byKey.get(normalizePath(path).toLowerCase()))
-      .forEach(add);
+    recentFolderPaths.map((path) => byKey.get(normalizePath(path).toLowerCase())).forEach(add);
     roots.forEach(add);
     [...byKey.values()].forEach(add);
     return candidates.slice(0, 5);
+  }
+
+  function radialItemRadius() {
+    const shortestSide = Math.min(window.innerWidth, window.innerHeight);
+    return Math.max(140, Math.min(RADIAL_ITEM_RADIUS, (shortestSide - 116) / 2));
   }
 
   function createRadialFolder(folder, index, total) {
@@ -437,8 +434,9 @@
       <span>${escapeHtml(folder.path)}</span>`;
 
     const angle = -Math.PI / 2 + (Math.PI * 2 * index) / total;
-    button.style.setProperty('--lap-radial-x', `${Math.cos(angle) * RADIAL_ITEM_RADIUS}px`);
-    button.style.setProperty('--lap-radial-y', `${Math.sin(angle) * RADIAL_ITEM_RADIUS}px`);
+    const radius = radialItemRadius();
+    button.style.setProperty('--lap-radial-x', `${Math.cos(angle) * radius}px`);
+    button.style.setProperty('--lap-radial-y', `${Math.sin(angle) * radius}px`);
 
     button.addEventListener('dragenter', (event) => {
       if (mode !== 'radial') return;
@@ -489,7 +487,8 @@
     const showMore = folders.length > candidates.length;
     const total = candidates.length + 1 + (showMore ? 1 : 0);
 
-    radialAnchor = { ...lastDragPoint };
+    overlay.classList.add('is-radial-open');
+    overlay.querySelector('.lap-capture-intent-rail').hidden = true;
     radial.hidden = false;
     items.textContent = '';
     const inboxTarget = radial.querySelector('.lap-capture-radial-center');
@@ -502,15 +501,16 @@
       };
       saveSelectedAsset();
     };
-    inboxTarget.hidden = !aiConfigured;
+    inboxTarget.hidden = false;
+    inboxTarget.querySelector('small').textContent = aiConfigured ? '松开后进入智能整理' : '先收集，配置 AI 后自动整理';
     inboxTarget.classList.remove('is-target');
     inboxTarget.ondragenter = (event) => {
-      if (mode !== 'radial' || !aiConfigured) return;
+      if (mode !== 'radial') return;
       event.preventDefault();
       inboxTarget.classList.add('is-target');
     };
     inboxTarget.ondragover = (event) => {
-      if (mode !== 'radial' || !aiConfigured) return;
+      if (mode !== 'radial') return;
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
     };
@@ -519,12 +519,12 @@
       inboxTarget.classList.remove('is-target');
     };
     inboxTarget.ondrop = (event) => {
-      if (mode !== 'radial' || !aiConfigured) return;
+      if (mode !== 'radial') return;
       event.preventDefault();
       event.stopPropagation();
       selectAiClassification();
     };
-    inboxTarget.onclick = aiConfigured ? selectAiClassification : null;
+    inboxTarget.onclick = selectAiClassification;
     candidates.forEach((folder, index) => {
       items.appendChild(createRadialFolder(folder, index, total));
     });
@@ -536,14 +536,9 @@
     createFolder.innerHTML = '<strong>创建目录</strong><span>新建后保存</span>';
     const createIndex = candidates.length;
     const createAngle = -Math.PI / 2 + (Math.PI * 2 * createIndex) / total;
-    createFolder.style.setProperty(
-      '--lap-radial-x',
-      `${Math.cos(createAngle) * RADIAL_ITEM_RADIUS}px`,
-    );
-    createFolder.style.setProperty(
-      '--lap-radial-y',
-      `${Math.sin(createAngle) * RADIAL_ITEM_RADIUS}px`,
-    );
+    const radius = radialItemRadius();
+    createFolder.style.setProperty('--lap-radial-x', `${Math.cos(createAngle) * radius}px`);
+    createFolder.style.setProperty('--lap-radial-y', `${Math.sin(createAngle) * radius}px`);
     createFolder.addEventListener('dragenter', (event) => {
       if (mode !== 'radial') return;
       event.preventDefault();
@@ -572,14 +567,8 @@
       more.setAttribute('role', 'menuitem');
       more.innerHTML = '<strong>更多</strong><span>全部文件夹</span>';
       const angle = -Math.PI / 2 + (Math.PI * 2 * (candidates.length + 1)) / total;
-      more.style.setProperty(
-        '--lap-radial-x',
-        `${Math.cos(angle) * RADIAL_ITEM_RADIUS}px`,
-      );
-      more.style.setProperty(
-        '--lap-radial-y',
-        `${Math.sin(angle) * RADIAL_ITEM_RADIUS}px`,
-      );
+      more.style.setProperty('--lap-radial-x', `${Math.cos(angle) * radius}px`);
+      more.style.setProperty('--lap-radial-y', `${Math.sin(angle) * radius}px`);
       more.addEventListener('dragenter', (event) => {
         if (mode !== 'radial') return;
         event.preventDefault();
@@ -601,7 +590,6 @@
       more.addEventListener('click', showFolderBrowser);
       items.appendChild(more);
     }
-    positionCaptureUi(lastDragPoint.x, lastDragPoint.y);
   }
 
   function resolveIntentState() {
@@ -620,13 +608,34 @@
     }
   }
 
-  function startIntentConfirmation() {
-    clearIntentTimer();
-    intentTimer = setTimeout(() => {
-      intentTimer = null;
+  function getDragIntentDistance() {
+    return Math.max(96, Math.min(window.innerWidth, window.innerHeight) * DRAG_DISTANCE_VIEWPORT_RATIO);
+  }
+
+  function updateIntentProgress(clientX, clientY) {
+    if (!overlay || mode !== 'intent' || !dragStartPoint) return;
+    if (!Number.isFinite(clientX) || !Number.isFinite(clientY) || (clientX === 0 && clientY === 0)) return;
+
+    const distance = Math.hypot(clientX - dragStartPoint.x, clientY - dragStartPoint.y);
+    const progress = Math.min(1, distance / getDragIntentDistance());
+    const rail = overlay.querySelector('.lap-capture-intent-rail');
+    rail.style.setProperty('--lap-intent-progress', String(progress));
+    rail.classList.toggle('is-near', progress >= 0.72);
+
+    const title = rail.querySelector('strong');
+    const detail = rail.querySelector('small');
+    if (progress >= 0.72) {
+      title.textContent = '即将打开分类选择';
+      detail.textContent = '继续拖动一点即可选择目录';
+    } else {
+      title.textContent = '拖动以打开 Lap 分类';
+      detail.textContent = '继续拖动即可选择保存位置';
+    }
+
+    if (progress >= 1 && !intentReady) {
       intentReady = true;
       resolveIntentState();
-    }, INTENT_CONFIRM_MS);
+    }
   }
 
   function scheduleExpand(folder, row) {
@@ -745,7 +754,6 @@
     if (!overlay || !folders.length) return;
     mode = 'creating-folder';
     clearHoverTimer();
-    clearIntentTimer();
     removeDragGhost();
     openPanel();
     setPanelBrand('创建目录', '创建成功后立即保存当前图片');
@@ -837,20 +845,12 @@
     toast.querySelector('strong').textContent = title;
     toast.querySelector('span').textContent = detail || '';
     toast.hidden = false;
-
-    const width = 280;
-    const anchor = radialAnchor || lastDragPoint;
-    const left = Math.min(Math.max(14, anchor.x - width / 2), Math.max(14, innerWidth - width - 14));
-    const top = Math.min(Math.max(14, anchor.y - 42), Math.max(14, innerHeight - 82));
-    toast.style.left = `${left}px`;
-    toast.style.top = `${top}px`;
   }
 
   async function saveSelectedAsset() {
     if (!currentAsset || !selectedFolder || ['saving', 'complete'].includes(mode)) return;
     mode = 'saving';
     clearHoverTimer();
-    clearIntentTimer();
     removeDragGhost();
     const isInbox = Boolean(selectedFolder.isInbox);
     showCaptureToast('正在保存…', isInbox ? 'AI 分类' : selectedFolder.path, 'saving');
@@ -890,16 +890,16 @@
       const resultFolder = response.result?.folder?.path || selectedFolder.path;
       const title = response.result?.duplicate
         ? '素材已存在'
-        : (isInbox ? '已交给 AI 分类' : '已保存到目录');
+        : isInbox && aiConfigured
+          ? '已交给 AI 分类'
+          : isInbox
+            ? '已收集，等待 AI 分类'
+            : '已保存到目录';
       showCaptureToast(title, resultFolder || 'AI 分类', 'success');
       setTimeout(closeOverlay, response.result?.duplicate ? 1200 : 900);
     } catch (error) {
       mode = 'error';
-      showCaptureToast(
-        '保存失败',
-        error instanceof Error ? error.message : String(error),
-        'error',
-      );
+      showCaptureToast('保存失败', error instanceof Error ? error.message : String(error), 'error');
       setTimeout(closeOverlay, 2400);
     }
   }
@@ -911,10 +911,11 @@
       x: event.clientX || window.innerWidth / 2,
       y: event.clientY || window.innerHeight / 2,
     };
+    dragStartPoint = { ...lastDragPoint };
     const session = captureSession;
     createOverlay();
     createDragGhost(image, event.dataTransfer);
-    startIntentConfirmation();
+    updateIntentProgress(lastDragPoint.x, lastDragPoint.y);
     try {
       await loadFolderState(session);
     } catch (error) {
@@ -927,42 +928,68 @@
   document.addEventListener('pointerdown', armImageForNativeDrag, true);
   document.addEventListener('mousedown', armImageForNativeDrag, true);
 
-  document.addEventListener('pointerup', () => {
-    if (!overlay) restoreArmedImage();
-  }, true);
+  document.addEventListener(
+    'pointerup',
+    () => {
+      if (!overlay) restoreArmedImage();
+    },
+    true,
+  );
 
-  document.addEventListener('dragstart', (event) => {
-    const image = findDraggedImage(event.target, event.clientX, event.clientY) || armedImage;
-    if (!image) return;
-    beginCapture(image, event);
-  }, true);
+  document.addEventListener(
+    'dragstart',
+    (event) => {
+      const image = findDraggedImage(event.target, event.clientX, event.clientY) || armedImage;
+      if (!image) return;
+      beginCapture(image, event);
+    },
+    true,
+  );
 
-  document.addEventListener('dragover', (event) => {
-    if (!overlay || !['intent', 'radial'].includes(mode)) return;
-    positionCaptureUi(event.clientX, event.clientY);
-    if (mode === 'radial') event.preventDefault();
-  }, true);
+  document.addEventListener(
+    'dragover',
+    (event) => {
+      if (!overlay || !['intent', 'radial'].includes(mode)) return;
+      positionCaptureUi(event.clientX, event.clientY);
+      if (mode === 'intent') updateIntentProgress(event.clientX, event.clientY);
+      if (mode === 'radial') event.preventDefault();
+    },
+    true,
+  );
 
-  document.addEventListener('drop', (event) => {
-    if (!overlay || mode !== 'radial') return;
-    if (
-      event.target instanceof Element
-      && event.target.closest('.lap-capture-radial-item, .lap-capture-radial-center')
-    ) return;
-    event.preventDefault();
-    closeOverlay();
-  }, true);
+  document.addEventListener(
+    'drop',
+    (event) => {
+      if (!overlay || mode !== 'radial') return;
+      if (
+        event.target instanceof Element &&
+        event.target.closest('.lap-capture-radial-item, .lap-capture-radial-center')
+      )
+        return;
+      event.preventDefault();
+      closeOverlay();
+    },
+    true,
+  );
 
-  document.addEventListener('dragend', () => {
-    restoreArmedImage();
-    removeDragGhost();
-    if (!overlay || !['intent', 'radial'].includes(mode)) return;
-    setTimeout(() => {
-      if (overlay && ['intent', 'radial'].includes(mode)) closeOverlay();
-    }, CLOSE_AFTER_DRAG_MS);
-  }, true);
+  document.addEventListener(
+    'dragend',
+    () => {
+      restoreArmedImage();
+      removeDragGhost();
+      if (!overlay || !['intent', 'radial'].includes(mode)) return;
+      setTimeout(() => {
+        if (overlay && ['intent', 'radial'].includes(mode)) closeOverlay();
+      }, CLOSE_AFTER_DRAG_MS);
+    },
+    true,
+  );
 
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && overlay) closeOverlay();
-  }, true);
+  document.addEventListener(
+    'keydown',
+    (event) => {
+      if (event.key === 'Escape' && overlay) closeOverlay();
+    },
+    true,
+  );
 })();

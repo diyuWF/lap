@@ -1184,6 +1184,23 @@
       "invalid_file": "文件记录无效。"
     }
   },
+  "reference_board": {
+    "title": "参考板",
+    "asset_count": "{count} 张参考图",
+    "always_on_top": "窗口置顶",
+    "zoom_out": "缩小",
+    "fit_all": "适应全部图片",
+    "actual_size": "按 100% 显示",
+    "zoom_in": "放大",
+    "minimize": "最小化",
+    "close": "关闭",
+    "empty_title": "将图片拖出 Lap",
+    "empty_hint": "图片越过 Lap 窗口边缘后，会自动出现在这个参考板中。",
+    "load_failed": "无法加载这张图片",
+    "remove": "从参考板移除",
+    "controls_hint": "拖动空白处平移 · 滚轮缩放 · 拖动图片排列",
+    "open_failed": "无法打开参考板"
+  },
   "settings": {
     "general": {
       "title": "通用",

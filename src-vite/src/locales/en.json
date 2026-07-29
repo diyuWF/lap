@@ -1184,6 +1184,23 @@
       "invalid_file": "The file record is invalid."
     }
   },
+  "reference_board": {
+    "title": "Reference board",
+    "asset_count": "{count} reference images",
+    "always_on_top": "Always on top",
+    "zoom_out": "Zoom out",
+    "fit_all": "Fit all images",
+    "actual_size": "Show at 100%",
+    "zoom_in": "Zoom in",
+    "minimize": "Minimize",
+    "close": "Close",
+    "empty_title": "Drag images out of Lap",
+    "empty_hint": "Images dragged past the edge of the Lap window will appear here automatically.",
+    "load_failed": "Could not load this image",
+    "remove": "Remove from board",
+    "controls_hint": "Drag empty space to pan · Wheel to zoom · Drag an image to arrange",
+    "open_failed": "Could not open the reference board"
+  },
   "settings": {
     "general": {
       "title": "General",

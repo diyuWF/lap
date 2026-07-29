@@ -661,7 +661,7 @@ import { getShortcutLabel, matchesShortcut, ShortcutActionId, ShortcutPlatform, 
 import { getSmartTagById, SMART_TAG_SEARCH_THRESHOLD } from '@/common/smartTags';
 import { getAlbumScanState, getAlbumScanIcon, shouldAnimateAlbumScanIcon } from '@/common/scanStatus';
 import { DATE_SORT, GROUP, LIB_ITEM, RATE, SIDEBAR } from '@/common/constants';
-import { isWin, isMac, isLinux, setTheme, separator,
+import { isWin, isMac, isLinux, isTauriRuntime, setTheme, separator,
          formatFileSize, formatDate, getCalendarDateRange, formatFolderBreadcrumb, getThumbnailDataUrl, getAssetSrc, getPreviewUrl,
          getCachedThumbnailDataUrl,
          clearCachedThumbnailDataUrl,
@@ -1940,9 +1940,12 @@ let pointerDragFiles: Array<{
   file_path: string;
   folder_id: number;
   album_id: number;
+  file_type?: number;
+  name?: string;
 }> | null = null;
 let dragGhostHotspotX = 0;
 let dragGhostHotspotY = 0;
+let referenceBoardDetachStarted = false;
 
 function getExternalDropUris(dt: DataTransfer | null) {
   const value = dt?.getData('text/uri-list')
@@ -2285,9 +2288,80 @@ function createDragGhost(
   dragGhostAction = action;
 }
 
+function isAtAppBoundary(event: PointerEvent) {
+  const edge = 3;
+  return event.clientX <= edge
+    || event.clientY <= edge
+    || event.clientX >= window.innerWidth - edge
+    || event.clientY >= window.innerHeight - edge;
+}
+
+async function detachImagesToReferenceBoard() {
+  if (
+    referenceBoardDetachStarted
+    || !isTauriRuntime
+    || !pointerDragFiles?.length
+  ) return;
+
+  const assets = pointerDragFiles
+    .filter(file => Number(file.file_type) === 1 && Boolean(file.file_path))
+    .map(file => ({
+      id: file.id,
+      file_path: file.file_path,
+      name: file.name || getFolderName(file.file_path),
+    }));
+  if (!assets.length) return;
+
+  referenceBoardDetachStarted = true;
+  await clearContentInternalDrag();
+
+  try {
+    const label = 'referenceboard';
+    const existingWindow = await WebviewWindow.getByLabel(label);
+    if (existingWindow) {
+      if (await existingWindow.isMinimized()) await existingWindow.unminimize();
+      await existingWindow.show();
+      await existingWindow.setFocus();
+      await existingWindow.emit('reference-board:add-assets', assets);
+      return;
+    }
+
+    const query = encodeURIComponent(JSON.stringify(assets));
+    const referenceWindow = new WebviewWindow(label, {
+      url: `/reference-board?assets=${query}`,
+      title: 'Lap Reference Board',
+      width: 1000,
+      height: 700,
+      minWidth: 520,
+      minHeight: 360,
+      resizable: true,
+      visible: false,
+      transparent: true,
+      decorations: false,
+      alwaysOnTop: true,
+      dragDropEnabled: true,
+    });
+    referenceWindow.once('tauri://created', async () => {
+      await referenceWindow.show();
+      await referenceWindow.setFocus();
+    });
+    referenceWindow.once('tauri://error', (error) => {
+      console.error('Failed to create reference board window:', error);
+      toast.warning(t('reference_board.open_failed'));
+    });
+  } catch (error) {
+    console.error('Failed to open reference board window:', error);
+    toast.warning(t('reference_board.open_failed'));
+  }
+}
+
 function updateContentDragPosition(event: PointerEvent) {
   if (!dragGhost || (event.clientX === 0 && event.clientY === 0)) return;
   dragGhost.style.transform = `translate3d(${Math.round(event.clientX - dragGhostHotspotX)}px, ${Math.round(event.clientY - dragGhostHotspotY)}px, 0)`;
+  if (isAtAppBoundary(event)) {
+    void detachImagesToReferenceBoard();
+    return;
+  }
   const elementAtPointer = document.elementFromPoint(event.clientX, event.clientY);
   if (elementAtPointer?.closest('[data-collection-tray-root]') && !config.collectionTray.expanded) {
     config.collectionTray.expanded = true;
@@ -2318,6 +2392,7 @@ function markContentInternalDrag({
   const draggedFile = fileList.value[index];
   const fileItem = document.getElementById(`item-${index}`);
   if (!fileItem || !isRealFileItem(draggedFile)) return;
+  referenceBoardDetachStarted = false;
   isContentInternalDrag.value = true;
   const selected = getActionableSelectedItems();
   pointerDragUsesSelection = Boolean(draggedFile.isSelected && selectedCount.value > 0);
@@ -2328,6 +2403,8 @@ function markContentInternalDrag({
     file_path: f.file_path,
     folder_id: f.folder_id,
     album_id: f.album_id,
+    file_type: f.file_type,
+    name: f.name,
   }));
   createDragGhost(
     fileItem,
@@ -2364,6 +2441,8 @@ async function clearContentInternalDrag(event?: PointerEvent) {
         file_path: file.file_path,
         folder_id: file.folder_id,
         album_id: file.album_id,
+        file_type: file.file_type,
+        name: file.name,
       }));
     }
 

@@ -6,7 +6,8 @@
     "main",
     "imageviewer",
     "imageeditor",
-    "settings"
+    "settings",
+    "referenceboard"
   ],
   "permissions": [
     "core:default",
