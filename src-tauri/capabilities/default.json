@@ -49,6 +49,7 @@
     "core:webview:allow-webview-close",
     "shell:allow-open",
     "dialog:allow-open",
+    "drag:default",
     "os:allow-platform",
     "os:allow-version",
     "os:allow-os-type",

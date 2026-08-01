@@ -133,8 +133,7 @@ import {
   ref,
   watch,
 } from "vue";
-import { useRoute } from "vue-router";
-import { listen } from "@tauri-apps/api/event";
+import { emit } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getAssetSrc, isTauriRuntime } from "@/common/utils";
@@ -195,16 +194,16 @@ type Interaction =
 const STORAGE_KEY = "lap-reference-board-v1";
 const MIN_ZOOM = 0.05;
 const MAX_ZOOM = 32;
-const route = useRoute();
 const viewportRef = ref<HTMLElement | null>(null);
 const items = ref<BoardItem[]>([]);
 const selectedId = ref("");
 const alwaysOnTop = ref(true);
 const camera = reactive({ x: 0, y: 0, scale: 1 });
 const interaction = ref<Interaction | null>(null);
-let unlistenAssets: null | (() => void) = null;
 let unlistenNativeDrop: null | (() => void) = null;
+let unlistenCloseRequested: null | (() => void) = null;
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
+let isClosing = false;
 
 const worldStyle = computed(() => ({
   transform: `translate3d(${camera.x}px, ${camera.y}px, 0) scale(${camera.scale})`,
@@ -225,17 +224,6 @@ function fileName(path: string) {
 
 function assetSource(item: BoardItem) {
   return item.source || getAssetSrc(item.path);
-}
-
-function readInitialAssets(): IncomingAsset[] {
-  const value = route.query.assets;
-  if (typeof value !== "string" || !value) return [];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
 }
 
 function restoreBoard() {
@@ -286,7 +274,21 @@ function viewportCenterInWorld() {
   };
 }
 
-function addAssets(incoming: IncomingAsset[]) {
+function clientPointInWorld(point?: { x: number; y: number }) {
+  if (!point) return viewportCenterInWorld();
+  const viewport = viewportRef.value;
+  if (!viewport) return viewportCenterInWorld();
+  const rect = viewport.getBoundingClientRect();
+  return {
+    x: (point.x - rect.left - camera.x) / camera.scale,
+    y: (point.y - rect.top - camera.y) / camera.scale,
+  };
+}
+
+function addAssets(
+  incoming: IncomingAsset[],
+  clientPoint?: { x: number; y: number },
+) {
   const records = incoming
     .map((asset) => {
       const path = String(asset.file_path || asset.path || "");
@@ -297,21 +299,24 @@ function addAssets(incoming: IncomingAsset[]) {
     );
   if (!records.length) return;
 
-  const center = viewportCenterInWorld();
+  const dropPoint = clientPointInWorld(clientPoint);
   records.forEach((asset, index) => {
     const existing = items.value.find((item) => item.path === asset.path);
     if (existing) {
       selectedId.value = existing.id;
       return;
     }
-    const offset = index * 26;
+    const column = index % 3;
+    const row = Math.floor(index / 3);
+    const offsetX = (column - Math.min(records.length - 1, 2) / 2) * 28;
+    const offsetY = row * 28;
     const item: BoardItem = {
       id: `${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
       path: asset.path,
       name: String(asset.name || fileName(asset.path)),
       source: asset.source,
-      x: center.x - 160 + offset,
-      y: center.y - 110 + offset,
+      x: dropPoint.x - 160 + offsetX,
+      y: dropPoint.y - 110 + offsetY,
       width: 320,
       height: 220,
       sized: false,
@@ -328,8 +333,12 @@ function finishImageSize(event: Event, item: BoardItem) {
   if (!image.naturalWidth || !image.naturalHeight) return;
   const longestSide = Math.max(image.naturalWidth, image.naturalHeight);
   const displayScale = Math.min(1, 420 / longestSide);
+  const centerX = item.x + item.width / 2;
+  const centerY = item.y + item.height / 2;
   item.width = Math.max(80, Math.round(image.naturalWidth * displayScale));
   item.height = Math.max(80, Math.round(image.naturalHeight * displayScale));
+  item.x = centerX - item.width / 2;
+  item.y = centerY - item.height / 2;
   item.sized = true;
 }
 
@@ -507,7 +516,10 @@ function handleDomDrop(event: DragEvent) {
         "$1",
       ),
     );
-  addAssets(paths.map((path) => ({ path })));
+  addAssets(
+    paths.map((path) => ({ path })),
+    { x: event.clientX, y: event.clientY },
+  );
 }
 
 async function toggleAlwaysOnTop() {
@@ -521,14 +533,31 @@ async function minimizeWindow() {
   if (isTauriRuntime) await getCurrentWebviewWindow().minimize();
 }
 
+async function prepareToClose() {
+  if (isClosing) return;
+  isClosing = true;
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+  items.value = [];
+  selectedId.value = "";
+  camera.x = 0;
+  camera.y = 0;
+  camera.scale = 1;
+  localStorage.removeItem(STORAGE_KEY);
+  if (isTauriRuntime) await emit("reference-board:closed");
+}
+
 async function closeWindow() {
-  if (isTauriRuntime) await getCurrentWebviewWindow().close();
+  if (!isTauriRuntime) return;
+  await prepareToClose();
+  await getCurrentWebviewWindow().close();
 }
 
 onMounted(async () => {
   restoreBoard();
   await nextTick();
-  addAssets(readInitialAssets());
 
   if (!isTauriRuntime && items.value.length === 0) {
     addAssets([
@@ -542,19 +571,26 @@ onMounted(async () => {
 
   window.addEventListener("keydown", handleKeyDown, true);
   if (isTauriRuntime) {
-    unlistenAssets = await listen<IncomingAsset[]>(
-      "reference-board:add-assets",
-      (event) => {
-        addAssets(Array.isArray(event.payload) ? event.payload : []);
-      },
-    );
     unlistenNativeDrop = await getCurrentWebview().onDragDropEvent((event) => {
       if (event.payload.type === "drop") {
-        addAssets(event.payload.paths.map((path) => ({ path })));
+        const { paths, position } = event.payload;
+        void getCurrentWebviewWindow().scaleFactor().then((scaleFactor) => {
+          addAssets(
+            paths.map((path) => ({ path })),
+            {
+              x: position.x / scaleFactor,
+              y: position.y / scaleFactor,
+            },
+          );
+        });
       }
     });
-    await getCurrentWebviewWindow().setAlwaysOnTop(true);
-    await getCurrentWebviewWindow().show();
+    const currentWindow = getCurrentWebviewWindow();
+    unlistenCloseRequested = await currentWindow.onCloseRequested(() => {
+      void prepareToClose();
+    });
+    await currentWindow.setAlwaysOnTop(true);
+    await currentWindow.show();
   }
 });
 
@@ -562,11 +598,11 @@ watch([items, camera], schedulePersist, { deep: true });
 
 onBeforeUnmount(() => {
   if (persistTimer) clearTimeout(persistTimer);
-  persistBoard();
+  if (!isClosing) persistBoard();
   window.removeEventListener("keydown", handleKeyDown, true);
   unbindInteractionListeners();
-  unlistenAssets?.();
   unlistenNativeDrop?.();
+  unlistenCloseRequested?.();
 });
 </script>
 

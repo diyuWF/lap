@@ -644,6 +644,7 @@ import { ref, watch, computed, createVNode, onMounted, onBeforeUnmount, nextTick
 import { emit as tauriEmit, listen } from '@tauri-apps/api/event';
 import { ask, open as openDialog } from '@tauri-apps/plugin-dialog';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { startDrag } from '@crabnebula/tauri-plugin-drag';
 import { useI18n } from 'vue-i18n';
 import { useToast } from '@/common/toast';
 import { useUIStore } from '@/stores/uiStore';
@@ -1945,7 +1946,10 @@ let pointerDragFiles: Array<{
 }> | null = null;
 let dragGhostHotspotX = 0;
 let dragGhostHotspotY = 0;
-let referenceBoardDetachStarted = false;
+let nativeDragOutStarted = false;
+let referenceBoardPromptStarted = false;
+let referenceBoardChoice: 'board' | 'external' | null = null;
+let unlistenReferenceBoardClosed: (() => void) | null = null;
 
 function getExternalDropUris(dt: DataTransfer | null) {
   const value = dt?.getData('text/uri-list')
@@ -2296,39 +2300,14 @@ function isAtAppBoundary(event: PointerEvent) {
     || event.clientY >= window.innerHeight - edge;
 }
 
-async function detachImagesToReferenceBoard() {
-  if (
-    referenceBoardDetachStarted
-    || !isTauriRuntime
-    || !pointerDragFiles?.length
-  ) return;
+async function createReferenceBoardWindow() {
+  const label = 'referenceboard';
+  const existingWindow = await WebviewWindow.getByLabel(label);
+  if (existingWindow) return existingWindow;
 
-  const assets = pointerDragFiles
-    .filter(file => Number(file.file_type) === 1 && Boolean(file.file_path))
-    .map(file => ({
-      id: file.id,
-      file_path: file.file_path,
-      name: file.name || getFolderName(file.file_path),
-    }));
-  if (!assets.length) return;
-
-  referenceBoardDetachStarted = true;
-  await clearContentInternalDrag();
-
-  try {
-    const label = 'referenceboard';
-    const existingWindow = await WebviewWindow.getByLabel(label);
-    if (existingWindow) {
-      if (await existingWindow.isMinimized()) await existingWindow.unminimize();
-      await existingWindow.show();
-      await existingWindow.setFocus();
-      await existingWindow.emit('reference-board:add-assets', assets);
-      return;
-    }
-
-    const query = encodeURIComponent(JSON.stringify(assets));
+  return new Promise<WebviewWindow>((resolve, reject) => {
     const referenceWindow = new WebviewWindow(label, {
-      url: `/reference-board?assets=${query}`,
+      url: '/reference-board',
       title: 'Lap Reference Board',
       width: 1000,
       height: 700,
@@ -2344,14 +2323,87 @@ async function detachImagesToReferenceBoard() {
     referenceWindow.once('tauri://created', async () => {
       await referenceWindow.show();
       await referenceWindow.setFocus();
+      resolve(referenceWindow);
     });
-    referenceWindow.once('tauri://error', (error) => {
-      console.error('Failed to create reference board window:', error);
-      toast.warning(t('reference_board.open_failed'));
+    referenceWindow.once('tauri://error', (error) => reject(error));
+  });
+}
+
+async function startNativeImageDragOut() {
+  if (
+    nativeDragOutStarted
+    || !isTauriRuntime
+    || !pointerDragFiles?.length
+  ) return;
+
+  const paths = pointerDragFiles
+    .filter(file => Number(file.file_type) === 1 && Boolean(file.file_path))
+    .map(file => file.file_path);
+  if (!paths.length) return;
+
+  nativeDragOutStarted = true;
+  await clearContentInternalDrag();
+
+  try {
+    await startDrag({
+      item: paths,
+      icon: paths[0],
+      mode: 'copy',
     });
   } catch (error) {
-    console.error('Failed to open reference board window:', error);
+    console.error('Failed to start native image drag:', error);
+    toast.warning(t('reference_board.drag_out_failed'));
+  } finally {
+    nativeDragOutStarted = false;
+  }
+}
+
+async function handleImageDragAtBoundary() {
+  if (
+    referenceBoardPromptStarted
+    || nativeDragOutStarted
+    || !isTauriRuntime
+    || !pointerDragFiles?.some(file => Number(file.file_type) === 1 && Boolean(file.file_path))
+  ) return;
+
+  referenceBoardPromptStarted = true;
+  try {
+    const existingWindow = await WebviewWindow.getByLabel('referenceboard');
+    if (existingWindow) {
+      referenceBoardChoice = 'board';
+      await startNativeImageDragOut();
+      return;
+    }
+
+    if (referenceBoardChoice === 'board') {
+      referenceBoardChoice = null;
+    }
+    if (referenceBoardChoice === 'external') {
+      await startNativeImageDragOut();
+      return;
+    }
+
+    await clearContentInternalDrag();
+    const createBoard = await ask(t('reference_board.create_prompt_message'), {
+      title: t('reference_board.create_prompt_title'),
+      kind: 'info',
+      okLabel: t('reference_board.create_prompt_ok'),
+      cancelLabel: t('reference_board.create_prompt_cancel'),
+    });
+    if (!createBoard) {
+      referenceBoardChoice = 'external';
+      toast.info(t('reference_board.external_drag_hint'));
+      return;
+    }
+
+    referenceBoardChoice = 'board';
+    await createReferenceBoardWindow();
+    toast.info(t('reference_board.created_hint'));
+  } catch (error) {
+    console.error('Failed to prepare image drag-out:', error);
     toast.warning(t('reference_board.open_failed'));
+  } finally {
+    referenceBoardPromptStarted = false;
   }
 }
 
@@ -2359,7 +2411,7 @@ function updateContentDragPosition(event: PointerEvent) {
   if (!dragGhost || (event.clientX === 0 && event.clientY === 0)) return;
   dragGhost.style.transform = `translate3d(${Math.round(event.clientX - dragGhostHotspotX)}px, ${Math.round(event.clientY - dragGhostHotspotY)}px, 0)`;
   if (isAtAppBoundary(event)) {
-    void detachImagesToReferenceBoard();
+    void handleImageDragAtBoundary();
     return;
   }
   const elementAtPointer = document.elementFromPoint(event.clientX, event.clientY);
@@ -2392,7 +2444,7 @@ function markContentInternalDrag({
   const draggedFile = fileList.value[index];
   const fileItem = document.getElementById(`item-${index}`);
   if (!fileItem || !isRealFileItem(draggedFile)) return;
-  referenceBoardDetachStarted = false;
+  nativeDragOutStarted = false;
   isContentInternalDrag.value = true;
   const selected = getActionableSelectedItems();
   pointerDragUsesSelection = Boolean(draggedFile.isSelected && selectedCount.value > 0);
@@ -2746,6 +2798,13 @@ onMounted(() => {
 
   migrateRightPanelWidthToPixels();
   window.addEventListener('resize', handleWindowResize);
+  if (isTauriRuntime) {
+    void listen('reference-board:closed', () => {
+      referenceBoardChoice = null;
+    }).then((unlisten) => {
+      unlistenReferenceBoardClosed = unlisten;
+    });
+  }
 });
 
 onBeforeUnmount(() => {
@@ -2763,6 +2822,7 @@ onBeforeUnmount(() => {
   if (unlistenImageViewer) unlistenImageViewer();
   if (unlistenImageEditor) unlistenImageEditor();
   if (unlistenLibraryTotalRefreshed) unlistenLibraryTotalRefreshed();
+  unlistenReferenceBoardClosed?.();
 });
 
 // New event handlers for GridView

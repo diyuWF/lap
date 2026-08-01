@@ -70,24 +70,17 @@ The PR is intentionally kept Draft until manual validation is complete.
 
 Latest packaged candidate commit:
 
-`b503fe8e7f0f7b67a84b22372e930a332f096a42`
+`c42175c6593cfbdb0df7ae8c37881bb7aa3188f4`
 
 Automated validation:
 
-- PASS — PR Build #71
-- PASS — Chat Validation Package #16
-- PASS — artifact `Lap-0.4.1-Chat-Delivery-16`
-- Artifact ID: `8728141366`
-- Artifact SHA256 digest:
-  `82e405ab25670e105782e7aa7c7f06925ec54ed58d55eafd03883878fe02dd70`
-- Windows installer SHA256:
-  `e3e25f4e02f2d5c7d0fde65004226466ee317adc8ba775c0ad71eea2c8f078ed`
-- Chromium extension SHA256:
-  `31d76426a1007218b14bf3a87de0d3d5eb128734ddb6d6e857d5fd0e079d18c7`
+- PASS — PR Build #72
+- PASS — Chat Validation Package #17
+- PASS — artifact `Lap-0.4.1-Chat-Delivery-17`
 
-The signature-theme candidate is packaged and ready. The distance-based browser
-classification and first desktop reference-board slice require a fresh PR build
-plus Windows validation package before manual testing.
+That package contains the first distance-based browser classification and
+reference-board slice. The cumulative-path radial and native drag-out correction
+in the working branch require a fresh PR build plus Windows validation package.
 Keep PR #2 in Draft until the updated checks and manual validation pass.
 
 ## Completed milestones
@@ -144,29 +137,28 @@ Windows validation-package build before that package is used for manual testing.
 
 Current state:
 
-`BLOCKED — DISTANCE RADIAL + REFERENCE BOARD CANDIDATE AWAITING FRESH PACKAGE`
+`BLOCKED — CUMULATIVE RADIAL + NATIVE DRAG-OUT CANDIDATE AWAITING FRESH PACKAGE`
 
 Reason:
 
-The signature-theme package (`Lap-0.4.1-Chat-Delivery-16`) passed its automated
-checks. The next focused change replaces time-based browser drag intent with a
-distance-based interaction and adds an authorized first PureRef-style desktop
-reference-board slice.
+`Lap-0.4.1-Chat-Delivery-17` passed its automated checks. Manual feedback found
+that its reference-board edge interception blocked normal Photoshop drag-out,
+its browser threshold used displacement instead of cumulative path length, and
+its radial presentation still exposed an unwanted progress surface.
 
 Focused fixes are implemented in the working branch:
 
-- drag intent no longer uses a timer; progress is calculated from the real
-  pointer path and opens classification after movement equal to one third of
-  the viewport's shorter side, with a 96 px minimum;
-- an animated intent rail appears in the exact viewport center while the
-  semi-transparent native drag image follows the pointer;
-- intent applies mild page dimming/blur, and the expanded radial applies a
-  stronger dim/blur treatment while remaining fixed at the viewport center;
-- the radial UI is enlarged to 560 px where space allows and uses compact dark
-  translucent directory cards plus the official Lap icon;
-- the center action is always “AI 分类”; with AI configured it enters intelligent
-  organization, while without AI it safely collects the asset with `inbox`
-  workflow state for later organization;
+- browser intent accumulates every pointer-path segment, so reversing direction
+  never reduces intent; the threshold is exactly one third of browser width;
+- there is no tutorial rail, timer, or progress bar before activation; the
+  semi-transparent native drag image is the only pre-threshold feedback;
+- after activation, the page is dimmed/blurred and one 680 px circular surface
+  is fixed to the exact viewport center;
+- the configured-AI center contains only Lap's folder icon and “AI 分类”; no
+  subtitle, logo, progress, or decorative control remains;
+- actual/recent folders plus “创建目录” pack into deterministic gravity-style
+  rows below the AI center, with a complete folder browser retained behind
+  “更多” when necessary;
 - dropping on an existing directory saves immediately without the removed
   confirmation modal and marks the asset workflow as `selected`;
 - AI-center captures retain the logical `inbox` workflow for the existing
@@ -183,11 +175,18 @@ Focused fixes are implemented in the working branch:
   fields, and toggles share the same restrained glass hierarchy;
 - browser preview safely stubs Tauri-only window/event calls so the real
   Settings screen can be visually checked without changing desktop behavior.
-- dragging one or more image assets to the Lap window boundary opens or reuses a
-  separate frameless always-on-top reference board;
+- the first image drag beyond Lap asks whether to create a reference board;
+- after that choice, Lap starts a native OS file drag instead of intercepting
+  the gesture, so Photoshop and other applications remain valid destinations;
+- an open reference board receives an image only from a real native drop inside
+  its own window; no edge-crossing event adds assets automatically;
+- native drops use the real pointer location as their placement anchor and
+  natural image sizing preserves that anchor instead of recentering the item;
+- closing the reference board clears its items, camera, and persisted layout so
+  a later newly created board starts empty;
 - the reference board supports blank-space panning, pointer-centered wheel
-  zoom from 5% to 3200%, Fit All, 100%, image arrangement/removal, additional
-  native file drops, and local layout persistence.
+  zoom from 5% to 3200%, Fit All, 100%, image arrangement/removal, and additional
+  native file drops while the window remains open.
 
 Browser-rendered Settings visual QA passes for both day and night themes at
 1363 × 936 with no layout overflow or Lap console errors. The native Home,
@@ -247,26 +246,27 @@ the complete provider payload or internal user identifiers.
 ### Browser extension drag capture
 
 The next package must be manually checked on a real Chromium page. Verify the
-native semi-transparent drag image follows the pointer with no repeated tutorial
-card, the centered intent rail animates in, progress tracks actual drag distance,
-and the dark radial folder menu appears only after moving approximately one third
-of the viewport's shorter side. Verify the page is mildly dimmed/blurred during
-intent and more strongly dimmed/blurred in the radial state. “AI 分类” must remain
-present both before and after model configuration, with the explanatory subtitle
-changing by state. Small/lazy-loaded thumbnails must enter the same flow,
-existing-folder drops must save without confirmation, and releasing early must
-not leave an overlay.
+native semi-transparent drag image follows the pointer with no tutorial or
+progress surface. Moving back toward the start must keep accumulating path
+length, and the circular UI must appear only after total travel reaches roughly
+one third of browser width. Verify the page is dimmed/blurred only after that
+threshold and the radial remains fixed at the viewport center. With no configured
+provider, the AI center must be absent; after provider configuration, its only
+content must be the folder icon and “AI 分类”. Small/lazy-loaded thumbnails must
+enter the same flow, existing-folder drops must save without confirmation, and
+releasing early must not leave an overlay.
 Also drop on “创建目录”, choose an existing parent, create a valid child directory,
 and confirm the image is saved there without a second dialog.
 
 ### Desktop reference board
 
 The reference board is a focused first slice, not full PureRef parity. Native
-Windows validation must verify that dragging an image to any Lap window edge
-opens one `referenceboard` window, that later drag-outs reuse it, and that the
-drag gesture does not also perform an in-library move. Confirm always-on-top,
-frameless window controls, pan, 5%–3200% zoom, Fit All, 100%, image movement,
-Delete removal, external file drops, and persisted layout after close/reopen.
+Windows validation must verify that the first boundary drag asks whether to
+create the board, and that a later drag becomes a normal OS file drag accepted
+by both Photoshop and the board. The board must add only files actually dropped
+inside it and place them at the drop location. Confirm always-on-top, frameless
+window controls, pan, 5%–3200% zoom, Fit All, 100%, image movement, Delete
+removal, external file drops, and an empty board after close/recreate.
 
 ### AI pending-area organization
 

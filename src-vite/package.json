@@ -12,6 +12,7 @@
     "i18n:audit:strict": "node scripts/i18n-audit.mjs --strict"
   },
   "dependencies": {
+    "@crabnebula/tauri-plugin-drag": "2.1.0",
     "@tailwindcss/vite": "^4.2.2",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-dialog": "2.6.0",

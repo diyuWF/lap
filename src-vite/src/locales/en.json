@@ -1194,12 +1194,19 @@
     "zoom_in": "Zoom in",
     "minimize": "Minimize",
     "close": "Close",
-    "empty_title": "Drag images out of Lap",
-    "empty_hint": "Images dragged past the edge of the Lap window will appear here automatically.",
+    "empty_title": "Drop images here",
+    "empty_hint": "Only images actually dropped onto this board are added. Dragging to Photoshop or another app stays a native system drag.",
     "load_failed": "Could not load this image",
     "remove": "Remove from board",
     "controls_hint": "Drag empty space to pan · Wheel to zoom · Drag an image to arrange",
-    "open_failed": "Could not open the reference board"
+    "open_failed": "Could not open the reference board",
+    "drag_out_failed": "Could not start the system drag. Please try again.",
+    "create_prompt_title": "Create a reference board?",
+    "create_prompt_message": "This is the first time you have dragged an image out of Lap. Create an always-on-top reference board? After it is created, only images actually dropped on the board are added; Photoshop and other apps keep normal system drag behavior.",
+    "create_prompt_ok": "Create board",
+    "create_prompt_cancel": "Continue to another app",
+    "created_hint": "Reference board created. Drag the image again and drop it onto the board.",
+    "external_drag_hint": "Drag the image again to Photoshop or another app."
   },
   "settings": {
     "general": {
