@@ -155,13 +155,14 @@ Focused fixes are implemented in the working branch:
   never reduces intent; the threshold is exactly one third of browser width;
 - there is no tutorial rail, timer, or progress bar before activation; the
   semi-transparent native drag image is the only pre-threshold feedback;
-- after activation, the page is dimmed/blurred and one 680 px circular surface
-  is fixed to the exact viewport center;
+- after activation, the page is moderately dimmed/blurred and one transparent
+  820 px positioning ring is fixed to the exact viewport center; it no longer
+  renders as an opaque black disc or duplicate colored rings;
 - the configured-AI center contains only Lap's folder icon and “AI 分类”; no
   subtitle, logo, progress, or decorative control remains;
-- actual/recent folders plus “创建目录” pack into deterministic gravity-style
-  rows below the AI center, with a complete folder browser retained behind
-  “更多” when necessary;
+- actual/recent folders plus “创建目录” use 118 px desktop targets and pack into
+  deterministic gravity-style rows below the 164 px AI center, with a complete
+  folder browser retained behind “更多” when necessary;
 - dropping on an existing directory saves immediately without the removed
   confirmation modal and marks the asset workflow as `selected`;
 - AI-center captures retain the logical `inbox` workflow for the existing

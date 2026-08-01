@@ -397,20 +397,21 @@
     return candidates.slice(0, RADIAL_FOLDER_LIMIT);
   }
 
-  function gravityClusterPosition(index, total) {
-    const stageSize = Math.min(680, window.innerWidth - 32, window.innerHeight - 32);
-    const scale = Math.max(0.7, Math.min(1, stageSize / 680));
-    const columns = Math.min(4, Math.max(1, Math.ceil(Math.sqrt(total * 1.45))));
+  function gravityClusterPosition(index, total, hasAiTarget) {
+    const stageSize = Math.min(820, window.innerWidth - 48, window.innerHeight - 80);
+    const scale = Math.max(0.68, Math.min(1, stageSize / 820));
+    const columns = total <= 3 ? total : total <= 6 ? 3 : 4;
     const row = Math.floor(index / columns);
     const firstInRow = row * columns;
     const rowCount = Math.min(columns, total - firstInRow);
     const column = index - firstInRow;
-    const x = (column - (rowCount - 1) / 2) * 104 * scale;
-    const y = (92 + row * 94) * scale + Math.abs(x) * 0.06;
+    const x = (column - (rowCount - 1) / 2) * 132 * scale;
+    const gravityCurve = Math.pow(Math.abs(x) / Math.max(1, 132 * scale), 1.4) * 8 * scale;
+    const y = ((hasAiTarget ? 92 : 20) + row * 120) * scale + gravityCurve;
     return { x, y };
   }
 
-  function createRadialFolder(folder, index, total) {
+  function createRadialFolder(folder, index, total, hasAiTarget) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'lap-capture-radial-item';
@@ -422,9 +423,10 @@
       <strong>${escapeHtml(folder.name)}</strong>
       <span>${escapeHtml(folder.path)}</span>`;
 
-    const position = gravityClusterPosition(index, total);
+    const position = gravityClusterPosition(index, total, hasAiTarget);
     button.style.setProperty('--lap-radial-x', `${position.x}px`);
     button.style.setProperty('--lap-radial-y', `${position.y}px`);
+    button.style.setProperty('--lap-radial-order', index);
 
     button.addEventListener('dragenter', (event) => {
       if (mode !== 'radial') return;
@@ -475,9 +477,11 @@
     const showMore = folders.length > candidates.length;
     const showCreate = folders.length > 0;
     const total = candidates.length + (showCreate ? 1 : 0) + (showMore ? 1 : 0);
+    const hasAiTarget = aiConfigured;
 
     overlay.classList.add('is-radial-open');
     radial.hidden = false;
+    radial.classList.toggle('has-ai-target', hasAiTarget);
     items.textContent = '';
     const inboxTarget = radial.querySelector('.lap-capture-radial-center');
     const selectAiClassification = () => {
@@ -515,7 +519,7 @@
     };
     inboxTarget.onclick = selectAiClassification;
     candidates.forEach((folder, index) => {
-      items.appendChild(createRadialFolder(folder, index, total));
+      items.appendChild(createRadialFolder(folder, index, total, hasAiTarget));
     });
 
     if (showCreate) {
@@ -525,9 +529,10 @@
       createFolder.setAttribute('role', 'menuitem');
       createFolder.innerHTML = `<img src="${escapeHtml(chrome.runtime.getURL('folder.svg'))}" alt="" /><strong>创建目录</strong><span>新建后保存</span>`;
       const createIndex = candidates.length;
-      const createPosition = gravityClusterPosition(createIndex, total);
+      const createPosition = gravityClusterPosition(createIndex, total, hasAiTarget);
       createFolder.style.setProperty('--lap-radial-x', `${createPosition.x}px`);
       createFolder.style.setProperty('--lap-radial-y', `${createPosition.y}px`);
+      createFolder.style.setProperty('--lap-radial-order', createIndex);
       createFolder.addEventListener('dragenter', (event) => {
         if (mode !== 'radial') return;
         event.preventDefault();
@@ -556,9 +561,11 @@
       more.className = 'lap-capture-radial-item is-more';
       more.setAttribute('role', 'menuitem');
       more.innerHTML = `<img src="${escapeHtml(chrome.runtime.getURL('folder.svg'))}" alt="" /><strong>更多</strong><span>全部文件夹</span>`;
-      const morePosition = gravityClusterPosition(candidates.length + 1, total);
+      const moreIndex = candidates.length + 1;
+      const morePosition = gravityClusterPosition(moreIndex, total, hasAiTarget);
       more.style.setProperty('--lap-radial-x', `${morePosition.x}px`);
       more.style.setProperty('--lap-radial-y', `${morePosition.y}px`);
+      more.style.setProperty('--lap-radial-order', moreIndex);
       more.addEventListener('dragenter', (event) => {
         if (mode !== 'radial') return;
         event.preventDefault();

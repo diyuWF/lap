@@ -240,6 +240,7 @@ Issues:
 | LAP-VAL-014 | Dragging images outside Lap cannot yet create a persistent, always-on-top, pan/zoom reference board. | High | First authorized reference-board slice implemented; awaiting Windows validation |
 | LAP-VAL-015 | Browser intent used displacement from the starting point, so returning toward the image reduced progress; the progress rail was also visually intrusive. | High | Replaced by cumulative path length, a width/3 threshold, and no pre-threshold UI; awaiting fresh package |
 | LAP-VAL-016 | Lap intercepted every boundary drag into the reference board, blocking normal drag-out to Photoshop; drops were recentered and close/recreate restored stale layout. | High | Replaced by first-use choice, native OS drag, real drop-point placement, and close reset; awaiting Windows package |
+| LAP-VAL-017 | The centered browser radial rendered as an oversized opaque black disc with undersized folder targets, leaving a large visual gap from the selected circular-control reference. | High | Replaced by a transparent 820 px positioning ring, 118 px count-aware folder targets, and a 164 px conditional AI center; browser visual QA passed, awaiting packaged manual validation |
 
 ## 5.2 Browser radial classification follow-up
 
@@ -251,7 +252,9 @@ Drag intent:
 - [ ] Total travel below one third of browser width does not open the radial
 - [ ] Total travel at one third of browser width opens the radial
 - [ ] Page dim/blur begins only when the radial appears
-- [ ] The 680 px radial remains centered while the pointer moves
+- [ ] The transparent 820 px radial remains centered while the pointer moves
+- [ ] The radial is a single light boundary, not an opaque black disc or duplicate colored rings
+- [ ] Desktop folder targets render at approximately 118 px and remain readable
 - [ ] Folder targets form balanced rows below the center without overlap
 
 Without an AI provider configured:
