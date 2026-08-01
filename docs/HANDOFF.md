@@ -81,6 +81,9 @@ Automated validation:
 That package contains the first distance-based browser classification and
 reference-board slice. The cumulative-path radial and native drag-out correction
 in the working branch require a fresh PR build plus Windows validation package.
+The Windows chat-delivery workflow now runs for every opened, synchronized, or
+reopened PR update so each focused modification produces a matching installer
+and browser-extension package automatically.
 Keep PR #2 in Draft until the updated checks and manual validation pass.
 
 ## Completed milestones
