@@ -3,11 +3,13 @@
   const CLOSE_AFTER_DRAG_MS = 160;
   const DRAG_DISTANCE_VIEWPORT_RATIO = 1 / 3;
   const RADIAL_FOLDER_LIMIT = 8;
+  const folderCoverViews = new WeakMap();
 
   let overlay = null;
   let mode = 'idle';
   let currentAsset = null;
   let folders = [];
+  let folderCoverUrls = new Map();
   let recentFolderPaths = [];
   let expanded = new Set();
   let hoverTimer = null;
@@ -165,6 +167,7 @@
     currentAsset = null;
     selectedFolder = null;
     folders = [];
+    folderCoverUrls = new Map();
     recentFolderPaths = [];
     expanded = new Set();
     thresholdReached = false;
@@ -224,8 +227,10 @@
     overlay.className = 'lap-capture-overlay is-radial-open';
     const extensionIconUrl = chrome.runtime.getURL('icon.png');
     const folderIconUrl = chrome.runtime.getURL('folder.svg');
+    const radialGaugeUrl = chrome.runtime.getURL('radial-gauge.png');
     overlay.innerHTML = `
       <div class="lap-capture-radial" role="menu" aria-label="保存到文件夹">
+        <img class="lap-capture-radial-gauge" src="${escapeHtml(radialGaugeUrl)}" alt="" />
         <button class="lap-capture-radial-center is-loading" type="button" role="menuitem" disabled hidden>
           <img src="${escapeHtml(folderIconUrl)}" alt="" />
           <span>AI 分类</span>
@@ -397,33 +402,87 @@
     return candidates.slice(0, RADIAL_FOLDER_LIMIT);
   }
 
-  function gravityClusterPosition(index, total, hasAiTarget) {
+  function radialOrbitPosition(index, total) {
     const stageSize = Math.min(820, window.innerWidth - 48, window.innerHeight - 80);
-    const scale = Math.max(0.68, Math.min(1, stageSize / 820));
-    const columns = total <= 3 ? total : total <= 6 ? 3 : 4;
-    const row = Math.floor(index / columns);
-    const firstInRow = row * columns;
-    const rowCount = Math.min(columns, total - firstInRow);
-    const column = index - firstInRow;
-    const x = (column - (rowCount - 1) / 2) * 132 * scale;
-    const gravityCurve = Math.pow(Math.abs(x) / Math.max(1, 132 * scale), 1.4) * 8 * scale;
-    const y = ((hasAiTarget ? 92 : 20) + row * 120) * scale + gravityCurve;
-    return { x, y };
+    const scale = Math.max(0.42, Math.min(1, stageSize / 820));
+    const radius = (total <= 4 ? 248 : total <= 7 ? 266 : 278) * scale;
+    const startAngle = total === 1 ? 90 : -90;
+    const angle = startAngle + (360 / Math.max(1, total)) * index;
+    const radians = (angle * Math.PI) / 180;
+    return {
+      x: Math.cos(radians) * radius,
+      y: Math.sin(radians) * radius,
+      angle,
+    };
   }
 
-  function createRadialFolder(folder, index, total, hasAiTarget) {
+  function applyRadialFolderCover(button, folder) {
+    const cover = button.querySelector('.lap-capture-radial-cover');
+    const icon = button.querySelector('.lap-capture-radial-folder-icon');
+    const dataUrl = folderCoverUrls.get(Number(folder.id));
+    if (!cover || !icon || !dataUrl) return;
+    let view = folderCoverViews.get(cover);
+    if (!view) {
+      const shadow = cover.attachShadow({ mode: 'closed' });
+      const style = document.createElement('style');
+      style.textContent =
+        ':host{display:block;width:100%;height:100%}img{display:block;width:100%;height:100%;object-fit:cover;object-position:center}';
+      const image = document.createElement('img');
+      image.alt = '';
+      shadow.append(style, image);
+      view = { image };
+      folderCoverViews.set(cover, view);
+    }
+    view.image.onload = () => {
+      icon.hidden = true;
+      button.classList.add('has-cover');
+    };
+    view.image.onerror = () => {
+      icon.hidden = false;
+      button.classList.remove('has-cover');
+    };
+    view.image.src = dataUrl;
+    if (view.image.complete && view.image.naturalWidth > 0) view.image.onload();
+  }
+
+  async function hydrateRadialFolderCovers(candidates, session) {
+    const folderIds = candidates
+      .map((folder) => Number(folder.id))
+      .filter((value) => Number.isInteger(value) && value > 0 && !folderCoverUrls.has(value));
+    if (!folderIds.length) return;
+    try {
+      const response = await sendMessage({ type: 'lap:get-folder-covers', folderIds });
+      if (session !== captureSession || !response?.ok || !overlay) return;
+      for (const cover of response.covers || []) {
+        const folderId = Number(cover.folderId);
+        if (!Number.isInteger(folderId) || !cover.dataUrl) continue;
+        folderCoverUrls.set(folderId, cover.dataUrl);
+        const folder = candidates.find((item) => Number(item.id) === folderId);
+        const button = overlay.querySelector(`.lap-capture-radial-item[data-folder-id="${folderId}"]`);
+        if (folder && button) applyRadialFolderCover(button, folder);
+      }
+    } catch {
+      // Covers are optional visual metadata; empty folders keep the folder icon.
+    }
+  }
+
+  function createRadialFolder(folder, index, total) {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'lap-capture-radial-item';
     button.dataset.path = folder.path;
+    button.dataset.folderId = String(folder.id || '');
     button.setAttribute('role', 'menuitem');
     button.title = folder.path;
     button.innerHTML = `
-      <img src="${escapeHtml(chrome.runtime.getURL('folder.svg'))}" alt="" />
-      <strong>${escapeHtml(folder.name)}</strong>
-      <span>${escapeHtml(folder.path)}</span>`;
+      <span class="lap-capture-radial-visual">
+        <span class="lap-capture-radial-cover" aria-hidden="true"></span>
+        <img class="lap-capture-radial-folder-icon" src="${escapeHtml(chrome.runtime.getURL('folder.svg'))}" alt="" />
+      </span>
+      <strong>${escapeHtml(folder.name)}</strong>`;
+    applyRadialFolderCover(button, folder);
 
-    const position = gravityClusterPosition(index, total, hasAiTarget);
+    const position = radialOrbitPosition(index, total);
     button.style.setProperty('--lap-radial-x', `${position.x}px`);
     button.style.setProperty('--lap-radial-y', `${position.y}px`);
     button.style.setProperty('--lap-radial-order', index);
@@ -478,6 +537,7 @@
     const showCreate = folders.length > 0;
     const total = candidates.length + (showCreate ? 1 : 0) + (showMore ? 1 : 0);
     const hasAiTarget = aiConfigured;
+    const session = captureSession;
 
     overlay.classList.add('is-radial-open');
     radial.hidden = false;
@@ -519,17 +579,18 @@
     };
     inboxTarget.onclick = selectAiClassification;
     candidates.forEach((folder, index) => {
-      items.appendChild(createRadialFolder(folder, index, total, hasAiTarget));
+      items.appendChild(createRadialFolder(folder, index, total));
     });
+    void hydrateRadialFolderCovers(candidates, session);
 
     if (showCreate) {
       const createFolder = document.createElement('button');
       createFolder.type = 'button';
       createFolder.className = 'lap-capture-radial-item is-create';
       createFolder.setAttribute('role', 'menuitem');
-      createFolder.innerHTML = `<img src="${escapeHtml(chrome.runtime.getURL('folder.svg'))}" alt="" /><strong>创建目录</strong><span>新建后保存</span>`;
+      createFolder.innerHTML = `<span class="lap-capture-radial-visual"><img class="lap-capture-radial-action-icon" src="${escapeHtml(chrome.runtime.getURL('plus.svg'))}" alt="" /></span><strong>创建目录</strong>`;
       const createIndex = candidates.length;
-      const createPosition = gravityClusterPosition(createIndex, total, hasAiTarget);
+      const createPosition = radialOrbitPosition(createIndex, total);
       createFolder.style.setProperty('--lap-radial-x', `${createPosition.x}px`);
       createFolder.style.setProperty('--lap-radial-y', `${createPosition.y}px`);
       createFolder.style.setProperty('--lap-radial-order', createIndex);
@@ -560,9 +621,9 @@
       more.type = 'button';
       more.className = 'lap-capture-radial-item is-more';
       more.setAttribute('role', 'menuitem');
-      more.innerHTML = `<img src="${escapeHtml(chrome.runtime.getURL('folder.svg'))}" alt="" /><strong>更多</strong><span>全部文件夹</span>`;
-      const moreIndex = candidates.length + 1;
-      const morePosition = gravityClusterPosition(moreIndex, total, hasAiTarget);
+      more.innerHTML = `<span class="lap-capture-radial-visual"><img class="lap-capture-radial-action-icon" src="${escapeHtml(chrome.runtime.getURL('more.svg'))}" alt="" /></span><strong>更多</strong>`;
+      const moreIndex = candidates.length + (showCreate ? 1 : 0);
+      const morePosition = radialOrbitPosition(moreIndex, total);
       more.style.setProperty('--lap-radial-x', `${morePosition.x}px`);
       more.style.setProperty('--lap-radial-y', `${morePosition.y}px`);
       more.style.setProperty('--lap-radial-order', moreIndex);

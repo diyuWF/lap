@@ -1,8 +1,10 @@
-use crate::t_sqlite::{self, AFolder, ATag};
+use crate::t_sqlite::{self, AFile, AFolder, ATag, AThumb};
+use base64::{Engine as _, engine::general_purpose};
 use chrono::Utc;
 use rusqlite::{OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use std::collections::HashSet;
 use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -25,6 +27,13 @@ pub struct DamFolder {
     pub album_id: i64,
     pub name: String,
     pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DamFolderCover {
+    pub folder_id: i64,
+    pub data_url: Option<String>,
 }
 
 fn table_has_column(table: &str, column: &str) -> Result<bool, String> {
@@ -189,6 +198,57 @@ pub fn list_folders() -> Result<Vec<DamFolder>, String> {
         .collect::<Vec<_>>();
     folders.sort_by(|left, right| left.path.to_lowercase().cmp(&right.path.to_lowercase()));
     Ok(folders)
+}
+
+pub fn get_folder_covers(folder_ids: &[i64]) -> Result<Vec<DamFolderCover>, String> {
+    let mut seen = HashSet::new();
+    folder_ids
+        .iter()
+        .copied()
+        .filter(|folder_id| *folder_id > 0 && seen.insert(*folder_id))
+        .take(12)
+        .map(|folder_id| {
+            let data_url = AFile::get_first_image_by_folder_id(folder_id)?
+                .and_then(|file| {
+                    let file_id = file.id?;
+                    let cached = AThumb::fetch(file_id)
+                        .ok()
+                        .flatten()
+                        .and_then(|thumbnail| thumbnail.thumb_data)
+                        .filter(|bytes| !bytes.is_empty());
+                    let bytes = cached.or_else(|| {
+                        let file_path = file.file_path.as_deref()?;
+                        AThumb::get_or_create_thumb(
+                            file_id,
+                            file_path,
+                            file.file_type.unwrap_or(1),
+                            file.e_orientation.unwrap_or(1) as i32,
+                            256,
+                            false,
+                            file.duration.map(|value| value as u64),
+                            None,
+                        )
+                        .ok()
+                        .flatten()
+                        .and_then(|thumbnail| thumbnail.thumb_data)
+                    })?;
+                    let mime = if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+                        "image/png"
+                    } else {
+                        "image/jpeg"
+                    };
+                    Some(format!(
+                        "data:{};base64,{}",
+                        mime,
+                        general_purpose::STANDARD.encode(bytes)
+                    ))
+                });
+            Ok(DamFolderCover {
+                folder_id,
+                data_url,
+            })
+        })
+        .collect()
 }
 
 pub fn create_child_folder(parent_path: &str, raw_name: &str) -> Result<DamFolder, String> {

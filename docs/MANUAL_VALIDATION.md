@@ -12,18 +12,18 @@ Manual feedback baseline commit: `d541af4f97cea3cd069ece8139324cb18b11d809`
 
 Manual feedback baseline package: `Lap-0.4.1-Chat-Delivery-12`
 
-Latest packaged candidate commit: `c42175c6593cfbdb0df7ae8c37881bb7aa3188f4`
+Latest packaged candidate commit: `37e50b21eacec0f62b0f17cc2088b1d2161622a2`
 
-Latest packaged candidate: `Lap-0.4.1-Chat-Delivery-17`
+Latest packaged candidate: `Lap-0.4.1-Chat-Delivery-21`
 
-Next implementation commit: pending cumulative-radial/native-drag correction
+Next implementation commit: pending instrument-radial/folder-cover correction
 
 Next candidate package: pending fresh GitHub build
 
 Automated gate:
 
-- PASS — PR Build #72
-- PASS — Chat Validation Package #17
+- PASS — PR Build #76
+- PASS — Chat Validation Package #21
 
 Environment: Windows desktop application and Chromium browser extension; Pinterest image detail page
 
@@ -115,7 +115,7 @@ Functions:
 - [ ] Page title saved
 - [ ] Duplicate handling works
 
-Result: FAILED — cumulative-path centered rework implemented; awaiting a fresh package
+Result: FAILED — instrument-control radial rework implemented; awaiting a fresh package
 
 Evidence:
 
@@ -137,12 +137,14 @@ Issues:
 - Total pointer-path length must accumulate even when the cursor returns toward
   the image; the threshold is one third of browser width, not current
   displacement or the shorter viewport side.
-- After the threshold, one dark circular menu must dim/blur the page and stay
-  fixed at the exact viewport center.
+- After the threshold, one instrument-like circular menu must dim/blur the page
+  and stay fixed at the exact viewport center.
 - With no configured provider the AI center must be hidden. With an enabled
   provider the center contains only a folder icon and “AI 分类”.
-- Folder destinations and “创建目录” must gather in balanced gravity-style rows
-  below the AI center according to the available destination count.
+- Folder destinations and “创建目录” must be circular controls distributed around
+  the inner orbit according to the available destination count.
+- Empty folders must show a folder icon; populated folders must show the first
+  image as a circular thumbnail and fall back safely if the thumbnail is missing.
 - Dropping on an existing radial folder should save immediately with no
   confirmation dialog; “更多” should open the complete folder browser.
 - Every radial menu should append “创建目录”; dropping there should open an
@@ -241,6 +243,7 @@ Issues:
 | LAP-VAL-015 | Browser intent used displacement from the starting point, so returning toward the image reduced progress; the progress rail was also visually intrusive. | High | Replaced by cumulative path length, a width/3 threshold, and no pre-threshold UI; awaiting fresh package |
 | LAP-VAL-016 | Lap intercepted every boundary drag into the reference board, blocking normal drag-out to Photoshop; drops were recentered and close/recreate restored stale layout. | High | Replaced by first-use choice, native OS drag, real drop-point placement, and close reset; awaiting Windows package |
 | LAP-VAL-017 | The centered browser radial rendered as an oversized opaque black disc with undersized folder targets, leaving a large visual gap from the selected circular-control reference. | High | Replaced by a transparent 820 px positioning ring, 118 px count-aware folder targets, and a 164 px conditional AI center; browser visual QA passed, awaiting packaged manual validation |
+| LAP-VAL-018 | The transparent-ring candidate still did not follow the selected precision-instrument reference and could not visually distinguish populated folders from empty folders. | High | Replaced by an instrument tick/orbit/bronze-arc dial, full-orbit circular controls, and authenticated first-image folder covers; cloud-browser visual QA passed, awaiting packaged manual validation |
 
 ## 5.2 Browser radial classification follow-up
 
@@ -252,10 +255,13 @@ Drag intent:
 - [ ] Total travel below one third of browser width does not open the radial
 - [ ] Total travel at one third of browser width opens the radial
 - [ ] Page dim/blur begins only when the radial appears
-- [ ] The transparent 820 px radial remains centered while the pointer moves
-- [ ] The radial is a single light boundary, not an opaque black disc or duplicate colored rings
-- [ ] Desktop folder targets render at approximately 118 px and remain readable
-- [ ] Folder targets form balanced rows below the center without overlap
+- [ ] The 820 px precision dial remains centered while the pointer moves
+- [ ] The dial shows one crisp outer tick ring, one thin inner orbit, and one bronze partial arc
+- [ ] Circular destination controls are distributed evenly around the inner orbit
+- [ ] Empty folders show the bundled folder icon
+- [ ] Populated folders show the first image as a circular thumbnail
+- [ ] A missing or unreadable cover falls back to the folder icon
+- [ ] Folder labels remain readable and circular targets do not overlap
 
 Without an AI provider configured:
 
@@ -282,7 +288,9 @@ Create-directory path:
 
 Result:
 
-Evidence:
+Evidence: Cloud-browser QA passed at 1363 × 936 with six orbit folders, three
+first-image covers, three empty-folder icons, one create-directory control, and
+the conditional center AI target. Packaged Chromium validation is still required.
 
 Issues:
 

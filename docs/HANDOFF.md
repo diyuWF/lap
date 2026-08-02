@@ -70,17 +70,18 @@ The PR is intentionally kept Draft until manual validation is complete.
 
 Latest packaged candidate commit:
 
-`c42175c6593cfbdb0df7ae8c37881bb7aa3188f4`
+`37e50b21eacec0f62b0f17cc2088b1d2161622a2`
 
 Automated validation:
 
-- PASS — PR Build #72
-- PASS — Chat Validation Package #17
-- PASS — artifact `Lap-0.4.1-Chat-Delivery-17`
+- PASS — PR Build #76
+- PASS — Chat Validation Package #21
+- PASS — artifact `Lap-0.4.1-Chat-Delivery-21`
 
-That package contains the first distance-based browser classification and
-reference-board slice. The cumulative-path radial and native drag-out correction
-in the working branch require a fresh PR build plus Windows validation package.
+That package contains the cumulative-path browser capture, native reference-board
+drag-out correction, and the previous centered radial hierarchy. The new
+instrument-control radial and real folder-cover data path in the working branch
+require a fresh PR build plus Windows validation package.
 The Windows chat-delivery workflow now runs for every opened, synchronized, or
 reopened PR update so each focused modification produces a matching installer
 and browser-extension package automatically.
@@ -140,14 +141,14 @@ Windows validation-package build before that package is used for manual testing.
 
 Current state:
 
-`BLOCKED — CUMULATIVE RADIAL + NATIVE DRAG-OUT CANDIDATE AWAITING FRESH PACKAGE`
+`BLOCKED — INSTRUMENT RADIAL + FOLDER COVER CANDIDATE AWAITING FRESH PACKAGE`
 
 Reason:
 
-`Lap-0.4.1-Chat-Delivery-17` passed its automated checks. Manual feedback found
-that its reference-board edge interception blocked normal Photoshop drag-out,
-its browser threshold used displacement instead of cumulative path length, and
-its radial presentation still exposed an unwanted progress surface.
+`Lap-0.4.1-Chat-Delivery-21` passed its automated checks. Manual feedback found
+that the centered browser radial still had a large visual gap from the selected
+precision-instrument reference and did not distinguish populated folders from
+empty folders.
 
 Focused fixes are implemented in the working branch:
 
@@ -155,14 +156,23 @@ Focused fixes are implemented in the working branch:
   never reduces intent; the threshold is exactly one third of browser width;
 - there is no tutorial rail, timer, or progress bar before activation; the
   semi-transparent native drag image is the only pre-threshold feedback;
-- after activation, the page is moderately dimmed/blurred and one transparent
-  820 px positioning ring is fixed to the exact viewport center; it no longer
-  renders as an opaque black disc or duplicate colored rings;
+- after activation, the page is moderately dimmed/blurred and one 820 px
+  precision-instrument dial is fixed to the exact viewport center;
+- the dial uses the selected source hierarchy: a full radial tick ring, one thin
+  inner orbit, and one restrained bronze partial arc rather than a solid disc;
 - the configured-AI center contains only Lap's folder icon and “AI 分类”; no
   subtitle, logo, progress, or decorative control remains;
-- actual/recent folders plus “创建目录” use 118 px desktop targets and pack into
-  deterministic gravity-style rows below the 164 px AI center, with a complete
-  folder browser retained behind “更多” when necessary;
+- actual/recent folders plus “创建目录” are circular controls distributed evenly
+  around the inner orbit, with a complete folder browser retained behind “更多”
+  when necessary;
+- empty destination folders show the bundled folder icon; populated folders ask
+  the authenticated local service for the first image and show its thumbnail as
+  a circular cover, falling back safely to the icon if decoding fails;
+- the new Token-protected `POST /folder-covers` endpoint returns only requested
+  folder IDs and 256 px data-URL thumbnails; the extension background worker
+  performs that request so the pairing Token is never exposed to page scripts;
+- each cover image is rendered inside a closed Shadow DOM owned by the isolated
+  content script, preventing the host page from reading the local image data URL;
 - dropping on an existing directory saves immediately without the removed
   confirmation modal and marks the asset workflow as `selected`;
 - AI-center captures retain the logical `inbox` workflow for the existing
@@ -254,11 +264,14 @@ native semi-transparent drag image follows the pointer with no tutorial or
 progress surface. Moving back toward the start must keep accumulating path
 length, and the circular UI must appear only after total travel reaches roughly
 one third of browser width. Verify the page is dimmed/blurred only after that
-threshold and the radial remains fixed at the viewport center. With no configured
-provider, the AI center must be absent; after provider configuration, its only
-content must be the folder icon and “AI 分类”. Small/lazy-loaded thumbnails must
-enter the same flow, existing-folder drops must save without confirmation, and
-releasing early must not leave an overlay.
+threshold and the precision dial remains fixed at the viewport center. Its tick
+ring, inner orbit, bronze arc, and circular directory controls must remain crisp.
+With no configured provider, the AI center must be absent; after provider
+configuration, its only content must be the folder icon and “AI 分类”. Empty
+folders must show the folder icon, populated folders must show their first image
+as a circular cover, and unavailable covers must fall back to the icon. Small or
+lazy-loaded thumbnails must enter the same flow, existing-folder drops must save
+without confirmation, and releasing early must not leave an overlay.
 Also drop on “创建目录”, choose an existing parent, create a valid child directory,
 and confirm the image is saved there without a second dialog.
 

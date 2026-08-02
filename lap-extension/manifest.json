@@ -42,7 +42,10 @@
     {
       "resources": [
         "icon.png",
-        "folder.svg"
+        "folder.svg",
+        "more.svg",
+        "plus.svg",
+        "radial-gauge.png"
       ],
       "matches": [
         "http://*/*",

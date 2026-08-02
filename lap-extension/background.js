@@ -98,6 +98,17 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         });
         return { ok: true, folder: result.folder };
       }
+      case 'lap:get-folder-covers': {
+        const folderIds = Array.isArray(message.folderIds)
+          ? message.folderIds.map(Number).filter((value) => Number.isInteger(value) && value > 0).slice(0, 12)
+          : [];
+        if (!folderIds.length) return { ok: true, covers: [] };
+        const result = await apiRequest('/folder-covers', {
+          method: 'POST',
+          body: JSON.stringify({ folderIds }),
+        });
+        return { ok: true, covers: result.covers || [] };
+      }
       case 'lap:capture':
         return { ok: true, result: await capture(message.payload || {}) };
       case 'lap:open-options':

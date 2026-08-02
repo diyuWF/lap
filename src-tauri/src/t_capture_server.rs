@@ -54,6 +54,13 @@ struct CreateFolderRequest {
     name: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FolderCoverRequest {
+    #[serde(default)]
+    folder_ids: Vec<i64>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CaptureResult {
@@ -239,6 +246,33 @@ async fn handle_connection(
                 Err(error) => write_json(
                     &mut stream,
                     "422 Unprocessable Entity",
+                    &json!({ "ok": false, "error": error }),
+                )
+                .await,
+            }
+        }
+        ("POST", "/folder-covers") => {
+            let cover_request: FolderCoverRequest = match serde_json::from_slice(&request.body) {
+                Ok(value) => value,
+                Err(error) => {
+                    return write_json(
+                        &mut stream,
+                        "400 Bad Request",
+                        &json!({ "ok": false, "error": format!("Invalid JSON: {}", error) }),
+                    )
+                    .await;
+                }
+            };
+            match t_dam::get_folder_covers(&cover_request.folder_ids) {
+                Ok(covers) => write_json(
+                    &mut stream,
+                    "200 OK",
+                    &json!({ "ok": true, "covers": covers }),
+                )
+                .await,
+                Err(error) => write_json(
+                    &mut stream,
+                    "500 Internal Server Error",
                     &json!({ "ok": false, "error": error }),
                 )
                 .await,
