@@ -13,6 +13,8 @@
   let recentFolderPaths = [];
   let expanded = new Set();
   let hoverTimer = null;
+  let radialDwellTimer = null;
+  let radialDwellTarget = null;
   let thresholdReached = false;
   let foldersReady = false;
   let aiConfigured = false;
@@ -154,6 +156,49 @@
     hoverTimer = null;
   }
 
+  function clearRadialDwell() {
+    if (radialDwellTimer) clearTimeout(radialDwellTimer);
+    radialDwellTimer = null;
+    radialDwellTarget?.classList.remove('is-target');
+    radialDwellTarget = null;
+  }
+
+  function activateRadialNavigation(button) {
+    if (!button || mode !== 'radial') return;
+    const action = button.dataset.radialNavigate;
+    if (action === 'folder') showRadialLevel(button.dataset.radialTarget || null);
+    if (action === 'back') showRadialLevel(button.dataset.radialTarget || null);
+  }
+
+  function scheduleRadialDwell(button) {
+    if (!button || mode !== 'radial') {
+      clearRadialDwell();
+      return;
+    }
+    if (radialDwellTarget === button && radialDwellTimer) return;
+    clearRadialDwell();
+    radialDwellTarget = button;
+    button.classList.add('is-target');
+    radialDwellTimer = setTimeout(() => {
+      if (mode !== 'radial' || radialDwellTarget !== button || !button.isConnected) return;
+      radialDwellTimer = null;
+      radialDwellTarget = null;
+      activateRadialNavigation(button);
+    }, HOVER_EXPAND_MS);
+  }
+
+  function updateRadialDwell(clientX, clientY) {
+    if (!overlay || mode !== 'radial' || typeof document.elementsFromPoint !== 'function') {
+      clearRadialDwell();
+      return;
+    }
+    const button = document
+      .elementsFromPoint(clientX, clientY)
+      .map((element) => element.closest?.('[data-radial-navigate]'))
+      .find((element) => element instanceof HTMLButtonElement && overlay.contains(element));
+    scheduleRadialDwell(button || null);
+  }
+
   function removeDragGhost() {
     dragGhost?.remove();
     dragGhost = null;
@@ -162,6 +207,7 @@
   function closeOverlay() {
     captureSession += 1;
     clearHoverTimer();
+    clearRadialDwell();
     removeDragGhost();
     overlay?.remove();
     overlay = null;
@@ -235,7 +281,7 @@
     overlay.innerHTML = `
       <div class="lap-capture-radial" role="menu" aria-label="保存到文件夹">
         <img class="lap-capture-radial-gauge" src="${escapeHtml(radialGaugeUrl)}" alt="" />
-        <button class="lap-capture-radial-center is-loading" type="button" role="menuitem" disabled hidden>
+        <button class="lap-capture-radial-center" type="button" role="menuitem">
           <img src="${escapeHtml(aiClassifyIconUrl)}" alt="" />
           <span>AI 分类</span>
         </button>
@@ -480,6 +526,7 @@
   function showRadialLevel(parentKey) {
     radialParentKey = parentKey || null;
     clearHoverTimer();
+    clearRadialDwell();
     showRadialMenu();
   }
 
@@ -489,6 +536,10 @@
     button.className = `lap-capture-radial-item${folder.children.length ? ' has-children' : ''}`;
     button.dataset.path = folder.path;
     button.dataset.folderId = String(folder.id || '');
+    if (folder.children.length) {
+      button.dataset.radialNavigate = 'folder';
+      button.dataset.radialTarget = folder.key;
+    }
     button.setAttribute('role', 'menuitem');
     button.title = folder.path;
     button.innerHTML = `
@@ -504,25 +555,17 @@
     button.style.setProperty('--lap-radial-y', `${position.y}px`);
     button.style.setProperty('--lap-radial-order', index);
 
-    button.addEventListener('dragenter', (event) => {
-      if (mode !== 'radial') return;
-      event.preventDefault();
-      button.classList.add('is-target');
-      if (folder.children.length) {
-        clearHoverTimer();
-        hoverTimer = setTimeout(() => showRadialLevel(folder.key), HOVER_EXPAND_MS);
-      }
-    });
     button.addEventListener('dragover', (event) => {
       if (mode !== 'radial') return;
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
     });
-    button.addEventListener('dragleave', (event) => {
-      if (button.contains(event.relatedTarget)) return;
-      button.classList.remove('is-target');
-      clearHoverTimer();
-    });
+    if (folder.children.length) {
+      button.addEventListener('mouseenter', () => scheduleRadialDwell(button));
+      button.addEventListener('mouseleave', () => {
+        if (radialDwellTarget === button) clearRadialDwell();
+      });
+    }
     button.addEventListener('drop', (event) => {
       if (mode !== 'radial') return;
       event.preventDefault();
@@ -561,6 +604,7 @@
 
   function showRadialMenu() {
     if (!overlay || !foldersReady || folderLoadError) return;
+    clearRadialDwell();
     mode = 'radial';
     const radial = overlay.querySelector('.lap-capture-radial');
     const items = overlay.querySelector('.lap-capture-radial-items');
@@ -570,7 +614,7 @@
     const showMore = level.siblings.length > candidates.length;
     const showCreate = folders.length > 0;
     const total = candidates.length + (showBack ? 1 : 0) + (showCreate ? 1 : 0) + (showMore ? 1 : 0);
-    const hasAiTarget = aiConfigured;
+    const hasAiTarget = true;
     const session = captureSession;
 
     overlay.classList.add('is-radial-open');
@@ -587,9 +631,12 @@
       };
       saveSelectedAsset();
     };
-    inboxTarget.hidden = !aiConfigured;
-    inboxTarget.disabled = !aiConfigured;
-    inboxTarget.classList.toggle('is-loading', !aiConfigured);
+    inboxTarget.hidden = false;
+    inboxTarget.disabled = false;
+    inboxTarget.classList.remove('is-loading');
+    inboxTarget.title = aiConfigured
+      ? '交给已配置的 AI 自动生成标签和目录建议'
+      : '保存到待整理；配置 AI 服务后会自动生成标签和目录建议';
     inboxTarget.classList.remove('is-target');
     inboxTarget.ondragenter = (event) => {
       if (mode !== 'radial') return;
@@ -617,6 +664,8 @@
       const back = document.createElement('button');
       back.type = 'button';
       back.className = 'lap-capture-radial-item is-back';
+      back.dataset.radialNavigate = 'back';
+      back.dataset.radialTarget = level.parent.parentKey || '';
       back.setAttribute('role', 'menuitem');
       back.innerHTML = `<span class="lap-capture-radial-visual"><img class="lap-capture-radial-action-icon" src="${escapeHtml(chrome.runtime.getURL('back.svg'))}" alt="" /></span><strong>返回上级</strong>`;
       const backPosition = radialOrbitPosition(nextIndex, total);
@@ -624,20 +673,13 @@
       back.style.setProperty('--lap-radial-y', `${backPosition.y}px`);
       back.style.setProperty('--lap-radial-order', nextIndex);
       const goBack = () => showRadialLevel(level.parent.parentKey);
-      back.addEventListener('dragenter', (event) => {
-        if (mode !== 'radial') return;
-        event.preventDefault();
-        back.classList.add('is-target');
-        clearHoverTimer();
-        hoverTimer = setTimeout(goBack, HOVER_EXPAND_MS);
-      });
       back.addEventListener('dragover', (event) => {
         if (mode !== 'radial') return;
         event.preventDefault();
       });
-      back.addEventListener('dragleave', () => {
-        back.classList.remove('is-target');
-        clearHoverTimer();
+      back.addEventListener('mouseenter', () => scheduleRadialDwell(back));
+      back.addEventListener('mouseleave', () => {
+        if (radialDwellTarget === back) clearRadialDwell();
       });
       back.addEventListener('drop', (event) => {
         if (mode !== 'radial') return;
@@ -980,6 +1022,7 @@
     if (!currentAsset || !selectedFolder || ['saving', 'complete'].includes(mode)) return;
     mode = 'saving';
     clearHoverTimer();
+    clearRadialDwell();
     removeDragGhost();
     const isInbox = Boolean(selectedFolder.isInbox);
     showCaptureToast('正在保存…', isInbox ? 'AI 分类' : selectedFolder.path, 'saving');
@@ -1084,7 +1127,10 @@
     (event) => {
       if (!['tracking', 'intent', 'radial'].includes(mode)) return;
       if (mode === 'tracking' || mode === 'intent') updateDragTravel(event.clientX, event.clientY);
-      if (mode === 'radial') event.preventDefault();
+      if (mode === 'radial') {
+        event.preventDefault();
+        updateRadialDwell(event.clientX, event.clientY);
+      }
     },
     true,
   );

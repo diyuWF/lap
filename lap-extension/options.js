@@ -53,6 +53,7 @@ async function getStoredConfig() {
     folderPath: '',
     tags: [],
     allowDuplicate: false,
+    pairingOnboarding: false,
   });
 }
 
@@ -175,6 +176,12 @@ async function initialize() {
   elements.tags.value = (config.tags || []).join('\n');
   elements.allowDuplicate.checked = Boolean(config.allowDuplicate);
   elements.folderPath.value = config.folderPath || '';
+
+  if (config.pairingOnboarding) {
+    elements.advanced.open = true;
+    requestAnimationFrame(() => elements.token.focus());
+    await chrome.storage.local.set({ pairingOnboarding: false });
+  }
 
   await testConnection();
   elements.folderPath.value = config.folderPath || '';

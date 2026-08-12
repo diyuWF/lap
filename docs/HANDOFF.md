@@ -70,18 +70,19 @@ The PR is intentionally kept Draft until manual validation is complete.
 
 Latest packaged candidate commit:
 
-`00d13d5c0d1b42e047531ea7b554685bc9824d88`
+`9894a4d1e0b568467cef391c44cfc348f61b661f`
 
 Automated validation:
 
-- PASS — PR Build #78
-- PASS — Chat Validation Package #23
-- PASS — artifact `Lap-0.4.1-Chat-Delivery-23`
+- PASS — PR Build #79
+- PASS — Chat Validation Package #24
+- PASS — artifact `Lap-0.4.1-Chat-Delivery-24`
 
 That package contains the cumulative-path browser capture, native reference-board
-drag-out correction, instrument-control radial, real folder-cover data path, and
-the restored complete SQLite source. The hierarchical AI-radial correction in
-the working branch requires a fresh PR build plus Windows validation package.
+drag-out correction, instrument-control radial, real folder-cover data path,
+the restored complete SQLite source, and the first hierarchical AI-radial
+implementation. Manual feedback on that package found three focused extension
+defects; the working branch requires a fresh PR build plus Windows package.
 The Windows chat-delivery workflow now runs for every opened, synchronized, or
 reopened PR update so each focused modification produces a matching installer
 and browser-extension package automatically.
@@ -141,14 +142,14 @@ Windows validation-package build before that package is used for manual testing.
 
 Current state:
 
-`BLOCKED — HIERARCHICAL AI RADIAL CANDIDATE AWAITING FRESH PACKAGE`
+`BLOCKED — EXTENSION RADIAL/PAIRING FOLLOW-UP AWAITING FRESH PACKAGE`
 
 Reason:
 
-`Lap-0.4.1-Chat-Delivery-23` passed its automated checks. Manual feedback found
-that the radial still mixed parent and child folders in the same level, lacked a
-purpose-built AI center mark, and did not start AI classification directly from
-the center target.
+`Lap-0.4.1-Chat-Delivery-24` passed its automated checks. Manual feedback found
+that the AI center could still be absent, native drag hover over a parent did not
+reliably reveal its direct children, and a fresh extension install did not open
+Token pairing automatically.
 
 Focused fixes are implemented in the working branch:
 
@@ -160,12 +161,15 @@ Focused fixes are implemented in the working branch:
   precision-instrument dial is fixed to the exact viewport center;
 - the dial uses the selected source hierarchy: a full radial tick ring, one thin
   inner orbit, and one restrained bronze partial arc rather than a solid disc;
-- the configured-AI center uses a purpose-built transparent Lap AI mark and the
-  single label “AI 分类”; no subtitle, progress, or decorative control remains;
+- the center always uses the purpose-built transparent Lap AI mark and the single
+  label “AI 分类”; without a configured provider the capture still enters the
+  inbox and reports that AI did not start, while a ready provider starts the
+  existing background classification path;
 - the first radial level contains top-level folders only; descendants and recent
   paths can no longer leak into that level;
 - dropping on, clicking, or dwelling 360 ms over a parent opens only that
-  parent's direct children, while “返回上级” restores the previous level;
+  parent's direct children; dwell detection now uses document-level hit testing
+  so moving across a cover, icon, or label cannot cancel the timer;
 - nested levels never render their parent or unrelated root siblings alongside
   the children; “创建目录” remains available and preselects the current parent;
 - visible folders plus “创建目录” are circular controls distributed evenly around
@@ -195,6 +199,13 @@ Focused fixes are implemented in the working branch:
   must already exist in Lap and invalid or Windows-reserved names are rejected;
 - toolbar fallback copy no longer exposes “保存到待整理区域”; its “AI 分类” option
   is also conditional on the configured AI state.
+- a first-time extension install immediately opens the existing setup page so
+  local Lap detection and Token pairing are the first visible task; updates do
+  not reopen it.
+- a committed Happy DOM regression suite covers the always-visible AI center,
+  inbox/auto-classify payload, root-to-child dwell navigation through nested
+  visual elements, and first-install setup behavior; both PR and package jobs run
+  this suite.
 - the default day/night pair is now `lap-light` and `lap-dark`;
 - title bars, sidebars, content surfaces, settings cards, popovers, buttons,
   fields, and toggles share the same restrained glass hierarchy;
@@ -277,10 +288,10 @@ length, and the circular UI must appear only after total travel reaches roughly
 one third of browser width. Verify the page is dimmed/blurred only after that
 threshold and the precision dial remains fixed at the viewport center. Its tick
 ring, inner orbit, bronze arc, and circular directory controls must remain crisp.
-With no configured provider, the AI center must be absent; after provider
-configuration, its only content must be the dedicated Lap AI mark and “AI 分类”.
-Dropping there must report that background AI classification started and must not
-move the asset without the existing review flow. The first level must show only
+The AI center must always contain only the dedicated Lap AI mark and “AI 分类”.
+Without a configured provider it must safely save to the inbox and say that AI
+did not start; with a ready provider it must report that background classification
+started and must not move the asset without the existing review flow. The first level must show only
 roots; activating a parent must show only its direct children plus navigation.
 Empty
 folders must show the folder icon, populated folders must show their first image
@@ -319,6 +330,9 @@ The capture service remains bound to `127.0.0.1:47821`. `/health` is intentional
 available without a Token so the extension can detect a running local Lap. All
 folder and capture endpoints remain Token-protected; do not expose the Token
 through an unauthenticated discovery endpoint.
+
+On the browser's first `install` event, the extension opens its options page
+automatically. The `update` event must never reopen that page.
 
 The App now exposes the local address and a masked pairing Token under
 `Settings → Advanced → Browser capture`, with explicit copy buttons. The

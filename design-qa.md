@@ -96,4 +96,48 @@
   provider execution, and packaged first-image cover retrieval remain part of
   the next manual validation package.
 
-final result: passed
+## Current follow-up QA — 2026-08-12
+
+- Source visual truth path:
+  `/workspace/scratch/b4cbe8668986/upload/6c811a23-c0c4-4b7a-8889-32ac42bd3db2.png`
+- User defect evidence path:
+  `/workspace/scratch/b4cbe8668986/upload/3d53786f-7f4b-4de8-a957-56782c61bf5a.png`
+- Intended implementation viewport/state: 1363 × 936, desktop Chromium,
+  distance threshold reached, AI service unavailable, `lap资源` root with child
+  `1`.
+- Browser-rendered implementation screenshot path: unavailable in this follow-up.
+  The supervised preview reported running, but the selected cloud Chrome could
+  not open it and the preview bridge returned an upstream error.
+- Console check: blocked because the implementation page could not be opened.
+- Full-view comparison: blocked; no current browser-rendered pixels exist to put
+  beside the source without reusing stale evidence.
+- Focused-region comparison: blocked for the same reason.
+- Functional evidence: `npm test --prefix scripts/extension-tests` passed all
+  four tests for the always-visible AI center and payload, document-level nested
+  parent dwell, first-install-only setup opening, and Token field reveal/focus.
+- Previous baseline evidence remains valid for unchanged gauge, typography,
+  spacing, color, image assets, and copy. The current logic changes do not alter
+  those tokens, but this is not a substitute for a fresh visual capture.
+
+### Current findings
+
+- [P1] Fresh visual and real native-drag verification unavailable
+  - Location: browser radial center and `lap资源` parent hover state.
+  - Evidence: deterministic DOM interaction tests pass, but the selected cloud
+    browser could not load the current preview.
+  - Impact: packaged Chromium may still expose browser-specific drag cadence or
+    stacking differences that a DOM emulator cannot detect.
+  - Fix/gate: build a fresh extension package, then manually verify center
+    visibility, 360 ms parent dwell through cover/icon/label, and first-install
+    setup in Chromium.
+
+### Comparison history addendum
+
+4. Package 24 manual feedback — P1: AI center absent; parent dwell did not open
+   child `1`; first install required the user to find setup manually.
+5. Current fix — AI center is unconditional, dwell is driven by document-level
+   hit testing, and first install opens options. Four regression tests pass.
+6. Current visual result — blocked by cloud preview access; no claim of visual
+   pass is made for this iteration.
+
+final result: blocked

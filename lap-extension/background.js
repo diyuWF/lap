@@ -74,6 +74,24 @@ async function capture(payload) {
   return data;
 }
 
+async function openInitialPairing() {
+  try {
+    await chrome.storage.local.set({ pairingOnboarding: true });
+  } catch {
+    // Pairing can still proceed even when a managed browser blocks storage.
+  }
+  try {
+    await chrome.runtime.openOptionsPage();
+  } catch {
+    // The toolbar remains a fallback when policy suppresses first-install tabs.
+  }
+}
+
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason !== 'install') return;
+  void openInitialPairing();
+});
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   const run = async () => {
     switch (message?.type) {

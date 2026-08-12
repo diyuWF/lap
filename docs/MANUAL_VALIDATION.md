@@ -12,18 +12,18 @@ Manual feedback baseline commit: `d541af4f97cea3cd069ece8139324cb18b11d809`
 
 Manual feedback baseline package: `Lap-0.4.1-Chat-Delivery-12`
 
-Latest packaged candidate commit: `00d13d5c0d1b42e047531ea7b554685bc9824d88`
+Latest packaged candidate commit: `9894a4d1e0b568467cef391c44cfc348f61b661f`
 
-Latest packaged candidate: `Lap-0.4.1-Chat-Delivery-23`
+Latest packaged candidate: `Lap-0.4.1-Chat-Delivery-24`
 
-Next implementation commit: pending hierarchical AI-radial correction
+Next implementation commit: pending AI-center, parent-dwell, and install-pairing correction
 
 Next candidate package: pending fresh GitHub build
 
 Automated gate:
 
-- PASS — PR Build #78
-- PASS — Chat Validation Package #23
+- PASS — PR Build #79
+- PASS — Chat Validation Package #24
 
 Environment: Windows desktop application and Chromium browser extension; Pinterest image detail page
 
@@ -115,7 +115,7 @@ Functions:
 - [ ] Page title saved
 - [ ] Duplicate handling works
 
-Result: FAILED — hierarchical AI-radial correction implemented; awaiting a fresh package
+Result: FAILED — package 24 exposed three focused extension defects; fixes await a fresh package
 
 Evidence:
 
@@ -127,6 +127,10 @@ Evidence:
 - Small/lazy-loaded thumbnails do not reliably begin drag capture.
 - The extension points to an App Token location that does not exist in the current Advanced settings screen.
 - The extension does not use the official Lap icon.
+- Package 24 can omit the center “AI 分类” action.
+- Native drag hover over a parent such as `lap资源` does not reliably replace the
+  root level with its direct children.
+- A first extension install does not automatically open the Token pairing page.
 
 Issues:
 
@@ -139,9 +143,9 @@ Issues:
   displacement or the shorter viewport side.
 - After the threshold, one instrument-like circular menu must dim/blur the page
   and stay fixed at the exact viewport center.
-- With no configured provider the AI center must be hidden. With an enabled
-  provider the center contains only the dedicated Lap AI mark and “AI 分类”, and
-  a drop there must immediately queue background analysis.
+- The center always contains only the dedicated Lap AI mark and “AI 分类”. With no
+  provider it saves safely to the inbox and says AI did not start; with an enabled
+  keyed provider a drop there immediately queues background analysis.
 - Folder destinations and “创建目录” must be circular controls distributed around
   the inner orbit according to the available destination count.
 - The first level must contain only root folders. A parent activation must replace
@@ -249,6 +253,7 @@ Issues:
 | LAP-VAL-017 | The centered browser radial rendered as an oversized opaque black disc with undersized folder targets, leaving a large visual gap from the selected circular-control reference. | High | Replaced by a transparent 820 px positioning ring, 118 px count-aware folder targets, and a 164 px conditional AI center; browser visual QA passed, awaiting packaged manual validation |
 | LAP-VAL-018 | The transparent-ring candidate still did not follow the selected precision-instrument reference and could not visually distinguish populated folders from empty folders. | High | Replaced by an instrument tick/orbit/bronze-arc dial, full-orbit circular controls, and authenticated first-image folder covers; cloud-browser visual QA passed, awaiting packaged manual validation |
 | LAP-VAL-019 | The AI center lacked a dedicated mark and did not start classification directly; root and descendant folders were rendered together instead of opening one hierarchy level at a time. | High | Replaced by an original AI center asset, background AI queueing, and root/direct-child radial navigation; cloud-browser interaction and visual QA passed, awaiting packaged manual validation |
+| LAP-VAL-020 | Package 24 could hide the AI center, parent dwell depended on unstable child drag events, and first install did not open Token pairing. | High | AI center is now always available, document-level dwell opens direct children, and `onInstalled: install` opens setup; deterministic extension tests pass, awaiting packaged Chromium validation |
 
 ## 5.2 Browser radial classification follow-up
 
@@ -276,7 +281,8 @@ Drag intent:
 
 Without an AI provider configured:
 
-- [ ] Center “AI 分类” is absent
+- [ ] Center “AI 分类” is visible with the dedicated Lap AI mark
+- [ ] Dropping there saves to the inbox without claiming AI started
 - [ ] Existing directory targets remain usable
 - [ ] “创建目录” is present
 
@@ -311,6 +317,20 @@ Activating `lap资源` replaced both roots with only “返回上级”, child `
 drop sent `workflowStatus: inbox` plus `autoClassify: true` and returned the
 background-classification success state. Packaged Chromium validation is still
 required.
+
+Current follow-up evidence: the committed Happy DOM suite passes four tests across three contracts:
+the center remains visible and emits `workflowStatus: inbox` plus
+`autoClassify: true`; document-level dwell over the cover/icon of `lap资源` shows
+only child `1`, then shows only `三渲二` and `写实`; and first install opens options
+while update does not. Cloud-browser recapture was blocked by the preview bridge,
+so current visual QA remains blocked rather than being reported as passed.
+
+First-install pairing:
+
+- [ ] Loading the extension for the first time immediately opens its setup page
+- [ ] The page automatically detects a running local Lap
+- [ ] The Token field is visible and focused as the next required action
+- [ ] Reloading/updating the extension does not reopen setup
 
 Issues:
 

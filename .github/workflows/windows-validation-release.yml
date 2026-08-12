@@ -1,16 +1,6 @@
 name: Windows Validation Release
 
 on:
-  push:
-    branches:
-      - feat/phase4-ai-preview-pipeline
-    paths:
-      - .github/workflows/windows-validation-release.yml
-      - src-tauri/**
-      - src-vite/**
-      - lap-extension/**
-      - scripts/download_models.ps1
-      - scripts/download_ffmpeg_sidecar.ps1
   workflow_dispatch:
 
 permissions:

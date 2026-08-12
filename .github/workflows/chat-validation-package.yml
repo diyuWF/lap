@@ -109,6 +109,16 @@ jobs:
           node "$env:RUNNER_TEMP\validate-extension.js"
           Get-ChildItem lap-extension -Filter *.js | ForEach-Object { node --check $_.FullName }
 
+      - name: Install browser extension test dependencies
+        working-directory: scripts/extension-tests
+        shell: pwsh
+        run: npm ci --no-audit --no-fund
+
+      - name: Test browser extension interactions
+        working-directory: scripts/extension-tests
+        shell: pwsh
+        run: npm test
+
       - name: Install frontend dependencies
         working-directory: src-vite
         shell: pwsh
