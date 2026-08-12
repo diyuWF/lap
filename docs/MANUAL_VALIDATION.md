@@ -12,18 +12,18 @@ Manual feedback baseline commit: `d541af4f97cea3cd069ece8139324cb18b11d809`
 
 Manual feedback baseline package: `Lap-0.4.1-Chat-Delivery-12`
 
-Latest packaged candidate commit: `37e50b21eacec0f62b0f17cc2088b1d2161622a2`
+Latest packaged candidate commit: `00d13d5c0d1b42e047531ea7b554685bc9824d88`
 
-Latest packaged candidate: `Lap-0.4.1-Chat-Delivery-21`
+Latest packaged candidate: `Lap-0.4.1-Chat-Delivery-23`
 
-Next implementation commit: pending instrument-radial/folder-cover correction
+Next implementation commit: pending hierarchical AI-radial correction
 
 Next candidate package: pending fresh GitHub build
 
 Automated gate:
 
-- PASS — PR Build #76
-- PASS — Chat Validation Package #21
+- PASS — PR Build #78
+- PASS — Chat Validation Package #23
 
 Environment: Windows desktop application and Chromium browser extension; Pinterest image detail page
 
@@ -115,7 +115,7 @@ Functions:
 - [ ] Page title saved
 - [ ] Duplicate handling works
 
-Result: FAILED — instrument-control radial rework implemented; awaiting a fresh package
+Result: FAILED — hierarchical AI-radial correction implemented; awaiting a fresh package
 
 Evidence:
 
@@ -140,9 +140,13 @@ Issues:
 - After the threshold, one instrument-like circular menu must dim/blur the page
   and stay fixed at the exact viewport center.
 - With no configured provider the AI center must be hidden. With an enabled
-  provider the center contains only a folder icon and “AI 分类”.
+  provider the center contains only the dedicated Lap AI mark and “AI 分类”, and
+  a drop there must immediately queue background analysis.
 - Folder destinations and “创建目录” must be circular controls distributed around
   the inner orbit according to the available destination count.
+- The first level must contain only root folders. A parent activation must replace
+  that level with only its direct children plus “返回上级” and “创建目录”; parents,
+  descendants from deeper levels, and unrelated roots must never be mixed.
 - Empty folders must show a folder icon; populated folders must show the first
   image as a circular thumbnail and fall back safely if the thumbnail is missing.
 - Dropping on an existing radial folder should save immediately with no
@@ -244,6 +248,7 @@ Issues:
 | LAP-VAL-016 | Lap intercepted every boundary drag into the reference board, blocking normal drag-out to Photoshop; drops were recentered and close/recreate restored stale layout. | High | Replaced by first-use choice, native OS drag, real drop-point placement, and close reset; awaiting Windows package |
 | LAP-VAL-017 | The centered browser radial rendered as an oversized opaque black disc with undersized folder targets, leaving a large visual gap from the selected circular-control reference. | High | Replaced by a transparent 820 px positioning ring, 118 px count-aware folder targets, and a 164 px conditional AI center; browser visual QA passed, awaiting packaged manual validation |
 | LAP-VAL-018 | The transparent-ring candidate still did not follow the selected precision-instrument reference and could not visually distinguish populated folders from empty folders. | High | Replaced by an instrument tick/orbit/bronze-arc dial, full-orbit circular controls, and authenticated first-image folder covers; cloud-browser visual QA passed, awaiting packaged manual validation |
+| LAP-VAL-019 | The AI center lacked a dedicated mark and did not start classification directly; root and descendant folders were rendered together instead of opening one hierarchy level at a time. | High | Replaced by an original AI center asset, background AI queueing, and root/direct-child radial navigation; cloud-browser interaction and visual QA passed, awaiting packaged manual validation |
 
 ## 5.2 Browser radial classification follow-up
 
@@ -262,6 +267,12 @@ Drag intent:
 - [ ] Populated folders show the first image as a circular thumbnail
 - [ ] A missing or unreadable cover falls back to the folder icon
 - [ ] Folder labels remain readable and circular targets do not overlap
+- [ ] The first level contains top-level folders only
+- [ ] A child folder is absent until its parent is activated
+- [ ] Dropping on or dwelling over a parent opens only its direct children
+- [ ] Parent and unrelated root siblings are absent from a child level
+- [ ] “返回上级” restores the immediately preceding level
+- [ ] Deeper descendants appear only after activating their direct parent
 
 Without an AI provider configured:
 
@@ -272,8 +283,12 @@ Without an AI provider configured:
 With an enabled AI provider and stored API key:
 
 - [ ] Center “AI 分类” card appears
-- [ ] Center contains only a folder icon and “AI 分类”
+- [ ] Center contains the dedicated Lap AI mark and “AI 分类”
 - [ ] Dropping on “AI 分类” saves with workflow status `inbox`
+- [ ] The capture request sets `autoClassify: true`
+- [ ] Lap immediately starts background analysis with the enabled keyed provider
+- [ ] AI produces tag metadata and, when destinations exist, an existing-folder suggestion
+- [ ] The AI center does not move the file without the existing review/confirmation flow
 - [ ] Dropping on an existing directory saves immediately with status `selected`
 - [ ] No old confirmation modal appears after either drop
 
@@ -288,9 +303,14 @@ Create-directory path:
 
 Result:
 
-Evidence: Cloud-browser QA passed at 1363 × 936 with six orbit folders, three
-first-image covers, three empty-folder icons, one create-directory control, and
-the conditional center AI target. Packaged Chromium validation is still required.
+Evidence: Cloud-browser QA passed at 1363 × 936 using the production extension
+code. The initial state contained only `lap资源`, `风景摄影`, and “创建目录”.
+Activating `lap资源` replaced both roots with only “返回上级”, child `1`, and
+“创建目录”; activating `1` then showed only its direct children `三渲二` and
+`写实`. The AI center remained visible with the original AI mark. A real center
+drop sent `workflowStatus: inbox` plus `autoClassify: true` and returned the
+background-classification success state. Packaged Chromium validation is still
+required.
 
 Issues:
 

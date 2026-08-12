@@ -45,6 +45,8 @@ pub struct CaptureRequest {
     pub metadata: JsonValue,
     #[serde(default)]
     pub allow_duplicate: bool,
+    #[serde(default)]
+    pub auto_classify: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -71,6 +73,7 @@ pub struct CaptureResult {
     pub file_name: Option<String>,
     pub folder: Option<DamFolder>,
     pub applied_tag_ids: Vec<i64>,
+    pub ai_classification_started: bool,
     pub message: String,
 }
 
@@ -425,6 +428,11 @@ async fn capture_remote_asset(request: CaptureRequest) -> Result<CaptureResult, 
 
     if !request.allow_duplicate {
         if let Some(file_id) = t_dam::find_file_by_source_url(source_url)? {
+            let ai_classification_started = if request.auto_classify {
+                queue_online_ai_classification(file_id).unwrap_or(false)
+            } else {
+                false
+            };
             return Ok(CaptureResult {
                 ok: true,
                 duplicate: true,
@@ -433,6 +441,7 @@ async fn capture_remote_asset(request: CaptureRequest) -> Result<CaptureResult, 
                 file_name: None,
                 folder: None,
                 applied_tag_ids: Vec::new(),
+                ai_classification_started,
                 message: "This source URL is already in the library".to_string(),
             });
         }
@@ -518,6 +527,11 @@ async fn capture_remote_asset(request: CaptureRequest) -> Result<CaptureResult, 
         request.workflow_status.as_deref().unwrap_or("inbox"),
     )?;
     let applied_tag_ids = t_dam::apply_tags(file_id, &request.tags)?;
+    let ai_classification_started = if request.auto_classify {
+        queue_online_ai_classification(file_id).unwrap_or(false)
+    } else {
+        false
+    };
 
     Ok(CaptureResult {
         ok: true,
@@ -527,8 +541,37 @@ async fn capture_remote_asset(request: CaptureRequest) -> Result<CaptureResult, 
         file_name: Some(file.name),
         folder: Some(folder),
         applied_tag_ids,
+        ai_classification_started,
         message: "Captured successfully".to_string(),
     })
+}
+
+fn queue_online_ai_classification(file_id: i64) -> Result<bool, String> {
+    let provider = crate::t_ai_online::list_online_ai_providers()?
+        .into_iter()
+        .find(|provider| provider.enabled && provider.has_api_key)
+        .ok_or_else(|| "没有可用的在线 AI 服务".to_string())?;
+    let provider_id = provider.id;
+    let folder_options = crate::t_ai_batch::organization_folder_options("library", None)
+        .unwrap_or_default();
+
+    tauri::async_runtime::spawn(async move {
+        let result = if folder_options.is_empty() {
+            crate::t_ai_online::analyze_file_with_online_ai(file_id, provider_id, None).await
+        } else {
+            crate::t_ai_online::analyze_file_for_organization(
+                file_id,
+                provider_id,
+                folder_options,
+                None,
+            )
+            .await
+        };
+        if let Err(error) = result {
+            eprintln!("Browser capture AI classification failed: {}", error);
+        }
+    });
+    Ok(true)
 }
 
 fn filename_from_content_disposition(value: &str) -> Option<String> {

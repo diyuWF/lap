@@ -186,7 +186,7 @@ fn is_inbox_folder(folder: &t_dam::DamFolder) -> bool {
     )
 }
 
-fn organization_folder_options(
+pub(crate) fn organization_folder_options(
     mode: &str,
     root_folder_id: Option<i64>,
 ) -> Result<Vec<OnlineAiFolderOption>, String> {

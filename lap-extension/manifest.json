@@ -42,6 +42,8 @@
     {
       "resources": [
         "icon.png",
+        "ai-classify.png",
+        "back.svg",
         "folder.svg",
         "more.svg",
         "plus.svg",

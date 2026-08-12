@@ -1,5 +1,5 @@
 (() => {
-  const HOVER_EXPAND_MS = 520;
+  const HOVER_EXPAND_MS = 360;
   const CLOSE_AFTER_DRAG_MS = 160;
   const DRAG_DISTANCE_VIEWPORT_RATIO = 1 / 3;
   const RADIAL_FOLDER_LIMIT = 8;
@@ -24,6 +24,8 @@
   let armedImage = null;
   let armedDraggableValue = null;
   let captureSession = 0;
+  let radialParentKey = null;
+  let keepRadialAfterDragEnd = false;
 
   function sendMessage(message) {
     return new Promise((resolve, reject) => {
@@ -176,6 +178,8 @@
     folderLoadError = null;
     dragLastPoint = null;
     dragTravelDistance = 0;
+    radialParentKey = null;
+    keepRadialAfterDragEnd = false;
   }
 
   function escapeHtml(value) {
@@ -226,13 +230,13 @@
     overlay = document.createElement('div');
     overlay.className = 'lap-capture-overlay is-radial-open';
     const extensionIconUrl = chrome.runtime.getURL('icon.png');
-    const folderIconUrl = chrome.runtime.getURL('folder.svg');
+    const aiClassifyIconUrl = chrome.runtime.getURL('ai-classify.png');
     const radialGaugeUrl = chrome.runtime.getURL('radial-gauge.png');
     overlay.innerHTML = `
       <div class="lap-capture-radial" role="menu" aria-label="保存到文件夹">
         <img class="lap-capture-radial-gauge" src="${escapeHtml(radialGaugeUrl)}" alt="" />
         <button class="lap-capture-radial-center is-loading" type="button" role="menuitem" disabled hidden>
-          <img src="${escapeHtml(folderIconUrl)}" alt="" />
+          <img src="${escapeHtml(aiClassifyIconUrl)}" alt="" />
           <span>AI 分类</span>
         </button>
         <div class="lap-capture-radial-items"></div>
@@ -357,6 +361,7 @@
       .map((folder) => ({
         ...folder,
         key: normalizePath(folder.path),
+        parentKey: null,
         children: [],
       }))
       .filter((folder) => folder.key);
@@ -375,8 +380,10 @@
         }
         parts.pop();
       }
-      if (parent) parent.children.push(folder);
-      else roots.push(folder);
+      if (parent) {
+        folder.parentKey = parent.key;
+        parent.children.push(folder);
+      } else roots.push(folder);
     }
 
     const sortNodes = (nodes) => {
@@ -387,19 +394,23 @@
     return { roots, byKey };
   }
 
-  function radialFolderCandidates() {
+  function radialFolderCandidates(parentKey = radialParentKey) {
     const { roots, byKey } = buildFolderTree();
-    const candidates = [];
-    const seen = new Set();
-    const add = (folder) => {
-      if (!folder || seen.has(folder.key)) return;
-      seen.add(folder.key);
-      candidates.push(folder);
+    const parent = parentKey ? byKey.get(normalizePath(parentKey).toLowerCase()) || null : null;
+    const siblings = [...(parent ? parent.children : roots)];
+    const recentOrder = new Map(
+      recentFolderPaths.map((path, index) => [normalizePath(path).toLowerCase(), index]),
+    );
+    siblings.sort((left, right) => {
+      const leftRecent = recentOrder.get(left.key.toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
+      const rightRecent = recentOrder.get(right.key.toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
+      return leftRecent - rightRecent || left.name.localeCompare(right.name, 'zh-CN', { numeric: true });
+    });
+    return {
+      parent,
+      siblings,
+      candidates: siblings.slice(0, RADIAL_FOLDER_LIMIT),
     };
-    recentFolderPaths.map((path) => byKey.get(normalizePath(path).toLowerCase())).forEach(add);
-    roots.forEach(add);
-    [...byKey.values()].forEach(add);
-    return candidates.slice(0, RADIAL_FOLDER_LIMIT);
   }
 
   function radialOrbitPosition(index, total) {
@@ -466,10 +477,16 @@
     }
   }
 
+  function showRadialLevel(parentKey) {
+    radialParentKey = parentKey || null;
+    clearHoverTimer();
+    showRadialMenu();
+  }
+
   function createRadialFolder(folder, index, total) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'lap-capture-radial-item';
+    button.className = `lap-capture-radial-item${folder.children.length ? ' has-children' : ''}`;
     button.dataset.path = folder.path;
     button.dataset.folderId = String(folder.id || '');
     button.setAttribute('role', 'menuitem');
@@ -491,6 +508,10 @@
       if (mode !== 'radial') return;
       event.preventDefault();
       button.classList.add('is-target');
+      if (folder.children.length) {
+        clearHoverTimer();
+        hoverTimer = setTimeout(() => showRadialLevel(folder.key), HOVER_EXPAND_MS);
+      }
     });
     button.addEventListener('dragover', (event) => {
       if (mode !== 'radial') return;
@@ -500,16 +521,27 @@
     button.addEventListener('dragleave', (event) => {
       if (button.contains(event.relatedTarget)) return;
       button.classList.remove('is-target');
+      clearHoverTimer();
     });
     button.addEventListener('drop', (event) => {
       if (mode !== 'radial') return;
       event.preventDefault();
       event.stopPropagation();
+      clearHoverTimer();
+      if (folder.children.length) {
+        keepRadialAfterDragEnd = true;
+        showRadialLevel(folder.key);
+        return;
+      }
       selectedFolder = folder;
       saveSelectedAsset();
     });
     button.addEventListener('click', () => {
       if (mode !== 'radial') return;
+      if (folder.children.length) {
+        showRadialLevel(folder.key);
+        return;
+      }
       selectedFolder = folder;
       saveSelectedAsset();
     });
@@ -532,10 +564,12 @@
     mode = 'radial';
     const radial = overlay.querySelector('.lap-capture-radial');
     const items = overlay.querySelector('.lap-capture-radial-items');
-    const candidates = radialFolderCandidates();
-    const showMore = folders.length > candidates.length;
+    const level = radialFolderCandidates();
+    const candidates = level.candidates;
+    const showBack = Boolean(level.parent);
+    const showMore = level.siblings.length > candidates.length;
     const showCreate = folders.length > 0;
-    const total = candidates.length + (showCreate ? 1 : 0) + (showMore ? 1 : 0);
+    const total = candidates.length + (showBack ? 1 : 0) + (showCreate ? 1 : 0) + (showMore ? 1 : 0);
     const hasAiTarget = aiConfigured;
     const session = captureSession;
 
@@ -578,8 +612,48 @@
       selectAiClassification();
     };
     inboxTarget.onclick = selectAiClassification;
-    candidates.forEach((folder, index) => {
-      items.appendChild(createRadialFolder(folder, index, total));
+    let nextIndex = 0;
+    if (showBack) {
+      const back = document.createElement('button');
+      back.type = 'button';
+      back.className = 'lap-capture-radial-item is-back';
+      back.setAttribute('role', 'menuitem');
+      back.innerHTML = `<span class="lap-capture-radial-visual"><img class="lap-capture-radial-action-icon" src="${escapeHtml(chrome.runtime.getURL('back.svg'))}" alt="" /></span><strong>返回上级</strong>`;
+      const backPosition = radialOrbitPosition(nextIndex, total);
+      back.style.setProperty('--lap-radial-x', `${backPosition.x}px`);
+      back.style.setProperty('--lap-radial-y', `${backPosition.y}px`);
+      back.style.setProperty('--lap-radial-order', nextIndex);
+      const goBack = () => showRadialLevel(level.parent.parentKey);
+      back.addEventListener('dragenter', (event) => {
+        if (mode !== 'radial') return;
+        event.preventDefault();
+        back.classList.add('is-target');
+        clearHoverTimer();
+        hoverTimer = setTimeout(goBack, HOVER_EXPAND_MS);
+      });
+      back.addEventListener('dragover', (event) => {
+        if (mode !== 'radial') return;
+        event.preventDefault();
+      });
+      back.addEventListener('dragleave', () => {
+        back.classList.remove('is-target');
+        clearHoverTimer();
+      });
+      back.addEventListener('drop', (event) => {
+        if (mode !== 'radial') return;
+        event.preventDefault();
+        event.stopPropagation();
+        keepRadialAfterDragEnd = true;
+        goBack();
+      });
+      back.addEventListener('click', goBack);
+      items.appendChild(back);
+      nextIndex += 1;
+    }
+
+    candidates.forEach((folder) => {
+      items.appendChild(createRadialFolder(folder, nextIndex, total));
+      nextIndex += 1;
     });
     void hydrateRadialFolderCovers(candidates, session);
 
@@ -589,7 +663,7 @@
       createFolder.className = 'lap-capture-radial-item is-create';
       createFolder.setAttribute('role', 'menuitem');
       createFolder.innerHTML = `<span class="lap-capture-radial-visual"><img class="lap-capture-radial-action-icon" src="${escapeHtml(chrome.runtime.getURL('plus.svg'))}" alt="" /></span><strong>创建目录</strong>`;
-      const createIndex = candidates.length;
+      const createIndex = nextIndex;
       const createPosition = radialOrbitPosition(createIndex, total);
       createFolder.style.setProperty('--lap-radial-x', `${createPosition.x}px`);
       createFolder.style.setProperty('--lap-radial-y', `${createPosition.y}px`);
@@ -614,6 +688,7 @@
       });
       createFolder.addEventListener('click', showCreateFolderPanel);
       items.appendChild(createFolder);
+      nextIndex += 1;
     }
 
     if (showMore) {
@@ -622,7 +697,7 @@
       more.className = 'lap-capture-radial-item is-more';
       more.setAttribute('role', 'menuitem');
       more.innerHTML = `<span class="lap-capture-radial-visual"><img class="lap-capture-radial-action-icon" src="${escapeHtml(chrome.runtime.getURL('more.svg'))}" alt="" /></span><strong>更多</strong>`;
-      const moreIndex = candidates.length + (showCreate ? 1 : 0);
+      const moreIndex = nextIndex;
       const morePosition = radialOrbitPosition(moreIndex, total);
       more.style.setProperty('--lap-radial-x', `${morePosition.x}px`);
       more.style.setProperty('--lap-radial-y', `${morePosition.y}px`);
@@ -816,7 +891,10 @@
     const nameInput = form.querySelector('input[name="folderName"]');
     const error = form.querySelector('.lap-capture-inline-error');
     const submitButton = form.querySelector('[data-action="create"]');
-    const preferredParent = recentFolderPaths.find((path) =>
+    const radialParent = radialParentKey
+      ? folders.find((folder) => normalizePath(folder.path) === normalizePath(radialParentKey))
+      : null;
+    const preferredParent = radialParent?.path || recentFolderPaths.find((path) =>
       folders.some((folder) => normalizePath(folder.path) === normalizePath(path)),
     );
 
@@ -917,6 +995,7 @@
           altText: currentAsset.altText,
           folderPath: selectedFolder.path || null,
           workflowStatus: isInbox ? 'inbox' : 'selected',
+          autoClassify: isInbox,
           tags: [],
           metadata: {
             capturedBy: 'lap-drag-capture',
@@ -939,14 +1018,18 @@
 
       mode = 'complete';
       const resultFolder = response.result?.folder?.path || selectedFolder.path;
+      const aiClassificationStarted = Boolean(response.result?.aiClassificationStarted);
       const title = response.result?.duplicate
         ? '素材已存在'
-        : isInbox && aiConfigured
+        : isInbox && aiClassificationStarted
           ? '已交给 AI 分类'
           : isInbox
-            ? '已收集，等待 AI 分类'
+            ? '已保存，AI 暂未启动'
             : '已保存到目录';
-      showCaptureToast(title, resultFolder || 'AI 分类', 'success');
+      const detail = isInbox && aiClassificationStarted
+        ? 'AI 正在后台生成标签和目录建议'
+        : resultFolder || 'AI 分类';
+      showCaptureToast(title, detail, 'success');
       setTimeout(closeOverlay, response.result?.duplicate ? 1200 : 900);
     } catch (error) {
       mode = 'error';
@@ -1027,6 +1110,10 @@
       restoreArmedImage();
       removeDragGhost();
       if (!['tracking', 'intent', 'radial'].includes(mode)) return;
+      if (mode === 'radial' && keepRadialAfterDragEnd) {
+        keepRadialAfterDragEnd = false;
+        return;
+      }
       setTimeout(() => {
         if (['tracking', 'intent', 'radial'].includes(mode)) closeOverlay();
       }, CLOSE_AFTER_DRAG_MS);

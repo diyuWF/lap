@@ -70,18 +70,18 @@ The PR is intentionally kept Draft until manual validation is complete.
 
 Latest packaged candidate commit:
 
-`37e50b21eacec0f62b0f17cc2088b1d2161622a2`
+`00d13d5c0d1b42e047531ea7b554685bc9824d88`
 
 Automated validation:
 
-- PASS — PR Build #76
-- PASS — Chat Validation Package #21
-- PASS — artifact `Lap-0.4.1-Chat-Delivery-21`
+- PASS — PR Build #78
+- PASS — Chat Validation Package #23
+- PASS — artifact `Lap-0.4.1-Chat-Delivery-23`
 
 That package contains the cumulative-path browser capture, native reference-board
-drag-out correction, and the previous centered radial hierarchy. The new
-instrument-control radial and real folder-cover data path in the working branch
-require a fresh PR build plus Windows validation package.
+drag-out correction, instrument-control radial, real folder-cover data path, and
+the restored complete SQLite source. The hierarchical AI-radial correction in
+the working branch requires a fresh PR build plus Windows validation package.
 The Windows chat-delivery workflow now runs for every opened, synchronized, or
 reopened PR update so each focused modification produces a matching installer
 and browser-extension package automatically.
@@ -141,14 +141,14 @@ Windows validation-package build before that package is used for manual testing.
 
 Current state:
 
-`BLOCKED — INSTRUMENT RADIAL + FOLDER COVER CANDIDATE AWAITING FRESH PACKAGE`
+`BLOCKED — HIERARCHICAL AI RADIAL CANDIDATE AWAITING FRESH PACKAGE`
 
 Reason:
 
-`Lap-0.4.1-Chat-Delivery-21` passed its automated checks. Manual feedback found
-that the centered browser radial still had a large visual gap from the selected
-precision-instrument reference and did not distinguish populated folders from
-empty folders.
+`Lap-0.4.1-Chat-Delivery-23` passed its automated checks. Manual feedback found
+that the radial still mixed parent and child folders in the same level, lacked a
+purpose-built AI center mark, and did not start AI classification directly from
+the center target.
 
 Focused fixes are implemented in the working branch:
 
@@ -160,11 +160,17 @@ Focused fixes are implemented in the working branch:
   precision-instrument dial is fixed to the exact viewport center;
 - the dial uses the selected source hierarchy: a full radial tick ring, one thin
   inner orbit, and one restrained bronze partial arc rather than a solid disc;
-- the configured-AI center contains only Lap's folder icon and “AI 分类”; no
-  subtitle, logo, progress, or decorative control remains;
-- actual/recent folders plus “创建目录” are circular controls distributed evenly
-  around the inner orbit, with a complete folder browser retained behind “更多”
-  when necessary;
+- the configured-AI center uses a purpose-built transparent Lap AI mark and the
+  single label “AI 分类”; no subtitle, progress, or decorative control remains;
+- the first radial level contains top-level folders only; descendants and recent
+  paths can no longer leak into that level;
+- dropping on, clicking, or dwelling 360 ms over a parent opens only that
+  parent's direct children, while “返回上级” restores the previous level;
+- nested levels never render their parent or unrelated root siblings alongside
+  the children; “创建目录” remains available and preselects the current parent;
+- visible folders plus “创建目录” are circular controls distributed evenly around
+  the inner orbit, with a complete folder browser retained behind “更多” when a
+  single level contains more than eight entries;
 - empty destination folders show the bundled folder icon; populated folders ask
   the authenticated local service for the first image and show its thumbnail as
   a circular cover, falling back safely to the icon if decoding fails;
@@ -175,8 +181,13 @@ Focused fixes are implemented in the working branch:
   content script, preventing the host page from reading the local image data URL;
 - dropping on an existing directory saves immediately without the removed
   confirmation modal and marks the asset workflow as `selected`;
-- AI-center captures retain the logical `inbox` workflow for the existing
-  AI-planning and review process;
+- AI-center captures retain the logical `inbox` workflow and set
+  `autoClassify: true`; the local service immediately queues the first enabled,
+  keyed provider to generate tags and an existing-folder suggestion in the
+  background;
+- automatic classification never silently moves the asset: folder output remains
+  a reviewable suggestion and existing provider confidence/auto-tag rules stay in
+  force;
 - every radial menu appends “创建目录”; dropping there opens an in-page parent
   directory/name form, creates one validated child directory, and immediately
   saves the current image;
@@ -267,7 +278,11 @@ one third of browser width. Verify the page is dimmed/blurred only after that
 threshold and the precision dial remains fixed at the viewport center. Its tick
 ring, inner orbit, bronze arc, and circular directory controls must remain crisp.
 With no configured provider, the AI center must be absent; after provider
-configuration, its only content must be the folder icon and “AI 分类”. Empty
+configuration, its only content must be the dedicated Lap AI mark and “AI 分类”.
+Dropping there must report that background AI classification started and must not
+move the asset without the existing review flow. The first level must show only
+roots; activating a parent must show only its direct children plus navigation.
+Empty
 folders must show the folder icon, populated folders must show their first image
 as a circular cover, and unavailable covers must fall back to the icon. Small or
 lazy-loaded thumbnails must enter the same flow, existing-folder drops must save
