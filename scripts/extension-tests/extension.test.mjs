@@ -113,7 +113,7 @@ function radialLabels(window) {
   );
 }
 
-test('AI classification remains visible and submits an inbox classification request', async () => {
+test('AI classification remains visible and silently queues an inbox item', async () => {
   const { window, messages } = await createContentHarness();
   const center = window.document.querySelector('.lap-capture-radial-center');
   assert.ok(center, 'AI center should render');
@@ -121,10 +121,12 @@ test('AI classification remains visible and submits an inbox classification requ
   assert.equal(center.disabled, false);
 
   center.click();
+  assert.equal(window.document.querySelector('.lap-capture-overlay'), null);
   await new Promise((resolve) => setTimeout(resolve, 20));
   const capture = messages.find((message) => message.type === 'lap:capture');
   assert.equal(capture?.payload.workflowStatus, 'inbox');
-  assert.equal(capture?.payload.autoClassify, true);
+  assert.equal(capture?.payload.autoClassify, false);
+  assert.equal(window.document.querySelector('.lap-capture-toast'), null);
   window.close();
 });
 
@@ -138,7 +140,7 @@ test('document-level dwell opens only the hovered folder direct children', async
   window.document.elementsFromPoint = () => [rootCover, root];
   window.document.dispatchEvent(dragEvent(window, 'dragover', 600, 160, dataTransfer));
   await new Promise((resolve) => setTimeout(resolve, 410));
-  assert.deepEqual(radialLabels(window).sort(), ['1', '创建目录', '返回上级'].sort());
+  assert.deepEqual(radialLabels(window).sort(), ['1', '保存到 lap资源', '创建目录', '返回上级'].sort());
   assert.equal(radialLabels(window).includes('lap资源'), false);
 
   const child = window.document.querySelector('[data-path="D:/Lap/lap资源/1"]');
@@ -146,7 +148,30 @@ test('document-level dwell opens only the hovered folder direct children', async
   window.document.elementsFromPoint = () => [childIcon, child];
   window.document.dispatchEvent(dragEvent(window, 'dragover', 600, 160, dataTransfer));
   await new Promise((resolve) => setTimeout(resolve, 410));
-  assert.deepEqual(radialLabels(window).sort(), ['三渲二', '写实', '创建目录', '返回上级'].sort());
+  assert.deepEqual(radialLabels(window).sort(), ['1', '保存到 lap资源', '创建目录', '返回上级'].sort());
+
+  window.document.dispatchEvent(dragEvent(window, 'dragover', 650, 200, dataTransfer));
+  await new Promise((resolve) => setTimeout(resolve, 410));
+  assert.deepEqual(radialLabels(window).sort(), ['三渲二', '写实', '保存到 1', '创建目录', '返回上级'].sort());
+  window.close();
+});
+
+test('the current folder action saves directly instead of navigating again', async () => {
+  const { window, messages, dataTransfer } = await createContentHarness();
+  const root = window.document.querySelector('[data-path="D:/Lap/lap资源"]');
+  window.document.elementsFromPoint = () => [root];
+  window.document.dispatchEvent(dragEvent(window, 'dragover', 600, 160, dataTransfer));
+  await new Promise((resolve) => setTimeout(resolve, 410));
+
+  const saveCurrent = [...window.document.querySelectorAll('.lap-capture-radial-item')]
+    .find((button) => button.textContent.includes('保存到 lap资源'));
+  assert.ok(saveCurrent);
+  saveCurrent.click();
+  assert.equal(window.document.querySelector('.lap-capture-overlay'), null);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const capture = messages.find((message) => message.type === 'lap:capture');
+  assert.equal(capture?.payload.folderPath, 'D:/Lap/lap资源');
+  assert.equal(capture?.payload.workflowStatus, 'selected');
   window.close();
 });
 

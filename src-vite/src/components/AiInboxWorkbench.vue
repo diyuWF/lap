@@ -1,15 +1,37 @@
 <template>
-  <div class="fixed inset-0 z-[125] flex items-center justify-center bg-black/65 p-4" @mousedown.self="$emit('close')">
-    <section class="flex h-[91vh] w-[1180px] max-w-[97vw] flex-col overflow-hidden rounded-box border border-base-content/10 bg-base-200 shadow-2xl">
+  <div
+    :class="props.embedded
+      ? 'relative flex h-full min-h-0 w-full flex-1 p-2'
+      : 'fixed inset-0 z-[125] flex items-center justify-center bg-black/65 p-4'"
+    @mousedown.self="!props.embedded && $emit('close')"
+  >
+    <section
+      :class="props.embedded
+        ? 'flex h-full min-h-0 w-full flex-col overflow-hidden rounded-box border border-base-content/10 bg-base-200 shadow-lg'
+        : 'flex h-[91vh] w-[1180px] max-w-[97vw] flex-col overflow-hidden rounded-box border border-base-content/10 bg-base-200 shadow-2xl'"
+    >
       <header class="flex items-start justify-between border-b border-base-content/10 px-5 py-4">
         <div>
           <h2 class="font-semibold">{{ $t('dam_features.inbox.title') }}</h2>
           <p class="mt-1 text-xs text-base-content/45">{{ $t('dam_features.inbox.subtitle') }}</p>
         </div>
-        <button class="btn btn-ghost btn-sm" type="button" @click="$emit('close')">{{ $t('dam_features.common.close') }}</button>
+        <div class="flex items-center gap-2">
+          <button
+            v-if="props.embedded"
+            class="btn btn-ghost btn-sm"
+            type="button"
+            @click="showEmbeddedSettings = !showEmbeddedSettings"
+          >
+            {{ showEmbeddedSettings ? $t('dam_features.common.close') : $t('dam_features.inbox.organization_scope') }}
+          </button>
+          <button v-else class="btn btn-ghost btn-sm" type="button" @click="$emit('close')">{{ $t('dam_features.common.close') }}</button>
+        </div>
       </header>
 
-      <section class="grid grid-cols-[minmax(360px,1.4fr)_minmax(250px,1fr)_minmax(250px,1fr)] gap-3 border-b border-base-content/10 bg-base-300/20 px-5 py-4">
+      <section
+        v-show="!props.embedded || showEmbeddedSettings"
+        class="grid max-h-[48vh] grid-cols-1 gap-3 overflow-y-auto border-b border-base-content/10 bg-base-300/20 px-5 py-4 xl:grid-cols-[minmax(360px,1.4fr)_minmax(250px,1fr)_minmax(250px,1fr)]"
+      >
         <div class="rounded-box border border-base-content/10 bg-base-100/45 p-3">
           <div class="mb-2 text-xs font-semibold text-base-content/65">{{ $t('dam_features.inbox.organization_scope') }}</div>
           <div class="grid grid-cols-2 gap-2">
@@ -112,12 +134,10 @@
         </div>
 
         <template v-else-if="activeTab === 'candidates'">
-          <div v-if="!providers.length" class="flex h-full items-center justify-center">
-            <div class="max-w-lg rounded-box border border-warning/25 bg-warning/10 p-5 text-center text-sm leading-6">
-              {{ $t('dam_features.inbox.no_provider') }}
-            </div>
+          <div v-if="!providers.length" class="mb-3 rounded-box border border-warning/25 bg-warning/10 p-3 text-sm leading-6">
+            {{ $t('dam_features.inbox.no_provider') }}
           </div>
-          <div v-else-if="!candidates.length" class="flex h-full flex-col items-center justify-center gap-2 text-base-content/45">
+          <div v-if="!candidates.length" class="flex h-full flex-col items-center justify-center gap-2 text-base-content/45">
             <p class="text-sm">{{ $t('dam_features.inbox.empty') }}</p>
             <p class="text-xs">{{ $t('dam_features.inbox.empty_hint') }}</p>
           </div>
@@ -125,9 +145,18 @@
             <article
               v-for="item in candidates"
               :key="item.fileId"
-              class="grid grid-cols-[32px_1fr_100px_120px] items-center gap-3 rounded-box border border-base-content/10 bg-base-300/25 px-3 py-3"
+              class="grid grid-cols-[32px_56px_minmax(0,1fr)_80px_100px] items-center gap-3 rounded-box border border-base-content/10 bg-base-300/25 px-3 py-2"
             >
               <input class="checkbox checkbox-sm" type="checkbox" :checked="selectedIds.has(item.fileId)" :disabled="running" @change="toggleItem(item.fileId)" />
+              <div class="grid h-14 w-14 place-items-center overflow-hidden rounded-box border border-base-content/10 bg-base-100/35 text-base-content/25">
+                <img
+                  v-if="candidateThumbSrc(item)"
+                  :src="candidateThumbSrc(item)"
+                  class="h-full w-full object-cover"
+                  alt=""
+                />
+                <IconPhoto v-else class="h-6 w-6" />
+              </div>
               <div class="min-w-0">
                 <div class="truncate text-sm font-medium" :title="item.fileName">{{ item.fileName }}</div>
                 <div class="truncate text-[11px] text-base-content/40" :title="item.filePath">{{ item.filePath }}</div>
@@ -211,7 +240,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
   analyzeFilesWithOnlineAi,
@@ -221,9 +250,25 @@ import {
   listOnlineAiBatchCandidates,
   listOnlineAiProviders,
 } from '@/common/dam-api';
+import { getFileThumbById } from '@/common/api';
+import { config } from '@/common/config';
+import { IconPhoto } from '@/common/icons';
 import { useToast } from '@/common/toast';
+import {
+  getThumbUrl,
+  getThumbnailDataUrl,
+  getThumbnailDataUrlInflight,
+  isWin,
+  setThumbnailDataUrlInflight,
+} from '@/common/utils';
 
-const emit = defineEmits(['close', 'open-review']);
+const props = defineProps({
+  embedded: {
+    type: Boolean,
+    default: false,
+  },
+});
+const emit = defineEmits(['close', 'open-review', 'queue-updated']);
 const { t } = useI18n();
 const toast = useToast();
 const providers = ref<any[]>([]);
@@ -248,6 +293,9 @@ const batchResult = ref<any>(null);
 const executionResult = ref<any>(null);
 const showFailures = ref(false);
 const activeTab = ref<'candidates' | 'plans'>('candidates');
+const showEmbeddedSettings = ref(false);
+const candidateThumbUrls = ref<Record<number, string>>({});
+let candidateThumbLoadToken = 0;
 
 const actionablePlans = computed(() => plans.value.filter((plan) => plan.targetAvailable));
 const canAnalyze = computed(() => (
@@ -314,9 +362,49 @@ async function loadFolders() {
 }
 
 async function loadCandidates() {
-  selectedIds.value = new Set();
-  selectAll.value = false;
-  candidates.value = await listOnlineAiBatchCandidates(workflowStatus.value, 200, includeAnalyzed.value);
+  const nextCandidates = await listOnlineAiBatchCandidates(workflowStatus.value, 200, includeAnalyzed.value);
+  candidates.value = Array.isArray(nextCandidates) ? nextCandidates : [];
+  selectedIds.value = new Set(candidates.value.map((item) => Number(item.fileId)));
+  selectAll.value = candidates.value.length > 0;
+  emit('queue-updated', candidates.value.length);
+  void loadWindowsCandidateThumbnails(candidates.value);
+}
+
+function candidateThumbSrc(item: any) {
+  const fileId = Number(item?.fileId || 0);
+  if (fileId <= 0) return '';
+  return isWin
+    ? candidateThumbUrls.value[fileId] || ''
+    : getThumbUrl(fileId, false, Math.min(256, Number(config.settings.thumbnailSize || 256)));
+}
+
+async function loadWindowsCandidateThumbnails(items: any[]) {
+  if (!isWin) return;
+  const loadToken = ++candidateThumbLoadToken;
+  const thumbnailSize = Math.min(256, Number(config.settings.thumbnailSize || 256));
+  const limitedItems = items.slice(0, 80);
+  const nextUrls: Record<number, string> = {};
+
+  for (let offset = 0; offset < limitedItems.length; offset += 4) {
+    const batch = limitedItems.slice(offset, offset + 4);
+    const entries = await Promise.all(batch.map(async (item) => {
+      const fileId = Number(item.fileId || 0);
+      if (fileId <= 0) return [fileId, ''] as const;
+      const inflight = getThumbnailDataUrlInflight(fileId, thumbnailSize);
+      const dataUrl = await (inflight || setThumbnailDataUrlInflight(
+        fileId,
+        thumbnailSize,
+        getFileThumbById(fileId, thumbnailSize, false)
+          .then(thumb => getThumbnailDataUrl(thumb, '', false, thumbnailSize, item.filePath)),
+      ));
+      return [fileId, dataUrl || ''] as const;
+    }));
+    if (loadToken !== candidateThumbLoadToken) return;
+    for (const [fileId, dataUrl] of entries) {
+      if (fileId > 0 && dataUrl) nextUrls[fileId] = dataUrl;
+    }
+    candidateThumbUrls.value = { ...candidateThumbUrls.value, ...nextUrls };
+  }
 }
 
 async function loadPlans() {
@@ -392,6 +480,24 @@ async function runBatch() {
   }
 }
 
+async function runAllCandidates() {
+  if (loading.value) return;
+  if (!candidates.value.length) {
+    await loadCandidates();
+  }
+  if (!candidates.value.length) {
+    toast.warning(t('dam_features.inbox.empty'));
+    return;
+  }
+  if (!providerId.value) {
+    toast.warning(t('dam_features.inbox.no_provider'));
+    return;
+  }
+  selectedIds.value = new Set(candidates.value.map((item) => Number(item.fileId)));
+  selectAll.value = true;
+  await runBatch();
+}
+
 async function executePlans() {
   if (!selectedPlanIds.value.size) return;
   if (!confirm(t('dam_features.inbox.execute_confirm', { count: selectedPlanIds.value.size }))) return;
@@ -432,5 +538,19 @@ function confidenceLabel(value: number | null) {
   return typeof value === 'number' ? `${Math.round(value * 100)}%` : '—';
 }
 
-onMounted(refreshAll);
+function handleWindowFocus() {
+  if (!running.value && !executing.value) void refreshAll();
+}
+
+defineExpose({ refreshAll, runAllCandidates });
+
+onMounted(() => {
+  void refreshAll();
+  window.addEventListener('focus', handleWindowFocus);
+});
+
+onBeforeUnmount(() => {
+  candidateThumbLoadToken += 1;
+  window.removeEventListener('focus', handleWindowFocus);
+});
 </script>

@@ -3,6 +3,7 @@
   const CLOSE_AFTER_DRAG_MS = 160;
   const DRAG_DISTANCE_VIEWPORT_RATIO = 1 / 3;
   const RADIAL_FOLDER_LIMIT = 8;
+  const RADIAL_NAVIGATION_RELEASE_PX = 28;
   const folderCoverViews = new WeakMap();
 
   let overlay = null;
@@ -15,6 +16,8 @@
   let hoverTimer = null;
   let radialDwellTimer = null;
   let radialDwellTarget = null;
+  let radialPointer = null;
+  let radialNavigationLock = null;
   let thresholdReached = false;
   let foldersReady = false;
   let aiConfigured = false;
@@ -171,7 +174,7 @@
   }
 
   function scheduleRadialDwell(button) {
-    if (!button || mode !== 'radial') {
+    if (!button || mode !== 'radial' || radialNavigationLock) {
       clearRadialDwell();
       return;
     }
@@ -191,6 +194,18 @@
     if (!overlay || mode !== 'radial' || typeof document.elementsFromPoint !== 'function') {
       clearRadialDwell();
       return;
+    }
+    radialPointer = { x: clientX, y: clientY };
+    if (radialNavigationLock) {
+      const moved = Math.hypot(
+        clientX - radialNavigationLock.x,
+        clientY - radialNavigationLock.y,
+      );
+      if (moved < RADIAL_NAVIGATION_RELEASE_PX) {
+        clearRadialDwell();
+        return;
+      }
+      radialNavigationLock = null;
     }
     const button = document
       .elementsFromPoint(clientX, clientY)
@@ -225,6 +240,8 @@
     dragLastPoint = null;
     dragTravelDistance = 0;
     radialParentKey = null;
+    radialPointer = null;
+    radialNavigationLock = null;
     keepRadialAfterDragEnd = false;
   }
 
@@ -286,10 +303,6 @@
           <span>AI 分类</span>
         </button>
         <div class="lap-capture-radial-items"></div>
-      </div>
-      <div class="lap-capture-toast" role="status" aria-live="polite" hidden>
-        <strong></strong>
-        <span></span>
       </div>
       <section class="lap-capture-panel" role="dialog" aria-label="选择保存目录" hidden>
         <header class="lap-capture-header">
@@ -525,18 +538,21 @@
 
   function showRadialLevel(parentKey) {
     radialParentKey = parentKey || null;
+    radialNavigationLock = radialPointer ? { ...radialPointer } : null;
     clearHoverTimer();
     clearRadialDwell();
     showRadialMenu();
   }
 
-  function createRadialFolder(folder, index, total) {
+  function createRadialFolder(folder, index, total, options = {}) {
+    const saveDirectly = Boolean(options.saveDirectly);
+    const navigates = folder.children.length > 0 && !saveDirectly;
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = `lap-capture-radial-item${folder.children.length ? ' has-children' : ''}`;
+    button.className = `lap-capture-radial-item${navigates ? ' has-children' : ''}${saveDirectly ? ' is-current-folder' : ''}`;
     button.dataset.path = folder.path;
     button.dataset.folderId = String(folder.id || '');
-    if (folder.children.length) {
+    if (navigates) {
       button.dataset.radialNavigate = 'folder';
       button.dataset.radialTarget = folder.key;
     }
@@ -547,7 +563,7 @@
         <span class="lap-capture-radial-cover" aria-hidden="true"></span>
         <img class="lap-capture-radial-folder-icon" src="${escapeHtml(chrome.runtime.getURL('folder.svg'))}" alt="" />
       </span>
-      <strong>${escapeHtml(folder.name)}</strong>`;
+      <strong>${escapeHtml(saveDirectly ? `保存到 ${folder.name}` : folder.name)}</strong>`;
     applyRadialFolderCover(button, folder);
 
     const position = radialOrbitPosition(index, total);
@@ -560,7 +576,7 @@
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
     });
-    if (folder.children.length) {
+    if (navigates) {
       button.addEventListener('mouseenter', () => scheduleRadialDwell(button));
       button.addEventListener('mouseleave', () => {
         if (radialDwellTarget === button) clearRadialDwell();
@@ -571,7 +587,7 @@
       event.preventDefault();
       event.stopPropagation();
       clearHoverTimer();
-      if (folder.children.length) {
+      if (navigates) {
         keepRadialAfterDragEnd = true;
         showRadialLevel(folder.key);
         return;
@@ -581,7 +597,7 @@
     });
     button.addEventListener('click', () => {
       if (mode !== 'radial') return;
-      if (folder.children.length) {
+      if (navigates) {
         showRadialLevel(folder.key);
         return;
       }
@@ -611,9 +627,14 @@
     const level = radialFolderCandidates();
     const candidates = level.candidates;
     const showBack = Boolean(level.parent);
+    const showCurrentFolder = Boolean(level.parent);
     const showMore = level.siblings.length > candidates.length;
     const showCreate = folders.length > 0;
-    const total = candidates.length + (showBack ? 1 : 0) + (showCreate ? 1 : 0) + (showMore ? 1 : 0);
+    const total = candidates.length
+      + (showBack ? 1 : 0)
+      + (showCurrentFolder ? 1 : 0)
+      + (showCreate ? 1 : 0)
+      + (showMore ? 1 : 0);
     const hasAiTarget = true;
     const session = captureSession;
 
@@ -635,8 +656,8 @@
     inboxTarget.disabled = false;
     inboxTarget.classList.remove('is-loading');
     inboxTarget.title = aiConfigured
-      ? '交给已配置的 AI 自动生成标签和目录建议'
-      : '保存到待整理；配置 AI 服务后会自动生成标签和目录建议';
+      ? '静默保存到 AI 分类，稍后在 Lap 中一键整理'
+      : '静默保存到 AI 分类；配置 AI 服务后可一键整理';
     inboxTarget.classList.remove('is-target');
     inboxTarget.ondragenter = (event) => {
       if (mode !== 'radial') return;
@@ -660,6 +681,10 @@
     };
     inboxTarget.onclick = selectAiClassification;
     let nextIndex = 0;
+    if (showCurrentFolder) {
+      items.appendChild(createRadialFolder(level.parent, nextIndex, total, { saveDirectly: true }));
+      nextIndex += 1;
+    }
     if (showBack) {
       const back = document.createElement('button');
       back.type = 'button';
@@ -697,7 +722,10 @@
       items.appendChild(createRadialFolder(folder, nextIndex, total));
       nextIndex += 1;
     });
-    void hydrateRadialFolderCovers(candidates, session);
+    void hydrateRadialFolderCovers(
+      showCurrentFolder ? [level.parent, ...candidates] : candidates,
+      session,
+    );
 
     if (showCreate) {
       const createFolder = document.createElement('button');
@@ -1006,79 +1034,47 @@
     }
   }
 
-  function showCaptureToast(title, detail, kind = 'normal') {
-    if (!overlay) return;
-    hideIntentUi();
-    overlay.classList.remove('is-panel-open');
-    overlay.querySelector('.lap-capture-panel').hidden = true;
-    const toast = overlay.querySelector('.lap-capture-toast');
-    toast.className = `lap-capture-toast is-${kind}`;
-    toast.querySelector('strong').textContent = title;
-    toast.querySelector('span').textContent = detail || '';
-    toast.hidden = false;
-  }
-
-  async function saveSelectedAsset() {
+  function saveSelectedAsset() {
     if (!currentAsset || !selectedFolder || ['saving', 'complete'].includes(mode)) return;
     mode = 'saving';
     clearHoverTimer();
     clearRadialDwell();
     removeDragGhost();
     const isInbox = Boolean(selectedFolder.isInbox);
-    showCaptureToast('正在保存…', isInbox ? 'AI 分类' : selectedFolder.path, 'saving');
+    const payload = {
+      sourceUrl: currentAsset.sourceUrl,
+      pageUrl: location.href,
+      pageTitle: document.title,
+      siteName: location.hostname,
+      altText: currentAsset.altText,
+      folderPath: selectedFolder.path || null,
+      workflowStatus: isInbox ? 'inbox' : 'selected',
+      autoClassify: false,
+      tags: [],
+      metadata: {
+        capturedBy: 'lap-drag-capture',
+        capturedAt: new Date().toISOString(),
+        organizationQueue: isInbox ? 'inbox' : 'organized',
+        naturalWidth: currentAsset.naturalWidth,
+        naturalHeight: currentAsset.naturalHeight,
+        displayWidth: currentAsset.displayWidth,
+        displayHeight: currentAsset.displayHeight,
+      },
+    };
 
-    try {
-      const response = await sendMessage({
-        type: 'lap:capture',
-        payload: {
-          sourceUrl: currentAsset.sourceUrl,
-          pageUrl: location.href,
-          pageTitle: document.title,
-          siteName: location.hostname,
-          altText: currentAsset.altText,
-          folderPath: selectedFolder.path || null,
-          workflowStatus: isInbox ? 'inbox' : 'selected',
-          autoClassify: isInbox,
-          tags: [],
-          metadata: {
-            capturedBy: 'lap-drag-capture',
-            capturedAt: new Date().toISOString(),
-            organizationQueue: isInbox ? 'inbox' : 'organized',
-            naturalWidth: currentAsset.naturalWidth,
-            naturalHeight: currentAsset.naturalHeight,
-            displayWidth: currentAsset.displayWidth,
-            displayHeight: currentAsset.displayHeight,
-          },
-        },
+    closeOverlay();
+    void sendMessage({ type: 'lap:capture', payload })
+      .then((response) => {
+        if (!response?.ok) {
+          console.warn('Lap background capture failed:', response?.error || 'Unknown capture error');
+        }
+      })
+      .catch((error) => {
+        console.warn(
+          'Lap background capture failed:',
+          error instanceof Error ? error.message : String(error),
+        );
       });
-
-      if (!response?.ok) {
-        mode = 'error';
-        showCaptureToast('保存失败', response?.error || '请检查 Lap 连接后重试', 'error');
-        setTimeout(closeOverlay, 2400);
-        return;
-      }
-
-      mode = 'complete';
-      const resultFolder = response.result?.folder?.path || selectedFolder.path;
-      const aiClassificationStarted = Boolean(response.result?.aiClassificationStarted);
-      const title = response.result?.duplicate
-        ? '素材已存在'
-        : isInbox && aiClassificationStarted
-          ? '已交给 AI 分类'
-          : isInbox
-            ? '已保存，AI 暂未启动'
-            : '已保存到目录';
-      const detail = isInbox && aiClassificationStarted
-        ? 'AI 正在后台生成标签和目录建议'
-        : resultFolder || 'AI 分类';
-      showCaptureToast(title, detail, 'success');
-      setTimeout(closeOverlay, response.result?.duplicate ? 1200 : 900);
-    } catch (error) {
-      mode = 'error';
-      showCaptureToast('保存失败', error instanceof Error ? error.message : String(error), 'error');
-      setTimeout(closeOverlay, 2400);
-    }
   }
 
   async function beginCapture(image, event) {

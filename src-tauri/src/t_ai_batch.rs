@@ -273,18 +273,18 @@ pub fn list_online_ai_batch_candidates(
                     f.name,
                     folder.path,
                     COALESCE(f.file_type, 0),
-                    COALESCE(workflow.status, 'inbox'),
+                    workflow.status,
                     EXISTS(SELECT 1 FROM dam_ai_suggestions suggestions WHERE suggestions.file_id = f.id)
              FROM afiles f
              JOIN afolders folder ON folder.id = f.folder_id
-             LEFT JOIN dam_file_workflow workflow ON workflow.file_id = f.id
+             JOIN dam_file_workflow workflow ON workflow.file_id = f.id
              WHERE COALESCE(f.file_type, 0) IN (1, 2, 3)
                AND f.id NOT IN (
                    SELECT live_photo_video_id
                    FROM afiles
                    WHERE live_photo_video_id IS NOT NULL
                )
-               AND (?1 = 'all' OR COALESCE(workflow.status, 'inbox') = ?1)
+               AND (?1 = 'all' OR workflow.status = ?1)
                AND (?2 = 1 OR NOT EXISTS(
                    SELECT 1 FROM dam_ai_suggestions previous WHERE previous.file_id = f.id
                ))

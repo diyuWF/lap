@@ -43,7 +43,7 @@
   },
   "album": {
     "album_list": "Albums",
-    "smart_album_list": "Smart albums",
+    "smart_album_list": "AI Classification",
     "add_smart_album": "Add smart album",
     "folder_unavailable": {
       "title": "Folder unavailable",
@@ -1057,7 +1057,7 @@
       "unknown": "unknown"
     },
     "workflow": {
-      "inbox": "Inbox",
+      "inbox": "AI classification queue",
       "reviewed": "Reviewed",
       "selected": "Selected",
       "archived": "Archived"
@@ -1086,8 +1086,12 @@
       "complete": "AI analysis complete"
     },
     "inbox": {
-      "title": "AI Inbox workspace",
-      "subtitle": "Let AI propose destinations from existing folders, then let Lap move assets only after confirmation.",
+      "title": "AI Classification workspace",
+      "subtitle": "Browser captures collect here silently; generate classification plans when you are ready.",
+      "collection_title": "Unclassified assets",
+      "collection_hint": "Silent browser collection",
+      "collection_description": "Images dropped on AI Classification are collected here without calling a model. Run one-click classification after you finish gathering them.",
+      "one_click_classify": "One-click AI classification ({count})",
       "organization_scope": "Organization scope",
       "scope_folder": "Limit to one root folder",
       "scope_folder_hint": "Match only this folder and its children",

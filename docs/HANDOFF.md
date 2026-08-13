@@ -70,19 +70,20 @@ The PR is intentionally kept Draft until manual validation is complete.
 
 Latest packaged candidate commit:
 
-`9894a4d1e0b568467cef391c44cfc348f61b661f`
+`94ab32584c46c28ee431f05ced9d62be6709310b`
 
 Automated validation:
 
-- PASS — PR Build #79
-- PASS — Chat Validation Package #24
-- PASS — artifact `Lap-0.4.1-Chat-Delivery-24`
+- PASS — PR Build #80
+- PASS — Chat Validation Package #25
+- PASS — artifact `Lap-0.4.1-Chat-Delivery-25`
 
 That package contains the cumulative-path browser capture, native reference-board
 drag-out correction, instrument-control radial, real folder-cover data path,
-the restored complete SQLite source, and the first hierarchical AI-radial
-implementation. Manual feedback on that package found three focused extension
-defects; the working branch requires a fresh PR build plus Windows package.
+the restored complete SQLite source, hierarchical AI-radial navigation, and
+first-install Token pairing. Manual feedback found another focused hierarchy,
+AI-collection, and silent-save correction; the working branch requires a fresh
+PR build plus Windows package.
 The Windows chat-delivery workflow now runs for every opened, synchronized, or
 reopened PR update so each focused modification produces a matching installer
 and browser-extension package automatically.
@@ -142,14 +143,16 @@ Windows validation-package build before that package is used for manual testing.
 
 Current state:
 
-`BLOCKED — EXTENSION RADIAL/PAIRING FOLLOW-UP AWAITING FRESH PACKAGE`
+`BLOCKED — HIERARCHY/AI COLLECTION/SILENT SAVE FOLLOW-UP AWAITING FRESH PACKAGE`
 
 Reason:
 
-`Lap-0.4.1-Chat-Delivery-24` passed its automated checks. Manual feedback found
-that the AI center could still be absent, native drag hover over a parent did not
-reliably reveal its direct children, and a fresh extension install did not open
-Token pairing automatically.
+`Lap-0.4.1-Chat-Delivery-25` passed its automated checks. Manual feedback found
+that a stationary pointer could immediately hit a newly rendered back/child
+control and bounce between hierarchy levels, child levels lacked an explicit
+save-to-current-parent action, AI-center captures were analyzed too early and
+were difficult to find in the desktop app, and saving still displayed a blocking
+in-page status surface.
 
 Focused fixes are implemented in the working branch:
 
@@ -162,14 +165,16 @@ Focused fixes are implemented in the working branch:
 - the dial uses the selected source hierarchy: a full radial tick ring, one thin
   inner orbit, and one restrained bronze partial arc rather than a solid disc;
 - the center always uses the purpose-built transparent Lap AI mark and the single
-  label “AI 分类”; without a configured provider the capture still enters the
-  inbox and reports that AI did not start, while a ready provider starts the
-  existing background classification path;
+  label “AI 分类”; a drop silently enters the logical AI classification queue
+  with `autoClassify: false` and never calls a model during browser capture;
 - the first radial level contains top-level folders only; descendants and recent
   paths can no longer leak into that level;
 - dropping on, clicking, or dwelling 360 ms over a parent opens only that
-  parent's direct children; dwell detection now uses document-level hit testing
-  so moving across a cover, icon, or label cannot cancel the timer;
+  parent's direct children; dwell detection uses document-level hit testing and
+  a post-navigation pointer lock, so the stationary cursor cannot immediately
+  activate a newly rendered back/child control and bounce to another level;
+- every child level contains a dedicated “保存到 {current folder}” target in
+  addition to its direct children, “返回上级”, and “创建目录”;
 - nested levels never render their parent or unrelated root siblings alongside
   the children; “创建目录” remains available and preselects the current parent;
 - visible folders plus “创建目录” are circular controls distributed evenly around
@@ -186,9 +191,14 @@ Focused fixes are implemented in the working branch:
 - dropping on an existing directory saves immediately without the removed
   confirmation modal and marks the asset workflow as `selected`;
 - AI-center captures retain the logical `inbox` workflow and set
-  `autoClassify: true`; the local service immediately queues the first enabled,
-  keyed provider to generate tags and an existing-folder suggestion in the
-  background;
+  `autoClassify: false`; collected assets remain visible until the user opens the
+  desktop “AI 分类” workspace and starts one-click plan generation;
+- the old “智能相册” navigation slot is now the AI classification collection;
+  it shows queued count, candidate thumbnails, configured provider/scope, and
+  the existing review-before-move plan executor directly in the main stage;
+- candidate assets are preselected when the workspace opens, so its one-click
+  action analyzes the current queue while folder moves still require explicit
+  confirmation;
 - automatic classification never silently moves the asset: folder output remains
   a reviewable suggestion and existing provider confidence/auto-tag rules stay in
   force;
@@ -197,8 +207,11 @@ Focused fixes are implemented in the working branch:
   saves the current image;
 - the authenticated localhost API now supports `POST /folders`; parent directories
   must already exist in Lap and invalid or Windows-reserved names are rejected;
-- toolbar fallback copy no longer exposes “保存到待整理区域”; its “AI 分类” option
-  is also conditional on the configured AI state.
+- ordinary folder and AI-center drops remove the overlay immediately and hand
+  the request to the extension service worker; no “正在保存” or success toast is
+  shown in the page. Failures are logged without interrupting the webpage.
+- the local capture service reuses a pooled HTTP client and performs the final
+  file write asynchronously, reducing repeated-connection and blocking-I/O cost.
 - a first-time extension install immediately opens the existing setup page so
   local Lap detection and Token pairing are the first visible task; updates do
   not reopen it.
@@ -289,10 +302,11 @@ one third of browser width. Verify the page is dimmed/blurred only after that
 threshold and the precision dial remains fixed at the viewport center. Its tick
 ring, inner orbit, bronze arc, and circular directory controls must remain crisp.
 The AI center must always contain only the dedicated Lap AI mark and “AI 分类”.
-Without a configured provider it must safely save to the inbox and say that AI
-did not start; with a ready provider it must report that background classification
-started and must not move the asset without the existing review flow. The first level must show only
-roots; activating a parent must show only its direct children plus navigation.
+It must silently collect with `workflowStatus: inbox` and `autoClassify: false`;
+no provider call or page-level saving toast may occur. The first level must show
+only roots; activating a parent must show its direct children, an explicit
+save-to-current-parent action, and navigation. A stationary cursor must not make
+the new level bounce back; the pointer must move before another dwell begins.
 Empty
 folders must show the folder icon, populated folders must show their first image
 as a circular cover, and unavailable covers must fall back to the icon. Small or
@@ -311,14 +325,14 @@ inside it and place them at the drop location. Confirm always-on-top, frameless
 window controls, pan, 5%–3200% zoom, Fit All, 100%, image movement, Delete
 removal, external file drops, and an empty board after close/recreate.
 
-### AI pending-area organization
+### AI classification collection and organization
 
 The organizer has two explicit scopes:
 
 - `within_folder`: a selected root folder and all of its existing descendants;
 - `library`: all existing folders in the current library.
 
-Inbox/待整理 folders are excluded as destinations. Folder candidates are capped
+The logical AI classification queue is excluded as a destination. Folder candidates are capped
 at 800 and a single batch is capped at 200 assets. Suggestions persist as folder
 plans and must be confirmed before execution. The executor rejects missing assets,
 deleted destinations, and stale or malformed suggestion IDs. It does not create

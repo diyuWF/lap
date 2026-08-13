@@ -43,7 +43,7 @@
   },
   "album": {
     "album_list": "相册",
-    "smart_album_list": "智能相册",
+    "smart_album_list": "AI 分类",
     "add_smart_album": "添加智能相册",
     "folder_unavailable": {
       "title": "无法访问文件夹",
@@ -1057,7 +1057,7 @@
       "unknown": "未知"
     },
     "workflow": {
-      "inbox": "待整理",
+      "inbox": "AI 分类收纳",
       "reviewed": "已审核",
       "selected": "已选用",
       "archived": "已归档"
@@ -1086,8 +1086,12 @@
       "complete": "AI 分析完成"
     },
     "inbox": {
-      "title": "AI 待整理工作台",
-      "subtitle": "让 AI 在已有目录中生成分类方案，确认后再由 Lap 安全移动素材。",
+      "title": "AI 分类工作台",
+      "subtitle": "浏览器采集先静默收纳到这里，准备好后再一键生成分类方案。",
+      "collection_title": "待分类素材",
+      "collection_hint": "浏览器静默收纳",
+      "collection_description": "从浏览器拖到“AI 分类”的图片会先进入这里，不会立即调用模型。确认素材找齐后再一键分类。",
+      "one_click_classify": "一键 AI 分类（{count}）",
       "organization_scope": "整理范围",
       "scope_folder": "限定大文件夹",
       "scope_folder_hint": "只匹配所选目录及其子文件夹",

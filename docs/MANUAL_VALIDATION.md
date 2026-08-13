@@ -12,18 +12,18 @@ Manual feedback baseline commit: `d541af4f97cea3cd069ece8139324cb18b11d809`
 
 Manual feedback baseline package: `Lap-0.4.1-Chat-Delivery-12`
 
-Latest packaged candidate commit: `9894a4d1e0b568467cef391c44cfc348f61b661f`
+Latest packaged candidate commit: `94ab32584c46c28ee431f05ced9d62be6709310b`
 
-Latest packaged candidate: `Lap-0.4.1-Chat-Delivery-24`
+Latest packaged candidate: `Lap-0.4.1-Chat-Delivery-25`
 
-Next implementation commit: pending AI-center, parent-dwell, and install-pairing correction
+Next implementation commit: pending hierarchy-lock, AI-collection, and silent-save correction
 
 Next candidate package: pending fresh GitHub build
 
 Automated gate:
 
-- PASS — PR Build #79
-- PASS — Chat Validation Package #24
+- PASS — PR Build #80
+- PASS — Chat Validation Package #25
 
 Environment: Windows desktop application and Chromium browser extension; Pinterest image detail page
 
@@ -115,7 +115,7 @@ Functions:
 - [ ] Page title saved
 - [ ] Duplicate handling works
 
-Result: FAILED — package 24 exposed three focused extension defects; fixes await a fresh package
+Result: FAILED — package 25 exposed hierarchy bounce, missing current-folder save, and non-silent capture; fixes await a fresh package
 
 Evidence:
 
@@ -127,10 +127,14 @@ Evidence:
 - Small/lazy-loaded thumbnails do not reliably begin drag capture.
 - The extension points to an App Token location that does not exist in the current Advanced settings screen.
 - The extension does not use the official Lap icon.
-- Package 24 can omit the center “AI 分类” action.
-- Native drag hover over a parent such as `lap资源` does not reliably replace the
-  root level with its direct children.
-- A first extension install does not automatically open the Token pairing page.
+- After a parent level opens, the unchanged pointer position can hit a newly
+  rendered control and repeatedly bounce back to the root level.
+- A child level does not offer “save directly into the current parent” alongside
+  its child folders.
+- AI-center drops immediately trigger AI instead of collecting material for a
+  later manual one-click run, and the desktop “智能相册” does not expose that queue.
+- Saving displays an in-page “正在保存” surface and keeps the webpage blocked until
+  the local download finishes.
 
 Issues:
 
@@ -143,14 +147,15 @@ Issues:
   displacement or the shorter viewport side.
 - After the threshold, one instrument-like circular menu must dim/blur the page
   and stay fixed at the exact viewport center.
-- The center always contains only the dedicated Lap AI mark and “AI 分类”. With no
-  provider it saves safely to the inbox and says AI did not start; with an enabled
-  keyed provider a drop there immediately queues background analysis.
+- The center always contains only the dedicated Lap AI mark and “AI 分类”. A drop
+  must collect with `workflowStatus: inbox` and `autoClassify: false`; AI starts
+  only after the user opens the desktop AI classification workspace.
 - Folder destinations and “创建目录” must be circular controls distributed around
   the inner orbit according to the available destination count.
 - The first level must contain only root folders. A parent activation must replace
-  that level with only its direct children plus “返回上级” and “创建目录”; parents,
-  descendants from deeper levels, and unrelated roots must never be mixed.
+  that level with its direct children plus “保存到当前文件夹”, “返回上级”, and
+  “创建目录”; unrelated roots and deeper descendants must never be mixed. A
+  stationary pointer must not activate the newly rendered level.
 - Empty folders must show a folder icon; populated folders must show the first
   image as a circular thumbnail and fall back safely if the thumbnail is missing.
 - Dropping on an existing radial folder should save immediately with no
@@ -254,6 +259,7 @@ Issues:
 | LAP-VAL-018 | The transparent-ring candidate still did not follow the selected precision-instrument reference and could not visually distinguish populated folders from empty folders. | High | Replaced by an instrument tick/orbit/bronze-arc dial, full-orbit circular controls, and authenticated first-image folder covers; cloud-browser visual QA passed, awaiting packaged manual validation |
 | LAP-VAL-019 | The AI center lacked a dedicated mark and did not start classification directly; root and descendant folders were rendered together instead of opening one hierarchy level at a time. | High | Replaced by an original AI center asset, background AI queueing, and root/direct-child radial navigation; cloud-browser interaction and visual QA passed, awaiting packaged manual validation |
 | LAP-VAL-020 | Package 24 could hide the AI center, parent dwell depended on unstable child drag events, and first install did not open Token pairing. | High | AI center is now always available, document-level dwell opens direct children, and `onInstalled: install` opens setup; deterministic extension tests pass, awaiting packaged Chromium validation |
+| LAP-VAL-021 | Package 25 can bounce between radial levels, cannot save directly to the current parent, auto-runs AI before collection is complete, hides the queue behind Smart Albums, and blocks the page with saving status. | High | Pointer-lock hierarchy, current-folder target, `autoClassify: false`, embedded AI classification collection, silent background capture, pooled HTTP client, and async write implemented; awaiting fresh package |
 
 ## 5.2 Browser radial classification follow-up
 
@@ -275,14 +281,21 @@ Drag intent:
 - [ ] The first level contains top-level folders only
 - [ ] A child folder is absent until its parent is activated
 - [ ] Dropping on or dwelling over a parent opens only its direct children
+- [ ] Keeping the pointer stationary after navigation does not bounce to another level
+- [ ] Moving the pointer after navigation allows the next intended dwell
+- [ ] Every child level includes “保存到 {current folder}”
 - [ ] Parent and unrelated root siblings are absent from a child level
 - [ ] “返回上级” restores the immediately preceding level
 - [ ] Deeper descendants appear only after activating their direct parent
 
-Without an AI provider configured:
+AI classification collection:
 
 - [ ] Center “AI 分类” is visible with the dedicated Lap AI mark
-- [ ] Dropping there saves to the inbox without claiming AI started
+- [ ] Dropping there closes the overlay immediately with no save/success toast
+- [ ] Capture uses `workflowStatus: inbox` and `autoClassify: false`
+- [ ] The desktop sidebar label is “AI 分类”, not “智能相册”
+- [ ] Opening it shows the collected images and their thumbnails
+- [ ] Collected items are selected by default
 - [ ] Existing directory targets remain usable
 - [ ] “创建目录” is present
 
@@ -291,8 +304,9 @@ With an enabled AI provider and stored API key:
 - [ ] Center “AI 分类” card appears
 - [ ] Center contains the dedicated Lap AI mark and “AI 分类”
 - [ ] Dropping on “AI 分类” saves with workflow status `inbox`
-- [ ] The capture request sets `autoClassify: true`
-- [ ] Lap immediately starts background analysis with the enabled keyed provider
+- [ ] The capture request sets `autoClassify: false`
+- [ ] Lap does not call the provider until “一键 AI 分类” is clicked
+- [ ] Clicking “一键 AI 分类” generates plans for the collected queue
 - [ ] AI produces tag metadata and, when destinations exist, an existing-folder suggestion
 - [ ] The AI center does not move the file without the existing review/confirmation flow
 - [ ] Dropping on an existing directory saves immediately with status `selected`
@@ -309,21 +323,15 @@ Create-directory path:
 
 Result:
 
-Evidence: Cloud-browser QA passed at 1363 × 936 using the production extension
-code. The initial state contained only `lap资源`, `风景摄影`, and “创建目录”.
-Activating `lap资源` replaced both roots with only “返回上级”, child `1`, and
-“创建目录”; activating `1` then showed only its direct children `三渲二` and
-`写实`. The AI center remained visible with the original AI mark. A real center
-drop sent `workflowStatus: inbox` plus `autoClassify: true` and returned the
-background-classification success state. Packaged Chromium validation is still
-required.
+Evidence: the focused local regression suite now verifies the new contracts;
+packaged Chromium validation is still required.
 
-Current follow-up evidence: the committed Happy DOM suite passes four tests across three contracts:
-the center remains visible and emits `workflowStatus: inbox` plus
-`autoClassify: true`; document-level dwell over the cover/icon of `lap资源` shows
-only child `1`, then shows only `三渲二` and `写实`; and first install opens options
-while update does not. Cloud-browser recapture was blocked by the preview bridge,
-so current visual QA remains blocked rather than being reported as passed.
+Current follow-up evidence: the committed Happy DOM suite passes five tests. It
+verifies `workflowStatus: inbox` plus `autoClassify: false`, immediate overlay
+removal with no capture toast, a stationary-pointer navigation lock, direct save
+to the current parent, direct-child traversal, and first-install pairing. Frontend
+strict i18n audit and production Vite build pass. Cloud-browser recapture remains
+blocked by the preview bridge, so visual QA is not reported as passed.
 
 First-install pairing:
 
@@ -394,7 +402,7 @@ Whole-library mode:
 - [ ] Generate plans without a selected root
 - [ ] AI can select suitable existing folders under either top-level folder
 - [ ] AI cannot invent a folder that does not exist
-- [ ] Inbox/待整理 is not offered as a destination
+- [ ] The AI classification queue is not offered as a destination
 
 Review and execution:
 

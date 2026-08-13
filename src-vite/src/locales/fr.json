@@ -43,7 +43,7 @@
   },
   "album": {
     "album_list": "Albums",
-    "smart_album_list": "Albums intelligents",
+    "smart_album_list": "Classement IA",
     "add_smart_album": "Ajouter un album intelligent",
     "folder_unavailable": {
       "title": "Dossier indisponible",

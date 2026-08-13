@@ -117,6 +117,8 @@
                 :is="activeSidebarButton.component"
                 :titlebar="activeSidebarButton.text"
                 v-bind="activeSidebarButton.props || {}"
+                @run-ai-classification="runAiClassification"
+                @refresh-ai-classification="refreshAiClassification"
               />
             </div>
             <div
@@ -157,7 +159,15 @@
         ]"
       >
         <!-- <MapHeatmapView v-if="config.main.sidebarIndex === SIDEBAR.MAP" /> -->
-        <Content ref="contentRef" :key="libraryVersion" :titlebar="activeSidebarButton.text" :libraryEmpty="libraryEmpty"/>
+        <AiInboxWorkbench
+          v-if="config.main.sidebarIndex === SIDEBAR.SMART_ALBUM"
+          ref="aiInboxWorkbenchRef"
+          :key="`ai-inbox-${libraryVersion}`"
+          embedded
+          @open-review="showAiReviewQueue = true"
+          @queue-updated="handleAiQueueUpdated"
+        />
+        <Content v-else ref="contentRef" :key="libraryVersion" :titlebar="activeSidebarButton.text" :libraryEmpty="libraryEmpty"/>
       </div>
     </div>
 
@@ -173,6 +183,7 @@
       @updated="onManageLibrariesUpdated"
       @cancel="showManageLibraries = false"
     />
+    <AiReviewQueue v-if="showAiReviewQueue" @close="showAiReviewQueue = false" />
   </div>
 
 </template>
@@ -194,7 +205,9 @@ import { getAppConfig, switchLibrary, cancelIndexing, cancelFaceIndex } from '@/
 
 // vue components
 import AlbumList from '@/components/AlbumList.vue';
-import SmartAlbumList from '@/components/SmartAlbumList.vue';
+import AiClassificationList from '@/components/AiClassificationList.vue';
+import AiInboxWorkbench from '@/components/AiInboxWorkbench.vue';
+import AiReviewQueue from '@/components/AiReviewQueue.vue';
 import ImageSearch from '@/components/ImageSearch.vue';
 import Tag from '@/components/Tag.vue';
 import Calendar from '@/components/Calendar.vue';
@@ -218,7 +231,7 @@ import {
   IconArrowDown,
   IconCalendarDay,
   IconFolders,
-  IconFolderCog
+  IconSparkles
 } from '@/common/icons';
 
 const isSwitchingLibrary = ref(false);
@@ -248,6 +261,7 @@ const uiStore = useUIStore();
 // Panel component ref
 const panelRef = ref<any>(null);
 const contentRef = ref<any>(null);
+const aiInboxWorkbenchRef = ref<any>(null);
 const leftPanelRootRef = ref<HTMLElement | null>(null);
 const showPanel = ref(true);
 const LEFT_PANEL_ANIMATION_MS = 200;
@@ -318,6 +332,7 @@ const currentLibrary = computed(() =>
 
 // Manage Libraries dialog state
 const showManageLibraries = ref(false);
+const showAiReviewQueue = ref(false);
 const showDesktopTitleBar = isWin || isLinux;
 
 /// Splitter for resizing the left pane
@@ -348,7 +363,7 @@ const {
 // buttons
 const buttons = computed(() =>  [
   { index: SIDEBAR.ALBUM, icon: IconFolders, component: AlbumList, text: localeMsg.value.sidebar.album, props: { selectionSource: 'album' } },
-  { index: SIDEBAR.SMART_ALBUM, icon: IconFolderCog, component: SmartAlbumList, text: localeMsg.value.album.smart_album_list },
+  { index: SIDEBAR.SMART_ALBUM, icon: IconSparkles, component: AiClassificationList, text: localeMsg.value.album.smart_album_list },
   { index: SIDEBAR.SEARCH, icon: IconSearch, component: ImageSearch, text: localeMsg.value.sidebar.search },
   { index: SIDEBAR.CALENDAR, icon: IconCalendarDay, component: Calendar, text: localeMsg.value.sidebar.calendar },
   { index: SIDEBAR.TAG, icon: IconTag, component: Tag, text: localeMsg.value.sidebar.tag },
@@ -378,6 +393,20 @@ const visibleButtons = computed(() =>
     .filter(item => !item.hidden)
     .sort((a, b) => a.index - b.index)
 );
+
+async function refreshAiClassification() {
+  await aiInboxWorkbenchRef.value?.refreshAll?.();
+  await panelRef.value?.refreshCount?.();
+}
+
+async function runAiClassification() {
+  await nextTick();
+  await aiInboxWorkbenchRef.value?.runAllCandidates?.();
+}
+
+function handleAiQueueUpdated() {
+  void panelRef.value?.refreshCount?.();
+}
 
 watch(
   () => config.main.sidebarIndex,

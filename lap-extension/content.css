@@ -260,6 +260,18 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
+.lap-capture-radial-item.is-current-folder {
+  border-color: rgba(211, 170, 121, 0.9);
+  background: rgba(224, 197, 165, 0.97);
+  box-shadow:
+    0 0 0 4px rgba(154, 107, 63, 0.12),
+    0 16px 36px rgba(0, 0, 0, 0.28);
+}
+
+.lap-capture-radial-item.is-current-folder strong {
+  color: #30251c;
+}
+
 .lap-capture-radial-item.has-children {
   border-color: rgba(181, 133, 82, 0.9);
   box-shadow:
@@ -322,62 +334,6 @@
 .lap-capture-radial-item:focus-visible {
   outline: 2px solid rgba(224, 190, 148, 0.96);
   outline-offset: 4px;
-}
-
-.lap-capture-toast {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  z-index: 5;
-  display: grid;
-  width: 280px;
-  min-height: 66px;
-  align-content: center;
-  gap: 2px;
-  padding: 13px 16px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.11);
-  border-radius: 18px;
-  background: rgba(27, 28, 33, 0.96);
-  box-shadow:
-    -12px 14px 38px rgba(91, 55, 255, 0.13),
-    12px -8px 34px rgba(239, 111, 57, 0.08),
-    0 18px 46px rgba(0, 0, 0, 0.42);
-  color: #f3f4f6;
-  pointer-events: none;
-  transform: translate(-50%, -50%);
-  animation: lapIntentRailIn 180ms ease-out both;
-}
-
-.lap-capture-toast.is-saving {
-  border-color: rgba(155, 131, 255, 0.32);
-}
-
-.lap-capture-toast.is-success {
-  border-color: rgba(85, 212, 138, 0.36);
-}
-
-.lap-capture-toast.is-error {
-  border-color: rgba(241, 111, 121, 0.4);
-}
-
-.lap-capture-toast strong,
-.lap-capture-toast span {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.lap-capture-toast strong {
-  color: #fff;
-  font-size: 13px;
-  font-weight: 730;
-}
-
-.lap-capture-toast span {
-  color: #999da8;
-  font-size: 10px;
 }
 
 @keyframes lapIntentRailIn {
