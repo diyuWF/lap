@@ -1,11 +1,11 @@
 <template>
-  <div class="w-screen h-screen flex flex-col bg-base-300 text-base-content/70 overflow-hidden">
+  <div class="lap-app-shell w-screen h-screen flex flex-col bg-base-300 text-base-content/70 overflow-hidden">
     <!-- Title Bar -->
     <TitleBar :titlebar="$t('sidebar.settings')" :resizable="false" viewName="Settings" class="shrink-0 z-50" />
 
     <div class="flex flex-1 overflow-hidden relative">
       <!-- Sidebar -->
-      <div class="w-40 m-1 p-2 bg-base-200/30 flex flex-col rounded-box overflow-y-auto shrink-0 select-none">
+      <div class="lap-settings-sidebar w-40 m-1 p-2 bg-base-200/30 flex flex-col rounded-box overflow-y-auto shrink-0 select-none">
         <div
           v-for="(tab, index) in settingsTabs"
           :key="index"
@@ -22,7 +22,7 @@
       </div>
 
       <!-- Main Content -->
-      <div class="p-2 mr-1 mb-2 flex-1 overflow-y-auto scrollbar-hide bg-base-300 cursor-default select-none">
+      <div class="lap-settings-content p-2 mr-1 mb-2 flex-1 overflow-y-auto scrollbar-hide bg-base-300 cursor-default select-none">
           
         <!-- General Tab -->
         <div v-if="config.settings.tabIndex === 0" class="flex flex-col space-y-2">
@@ -35,7 +35,7 @@
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.general.select_language') }}</div>
-                <div v-if="config.settings.language !== 'en'" class="text-xs text-base-content/30">Select language</div>
+                <div class="text-xs text-base-content/30">{{ $t('settings.general.language_hint') }}</div>
               </div>
               <select class="select  select-bordered select-sm min-w-32" v-model="config.settings.language">
                 <option v-for="(lang, index) in languages" :key="index" :value="lang.value">{{ lang.label }}</option>
@@ -578,6 +578,81 @@
             </div>
           </div>
 
+          <!-- browser capture -->
+          <div class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">
+            <div class="flex items-center justify-between gap-2 text-base-content/30">
+              <span class="font-bold uppercase text-[10px] tracking-widest">{{ $t('settings.advanced.section_browser_capture') }}</span>
+              <span class="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-semibold text-success">
+                {{ $t('settings.advanced.browser_capture_local_only') }}
+              </span>
+            </div>
+            <div class="px-1 text-xs leading-5 text-base-content/45">
+              {{ $t('settings.advanced.browser_capture_hint') }}
+            </div>
+            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.advanced.browser_capture_address') }}</div>
+                <div class="truncate font-mono text-xs text-base-content/40" :title="captureServerInfo?.baseUrl || ''">
+                  {{ captureServerInfo?.baseUrl || (captureLoading ? $t('tooltip.loading') : '-') }}
+                </div>
+              </div>
+              <button
+                class="btn btn-sm btn-ghost shrink-0 rounded-box bg-base-100 border border-base-content/30"
+                :disabled="captureLoading || !captureServerInfo?.baseUrl"
+                @click="copyCaptureValue('address')"
+              >
+                {{ copiedCaptureField === 'address' ? $t('settings.advanced.browser_capture_copied') : $t('settings.advanced.browser_capture_copy_address') }}
+              </button>
+            </div>
+            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.advanced.browser_capture_token') }}</div>
+                <div class="truncate font-mono text-xs tracking-widest text-base-content/40">
+                  {{ captureTokenPreview }}
+                </div>
+              </div>
+              <button
+                class="btn btn-sm btn-primary shrink-0 rounded-box"
+                :disabled="captureLoading || !captureServerInfo?.token"
+                @click="copyCaptureValue('token')"
+              >
+                {{ copiedCaptureField === 'token' ? $t('settings.advanced.browser_capture_copied') : $t('settings.advanced.browser_capture_copy_token') }}
+              </button>
+            </div>
+            <div v-if="captureServerError" class="px-1 text-xs text-error">
+              {{ $t('settings.advanced.browser_capture_unavailable') }}
+              <button class="ml-2 underline" type="button" @click="loadCaptureServerInfo">{{ $t('settings.advanced.browser_capture_retry') }}</button>
+            </div>
+          </div>
+
+          <!-- online AI -->
+          <div class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">
+            <div class="flex items-center gap-2 text-base-content/30">
+              <span class="font-bold uppercase text-[10px] tracking-widest">{{ $t('settings.advanced.section_ai_organization') }}</span>
+            </div>
+            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.advanced.online_ai_title') }}</div>
+                <div class="text-xs text-base-content/30">{{ $t('settings.advanced.online_ai_hint') }}</div>
+              </div>
+              <button class="btn btn-sm btn-ghost rounded-box bg-base-100 border border-base-content/30" @click="showOnlineAiManager = true">{{ $t('settings.advanced.manage_services') }}</button>
+            </div>
+            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.advanced.ai_review_title') }}</div>
+                <div class="text-xs text-base-content/30">{{ $t('settings.advanced.ai_review_hint') }}</div>
+              </div>
+              <button class="btn btn-sm btn-ghost rounded-box bg-base-100 border border-base-content/30" @click="showAiReviewQueue = true">{{ $t('settings.advanced.open_queue') }}</button>
+            </div>
+            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
+              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">
+                <div>{{ $t('settings.advanced.ai_batch_title') }}</div>
+                <div class="text-xs text-base-content/30">{{ $t('settings.advanced.ai_batch_hint') }}</div>
+              </div>
+              <button class="btn btn-sm btn-primary rounded-box" @click="showAiInboxWorkbench = true">{{ $t('settings.advanced.start_organizing') }}</button>
+            </div>
+          </div>
+
           <!-- diagnostics -->
           <div class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">
             <div class="flex items-center gap-2 text-base-content/30">
@@ -599,6 +674,14 @@
 
       </div>
     </div>
+
+    <OnlineAiManager v-if="showOnlineAiManager" @close="showOnlineAiManager = false" />
+    <AiReviewQueue v-if="showAiReviewQueue" @close="showAiReviewQueue = false" />
+    <AiInboxWorkbench
+      v-if="showAiInboxWorkbench"
+      @close="showAiInboxWorkbench = false"
+      @open-review="openAiReviewFromInbox"
+    />
 
     <MessageBox
       v-if="showChangeDbStorageDialog"
@@ -639,7 +722,7 @@
 import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
 import { LogicalSize } from '@tauri-apps/api/dpi';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { emit } from '@tauri-apps/api/event';
+import { emit as tauriEmit } from '@tauri-apps/api/event';
 import { ask, open as openDialog } from '@tauri-apps/plugin-dialog';
 import { useI18n } from 'vue-i18n';
 import { config, libConfig } from '@/common/config';
@@ -657,7 +740,8 @@ import {
   cancelMultilingualImageSearchModelDownload,
   listenImageSearchModelDownloadProgress,
 } from '@/common/api';
-import { formatFileSize, isLinux, isMac, setTheme, SCALE_VALUES } from '@/common/utils';
+import { getCaptureServerInfo } from '@/common/dam-api';
+import { formatFileSize, isLinux, isMac, isTauriRuntime, setTheme, SCALE_VALUES } from '@/common/utils';
 import { getShortcutLabels, ShortcutActionId, ShortcutPlatform } from '@/common/shortcuts';
 import { useToast } from '@/common/toast';
 import { IconTrash, IconRestore, IconClose } from '@/common/icons';
@@ -667,11 +751,14 @@ import SettingsAbout from '@/components/SettingsAbout.vue';
 import MessageBox from '@/components/MessageBox.vue';
 import BackupDialog from '@/components/BackupDialog.vue';
 import RestoreDialog from '@/components/RestoreDialog.vue';
+import OnlineAiManager from '@/components/OnlineAiManager.vue';
+import AiReviewQueue from '@/components/AiReviewQueue.vue';
+import AiInboxWorkbench from '@/components/AiInboxWorkbench.vue';
 import TButton from '@/components/TButton.vue';
 
 /// i18n
-const { locale, messages } = useI18n();
-const localeMsg = computed(() => messages.value[config.settings.language] as any);
+const { t, locale, messages } = useI18n();
+const localeMsg = computed(() => (messages.value[config.settings.language] || messages.value.en) as any);
 const toast = useToast();
 const shortcutPlatform: ShortcutPlatform = isMac ? 'mac' : (isLinux ? 'linux' : 'windows');
 const settingsTabs = [
@@ -685,7 +772,15 @@ const settingsTabs = [
   'settings.about.title',
 ];
 
-const appWindow = getCurrentWebviewWindow()
+const browserPreviewWindow = {
+  label: 'browser-preview',
+  show: async () => {},
+  close: async () => {},
+  setMinSize: async () => {},
+  setSize: async () => {},
+};
+const appWindow = isTauriRuntime ? getCurrentWebviewWindow() : browserPreviewWindow;
+const emit = isTauriRuntime ? tauriEmit : async () => {};
 let gridSizeEmitTimer: number | null = null;
 const SETTINGS_BASE_WIDTH = 600;
 const SETTINGS_BASE_HEIGHT = 620;
@@ -696,17 +791,30 @@ const showChangeDbStorageDialog = ref(false);
 const showResetDbStorageDialog = ref(false);
 const showBackupDialog = ref(false);
 const showRestoreDialog = ref(false);
+const showOnlineAiManager = ref(false);
+const showAiReviewQueue = ref(false);
+const showAiInboxWorkbench = ref(false);
 const isDownloadingMultilingualModel = ref(false);
 const isCancelingMultilingualModelDownload = ref(false);
 const multilingualModelDownloadProgress = ref(0);
 const multilingualModelDownloadedBytes = ref(0);
 const multilingualModelTotalBytes = ref(0);
 const isMultilingualModelAvailable = ref(false);
+const captureLoading = ref(true);
+const captureServerInfo = ref<{ baseUrl: string; token: string; port: number; apiVersion: number } | null>(null);
+const captureServerError = ref('');
+const copiedCaptureField = ref<'address' | 'token' | ''>('');
 let unlistenImageSearchModelDownloadProgress: (() => void) | null = null;
+let copiedCaptureTimer: number | null = null;
 
 const onRestoreDone = () => {
   showRestoreDialog.value = false;
   emit('libraries-changed');
+};
+
+const openAiReviewFromInbox = () => {
+  showAiInboxWorkbench.value = false;
+  showAiReviewQueue.value = true;
 };
 
 const languages = [
@@ -716,10 +824,68 @@ const languages = [
   { label: 'Français', value: 'fr' },
   { label: 'Português', value: 'pt' },
   { label: 'Русский', value: 'ru' },
-  { label: '中文', value: 'zh' },
+  { label: '简体中文', value: 'zh' },
   { label: '日本語', value: 'ja' },
   { label: '한국어', value: 'ko' },
 ];
+
+const captureTokenPreview = computed(() => {
+  if (captureLoading.value) return t('tooltip.loading');
+  if (!captureServerInfo.value?.token) return '-';
+  return `••••••••${captureServerInfo.value.token.slice(-4)}`;
+});
+
+async function loadCaptureServerInfo() {
+  captureLoading.value = true;
+  captureServerError.value = '';
+  try {
+    captureServerInfo.value = await getCaptureServerInfo() as {
+      baseUrl: string;
+      token: string;
+      port: number;
+      apiVersion: number;
+    };
+  } catch (error) {
+    captureServerInfo.value = null;
+    captureServerError.value = String(error);
+  } finally {
+    captureLoading.value = false;
+  }
+}
+
+async function writeClipboardText(value: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const input = document.createElement('textarea');
+  input.value = value;
+  input.style.position = 'fixed';
+  input.style.opacity = '0';
+  document.body.appendChild(input);
+  input.select();
+  const copied = document.execCommand('copy');
+  input.remove();
+  if (!copied) throw new Error('Clipboard is unavailable');
+}
+
+async function copyCaptureValue(field: 'address' | 'token') {
+  const value = field === 'address'
+    ? captureServerInfo.value?.baseUrl
+    : captureServerInfo.value?.token;
+  if (!value) return;
+  try {
+    await writeClipboardText(value);
+    copiedCaptureField.value = field;
+    if (copiedCaptureTimer) window.clearTimeout(copiedCaptureTimer);
+    copiedCaptureTimer = window.setTimeout(() => {
+      copiedCaptureField.value = '';
+      copiedCaptureTimer = null;
+    }, 1600);
+  } catch {
+    toast.error(t('settings.advanced.browser_capture_copy_failed'));
+  }
+}
 
 const appearanceOptions = computed(() => {
   const options = localeMsg.value.settings.general.appearance_options;
@@ -1240,6 +1406,11 @@ onMounted(async () => {
   if (typeof config.settings.imageSearch.model !== 'number') {
     config.settings.imageSearch.model = 0;
   }
+  if (!isTauriRuntime) {
+    applyWindowScale(Number(config.settings.scale || 1));
+    await appWindow.show();
+    return;
+  }
   unlistenImageSearchModelDownloadProgress = await listenImageSearchModelDownloadProgress((event: any) => {
     const progress = Number(event?.payload?.progress ?? 0);
     multilingualModelDownloadProgress.value = Math.max(0, Math.min(100, progress));
@@ -1247,6 +1418,7 @@ onMounted(async () => {
     multilingualModelTotalBytes.value = Math.max(0, Number(event?.payload?.totalBytes ?? 0));
   });
   await syncImageSearchModelStatus();
+  await loadCaptureServerInfo();
   applyWindowScale(Number(config.settings.scale || 1));
   dbStorageDir.value = (await getDbStorageDir()) || '';
   hasCustomDbStorage.value = await isUsingCustomDbStorage();
@@ -1282,6 +1454,10 @@ onUnmounted(() => {
   if (unlistenImageSearchModelDownloadProgress) {
     unlistenImageSearchModelDownloadProgress();
     unlistenImageSearchModelDownloadProgress = null;
+  }
+  if (copiedCaptureTimer) {
+    window.clearTimeout(copiedCaptureTimer);
+    copiedCaptureTimer = null;
   }
   document.documentElement.style.fontSize = '';
   window.removeEventListener('keydown', handleKeyDown);

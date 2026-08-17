@@ -10,12 +10,12 @@
  
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from 'vue';
-import { emit } from '@tauri-apps/api/event';
+import { emit as tauriEmit } from '@tauri-apps/api/event';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { useConfigStore } from '@/stores/configStore';
 import { useLibraryStore } from '@/stores/libraryStore';
 import { clearIndexRecoveryInfo } from '@/common/api';
-import { isMac, setTheme, SCALE_VALUES } from '@/common/utils';
+import { isMac, isTauriRuntime, setTheme, SCALE_VALUES } from '@/common/utils';
 import { matchesShortcut } from '@/common/shortcuts';
 import ToastContainer from '@/components/ToastContainer.vue';
 
@@ -24,6 +24,16 @@ const isReady = ref(false);
 const config = useConfigStore();
 let unlistenMainCloseRequested = null;
 let isHandlingMainClose = false;
+const browserPreviewWindow = {
+  label: 'browser-preview',
+  show: async () => {},
+  hide: async () => {},
+  close: async () => {},
+  onCloseRequested: async () => () => {},
+  listen: async () => () => {},
+};
+const getAppWindow = () => isTauriRuntime ? getCurrentWebviewWindow() : browserPreviewWindow;
+const emit = isTauriRuntime ? tauriEmit : async () => {};
 
 // Auto-save library state when any config changes
 watch(() => libConfig.$state, () => {
@@ -35,7 +45,7 @@ watch(() => libConfig.$state, () => {
 watch(
   () => Number(config.settings.scale || 1),
   (newScale) => {
-    const win = getCurrentWebviewWindow();
+    const win = getAppWindow();
     if (win.label === 'main') {
       applyMainWindowScale(newScale);
     }
@@ -43,7 +53,7 @@ watch(
 );
 
 onMounted(async () => {
-  const win = getCurrentWebviewWindow();
+  const win = getAppWindow();
   if (win.label === 'main') {
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     applyMainWindowScale(Number(config.settings.scale || 1));
@@ -103,7 +113,9 @@ onMounted(async () => {
 
   // Initialize library state from backend
   try {
-    await libConfig.init();
+    if (isTauriRuntime && win.label !== 'referenceboard') {
+      await libConfig.init();
+    }
   } catch (error) {
     console.error('[App] Library initialization failed:', error);
     // Continue anyway - user can retry from UI
@@ -117,7 +129,7 @@ onMounted(async () => {
 });
 
 onUnmounted(async () => {
-  const win = getCurrentWebviewWindow();
+  const win = getAppWindow();
   if (win.label === 'main') {
     window.removeEventListener('keydown', handleKeyDown, { capture: true });
     document.documentElement.style.fontSize = '';
@@ -161,7 +173,7 @@ function applyMainWindowScale(scale) {
 }
 
 function handleMainWindowScaleShortcut(event) {
-  const win = getCurrentWebviewWindow();
+  const win = getAppWindow();
   if (win.label !== 'main') return false;
 
   const isScaleUp = matchesShortcut('app.scale.increase', event);

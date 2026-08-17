@@ -3,7 +3,7 @@
 
     <!-- Dropdown Trigger -->
     <button tabindex="-1"
-      class="px-2 py-1 w-full h-8 flex items-center outline-none rounded-box border transition-colors duration-300 text-sm whitespace-nowrap"
+      class="lap-field-button px-2 py-1 w-full h-8 flex items-center outline-none rounded-box border transition-colors duration-300 text-sm whitespace-nowrap"
       :class="[
         disabled ? 'text-base-content/30 cursor-default' : 'hover:bg-base-100/30 hover:text-base-content cursor-pointer',
         selected ? 'border-primary text-primary' : 'border-base-content/30'
@@ -20,7 +20,7 @@
       <transition name="fade">
         <div v-if="isDropDown"
           ref="menu"
-          class="menu mt-1 text-base-content/70 bg-base-200/80 backdrop-blur-md border border-base-content/30 absolute rounded-box shadow-lg z-500"
+          class="lap-popover menu mt-1 text-base-content/70 bg-base-200/80 backdrop-blur-md border border-base-content/30 absolute rounded-box shadow-lg z-500"
           :style="menuStyle"
         >
           <!-- menu group 1 -->

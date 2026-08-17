@@ -43,7 +43,7 @@
   },
   "album": {
     "album_list": "Álbuns",
-    "smart_album_list": "Álbuns inteligentes",
+    "smart_album_list": "Classificação por IA",
     "add_smart_album": "Adicionar álbum inteligente",
     "folder_unavailable": {
       "title": "Pasta indisponível",

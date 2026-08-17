@@ -4,42 +4,62 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Lap 素材采集器设置</title>
+    <link rel="icon" href="icon.png" />
     <link rel="stylesheet" href="options.css" />
   </head>
   <body>
     <main class="shell">
       <header>
-        <div>
-          <p class="eyebrow">LAP BROWSER CAPTURE</p>
-          <h1>素材采集器设置</h1>
-          <p class="description">连接本机 Lap，设置默认保存目录与采集标签。</p>
+        <div class="brand-heading">
+          <img class="brand-icon" src="icon.png" alt="" />
+          <div>
+            <p class="eyebrow">LAP BROWSER CAPTURE</p>
+            <h1>素材采集器设置</h1>
+            <p class="description">连接本机 Lap，设置工具栏采集的默认目录与标签。首次使用说明请在项目介绍中查看。</p>
+          </div>
         </div>
         <span id="connectionBadge" class="badge offline">未连接</span>
       </header>
 
       <section class="card">
-        <h2>连接</h2>
-        <label>
-          <span>本地服务地址</span>
-          <input id="apiUrl" type="url" value="http://127.0.0.1:47821" />
-        </label>
-        <label>
-          <span>配对 Token</span>
-          <input id="token" type="password" autocomplete="off" placeholder="从 Lap 设置中复制" />
-        </label>
+        <div class="section-heading">
+          <div>
+            <h2>连接本机 Lap</h2>
+            <p>先启动 Lap，再让扩展自动查找本机采集服务。</p>
+          </div>
+          <button id="detectButton" class="detect-button" type="button">自动检测本机 Lap</button>
+        </div>
+        <ol class="connection-steps">
+          <li><span>1</span><strong>启动 Lap 桌面应用</strong></li>
+          <li><span>2</span><strong>点击自动检测</strong></li>
+          <li><span>3</span><strong>仅在提示时粘贴配对 Token</strong></li>
+        </ol>
+        <p class="privacy-note">只检测本机 127.0.0.1:47821，不会把数据上传到网络。</p>
+        <details id="advancedSettings" class="advanced-settings">
+          <summary>高级连接设置</summary>
+          <label>
+            <span>本地服务地址</span>
+            <input id="apiUrl" type="url" value="http://127.0.0.1:47821" />
+          </label>
+          <label>
+            <span>配对 Token</span>
+            <input id="token" type="password" autocomplete="off" placeholder="从 Lap 设置中复制" />
+            <small>在 Lap 的“设置 → 高级 → 浏览器采集”中复制。</small>
+          </label>
+        </details>
         <div class="actions">
-          <button id="testButton" class="secondary">测试连接</button>
+          <button id="testButton" class="secondary">验证配对</button>
           <button id="saveButton" class="primary">保存设置</button>
         </div>
-        <p id="connectionMessage" class="message"></p>
+        <p id="connectionMessage" class="message" aria-live="polite"></p>
       </section>
 
       <section class="card">
         <h2>默认采集规则</h2>
         <label>
-          <span>默认保存目录</span>
+          <span>工具栏默认采集目录</span>
           <select id="folderPath">
-            <option value="">自动选择 Inbox 或第一个可用目录</option>
+            <option value="">自动选择第一个可用目录</option>
           </select>
         </label>
         <label>

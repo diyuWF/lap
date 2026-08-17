@@ -43,7 +43,7 @@
   },
   "album": {
     "album_list": "Альбомы",
-    "smart_album_list": "Смарт-альбомы",
+    "smart_album_list": "Классификация ИИ",
     "add_smart_album": "Добавить смарт-альбом",
     "folder_unavailable": {
       "title": "Папка недоступна",

@@ -6,6 +6,8 @@ const elements = {
   folderPath: document.querySelector('#folderPath'),
   tags: document.querySelector('#tags'),
   allowDuplicate: document.querySelector('#allowDuplicate'),
+  advanced: document.querySelector('#advancedSettings'),
+  detectButton: document.querySelector('#detectButton'),
   testButton: document.querySelector('#testButton'),
   saveButton: document.querySelector('#saveButton'),
   badge: document.querySelector('#connectionBadge'),
@@ -24,13 +26,24 @@ function parseTags(value) {
     .filter((item, index, array) => array.indexOf(item) === index);
 }
 
-function setConnectionState(ok, message) {
-  elements.badge.textContent = ok ? '已连接' : '未连接';
-  elements.badge.classList.toggle('online', ok);
-  elements.badge.classList.toggle('offline', !ok);
+function setConnectionState(state, message) {
+  const online = state === 'online';
+  const detected = state === 'detected';
+  const checking = state === 'checking';
+  elements.badge.textContent = online
+    ? '已连接'
+    : detected
+      ? '已找到 Lap'
+      : checking
+        ? '检测中'
+        : '未连接';
+  elements.badge.classList.toggle('online', online);
+  elements.badge.classList.toggle('detected', detected);
+  elements.badge.classList.toggle('checking', checking);
+  elements.badge.classList.toggle('offline', !online && !detected && !checking);
   elements.message.textContent = message || '';
-  elements.message.classList.toggle('success', ok);
-  elements.message.classList.toggle('error', !ok && Boolean(message));
+  elements.message.classList.toggle('success', online || detected);
+  elements.message.classList.toggle('error', state === 'offline' && Boolean(message));
 }
 
 async function getStoredConfig() {
@@ -40,24 +53,40 @@ async function getStoredConfig() {
     folderPath: '',
     tags: [],
     allowDuplicate: false,
+    pairingOnboarding: false,
   });
 }
 
 async function request(path, config) {
-  const response = await fetch(`${normalizeApiUrl(config.apiUrl)}${path}`, {
-    headers: config.token ? { 'X-Lap-Token': config.token } : {},
-  });
+  let response;
+  try {
+    response = await fetch(`${normalizeApiUrl(config.apiUrl)}${path}`, {
+      headers: config.token ? { 'X-Lap-Token': config.token } : {},
+    });
+  } catch {
+    const error = new Error('未找到本机 Lap。请先启动 Lap 桌面应用，再重新检测。');
+    error.status = 0;
+    throw error;
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data.ok === false) {
-    throw new Error(data.error || `请求失败：HTTP ${response.status}`);
+    const error = new Error(data.error || `请求失败：HTTP ${response.status}`);
+    error.status = response.status;
+    error.data = data;
+    throw error;
   }
   return data;
+}
+
+function isInvalidToken(error) {
+  return error?.status === 401
+    || String(error?.message || '').toLowerCase().includes('invalid pairing token');
 }
 
 async function loadFolders(config) {
   const data = await request('/folders', config);
   const selected = elements.folderPath.value || config.folderPath || '';
-  elements.folderPath.innerHTML = '<option value="">自动选择 Inbox 或第一个可用目录</option>';
+  elements.folderPath.innerHTML = '<option value="">自动选择第一个可用目录</option>';
   for (const folder of data.folders || []) {
     const option = document.createElement('option');
     option.value = folder.path;
@@ -67,21 +96,61 @@ async function loadFolders(config) {
   elements.folderPath.value = selected;
 }
 
+function setBusy(busy) {
+  elements.detectButton.disabled = busy;
+  elements.testButton.disabled = busy;
+}
+
+async function verifyConnection(config) {
+  await request('/health', { ...config, token: '' });
+  if (!config.token) {
+    elements.advanced.open = true;
+    setConnectionState('detected', '已找到本机 Lap。请在高级连接设置中粘贴配对 Token，然后验证配对。');
+    return false;
+  }
+  try {
+    await loadFolders(config);
+  } catch (error) {
+    if (isInvalidToken(error)) {
+      elements.advanced.open = true;
+      setConnectionState('detected', '已找到本机 Lap，但配对 Token 不正确。请从 Lap 设置中重新复制。');
+      return false;
+    }
+    throw error;
+  }
+  setConnectionState('online', '连接成功，已读取 Lap 素材目录。');
+  return true;
+}
+
 async function testConnection() {
   const config = {
     apiUrl: normalizeApiUrl(elements.apiUrl.value),
     token: elements.token.value.trim(),
   };
-  elements.testButton.disabled = true;
-  setConnectionState(false, '正在连接 Lap…');
+  setBusy(true);
+  setConnectionState('checking', '正在检测本机 Lap…');
   try {
-    await request('/health', { ...config, token: '' });
-    await loadFolders(config);
-    setConnectionState(true, '连接成功，已读取 Lap 素材目录。');
+    await verifyConnection(config);
   } catch (error) {
-    setConnectionState(false, error instanceof Error ? error.message : String(error));
+    setConnectionState('offline', error instanceof Error ? error.message : String(error));
   } finally {
-    elements.testButton.disabled = false;
+    setBusy(false);
+  }
+}
+
+async function detectLocalLap() {
+  elements.apiUrl.value = DEFAULT_URL;
+  setBusy(true);
+  setConnectionState('checking', '正在检测本机 Lap…');
+  try {
+    await verifyConnection({
+      apiUrl: DEFAULT_URL,
+      token: elements.token.value.trim(),
+    });
+  } catch (error) {
+    setConnectionState('offline', error instanceof Error ? error.message : String(error));
+  } finally {
+    setBusy(false);
   }
 }
 
@@ -108,12 +177,17 @@ async function initialize() {
   elements.allowDuplicate.checked = Boolean(config.allowDuplicate);
   elements.folderPath.value = config.folderPath || '';
 
-  if (config.token) {
-    await testConnection();
-    elements.folderPath.value = config.folderPath || '';
+  if (config.pairingOnboarding) {
+    elements.advanced.open = true;
+    requestAnimationFrame(() => elements.token.focus());
+    await chrome.storage.local.set({ pairingOnboarding: false });
   }
+
+  await testConnection();
+  elements.folderPath.value = config.folderPath || '';
 }
 
+elements.detectButton.addEventListener('click', detectLocalLap);
 elements.testButton.addEventListener('click', testConnection);
 elements.saveButton.addEventListener('click', saveConfig);
 initialize();

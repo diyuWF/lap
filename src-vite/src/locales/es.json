@@ -43,7 +43,7 @@
   },
   "album": {
     "album_list": "Álbumes",
-    "smart_album_list": "Álbumes inteligentes",
+    "smart_album_list": "Clasificación con IA",
     "add_smart_album": "Añadir álbum inteligente",
     "folder_unavailable": {
       "title": "Carpeta no disponible",

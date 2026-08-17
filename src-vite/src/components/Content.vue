@@ -3,7 +3,7 @@
   <div
     ref="contentRootRef"
     tabindex="-1"
-    class="relative flex-1 flex flex-col select-none outline-none"
+    class="lap-content-root relative flex-1 flex flex-col select-none outline-none"
     :class="{ 'opacity-50 pointer-events-none': uiStore.isInputActive('ManageLibraries') }"
     @focus="activateContentPane"
     @mousedown.capture="activateContentPane"
@@ -24,7 +24,7 @@
     <!-- title bar -->
     <div
       v-if="!showWelcomeContent"
-      class="absolute top-0 left-0 right-0 px-2 h-12 flex flex-row flex-nowrap items-center justify-between bg-base-300 z-30 overflow-hidden"
+      class="lap-content-toolbar absolute top-0 left-0 right-0 px-2 h-12 flex flex-row flex-nowrap items-center justify-between bg-base-300 z-30 overflow-hidden"
       data-tauri-drag-region
     >
       <!-- title -->
@@ -644,6 +644,7 @@ import { ref, watch, computed, createVNode, onMounted, onBeforeUnmount, nextTick
 import { emit as tauriEmit, listen } from '@tauri-apps/api/event';
 import { ask, open as openDialog } from '@tauri-apps/plugin-dialog';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { startDrag } from '@crabnebula/tauri-plugin-drag';
 import { useI18n } from 'vue-i18n';
 import { useToast } from '@/common/toast';
 import { useUIStore } from '@/stores/uiStore';
@@ -661,7 +662,7 @@ import { getShortcutLabel, matchesShortcut, ShortcutActionId, ShortcutPlatform, 
 import { getSmartTagById, SMART_TAG_SEARCH_THRESHOLD } from '@/common/smartTags';
 import { getAlbumScanState, getAlbumScanIcon, shouldAnimateAlbumScanIcon } from '@/common/scanStatus';
 import { DATE_SORT, GROUP, LIB_ITEM, RATE, SIDEBAR } from '@/common/constants';
-import { isWin, isMac, isLinux, setTheme, separator,
+import { isWin, isMac, isLinux, isTauriRuntime, setTheme, separator,
          formatFileSize, formatDate, getCalendarDateRange, formatFolderBreadcrumb, getThumbnailDataUrl, getAssetSrc, getPreviewUrl,
          getCachedThumbnailDataUrl,
          clearCachedThumbnailDataUrl,
@@ -1940,9 +1941,15 @@ let pointerDragFiles: Array<{
   file_path: string;
   folder_id: number;
   album_id: number;
+  file_type?: number;
+  name?: string;
 }> | null = null;
 let dragGhostHotspotX = 0;
 let dragGhostHotspotY = 0;
+let nativeDragOutStarted = false;
+let referenceBoardPromptStarted = false;
+let referenceBoardChoice: 'board' | 'external' | null = null;
+let unlistenReferenceBoardClosed: (() => void) | null = null;
 
 function getExternalDropUris(dt: DataTransfer | null) {
   const value = dt?.getData('text/uri-list')
@@ -2285,9 +2292,128 @@ function createDragGhost(
   dragGhostAction = action;
 }
 
+function isAtAppBoundary(event: PointerEvent) {
+  const edge = 3;
+  return event.clientX <= edge
+    || event.clientY <= edge
+    || event.clientX >= window.innerWidth - edge
+    || event.clientY >= window.innerHeight - edge;
+}
+
+async function createReferenceBoardWindow() {
+  const label = 'referenceboard';
+  const existingWindow = await WebviewWindow.getByLabel(label);
+  if (existingWindow) return existingWindow;
+
+  return new Promise<WebviewWindow>((resolve, reject) => {
+    const referenceWindow = new WebviewWindow(label, {
+      url: '/reference-board',
+      title: 'Lap Reference Board',
+      width: 1000,
+      height: 700,
+      minWidth: 520,
+      minHeight: 360,
+      resizable: true,
+      visible: false,
+      transparent: true,
+      decorations: false,
+      alwaysOnTop: true,
+      dragDropEnabled: true,
+    });
+    referenceWindow.once('tauri://created', async () => {
+      await referenceWindow.show();
+      await referenceWindow.setFocus();
+      resolve(referenceWindow);
+    });
+    referenceWindow.once('tauri://error', (error) => reject(error));
+  });
+}
+
+async function startNativeImageDragOut() {
+  if (
+    nativeDragOutStarted
+    || !isTauriRuntime
+    || !pointerDragFiles?.length
+  ) return;
+
+  const paths = pointerDragFiles
+    .filter(file => Number(file.file_type) === 1 && Boolean(file.file_path))
+    .map(file => file.file_path);
+  if (!paths.length) return;
+
+  nativeDragOutStarted = true;
+  await clearContentInternalDrag();
+
+  try {
+    await startDrag({
+      item: paths,
+      icon: paths[0],
+      mode: 'copy',
+    });
+  } catch (error) {
+    console.error('Failed to start native image drag:', error);
+    toast.warning(t('reference_board.drag_out_failed'));
+  } finally {
+    nativeDragOutStarted = false;
+  }
+}
+
+async function handleImageDragAtBoundary() {
+  if (
+    referenceBoardPromptStarted
+    || nativeDragOutStarted
+    || !isTauriRuntime
+    || !pointerDragFiles?.some(file => Number(file.file_type) === 1 && Boolean(file.file_path))
+  ) return;
+
+  referenceBoardPromptStarted = true;
+  try {
+    const existingWindow = await WebviewWindow.getByLabel('referenceboard');
+    if (existingWindow) {
+      referenceBoardChoice = 'board';
+      await startNativeImageDragOut();
+      return;
+    }
+
+    if (referenceBoardChoice === 'board') {
+      referenceBoardChoice = null;
+    }
+    if (referenceBoardChoice === 'external') {
+      await startNativeImageDragOut();
+      return;
+    }
+
+    await clearContentInternalDrag();
+    const createBoard = await ask(t('reference_board.create_prompt_message'), {
+      title: t('reference_board.create_prompt_title'),
+      kind: 'info',
+      okLabel: t('reference_board.create_prompt_ok'),
+      cancelLabel: t('reference_board.create_prompt_cancel'),
+    });
+    if (!createBoard) {
+      referenceBoardChoice = 'external';
+      toast.info(t('reference_board.external_drag_hint'));
+      return;
+    }
+
+    referenceBoardChoice = 'board';
+    await createReferenceBoardWindow();
+    toast.info(t('reference_board.created_hint'));
+  } catch (error) {
+    console.error('Failed to prepare image drag-out:', error);
+    toast.warning(t('reference_board.open_failed'));
+  } finally {
+    referenceBoardPromptStarted = false;
+  }
+}
+
 function updateContentDragPosition(event: PointerEvent) {
   if (!dragGhost || (event.clientX === 0 && event.clientY === 0)) return;
   dragGhost.style.transform = `translate3d(${Math.round(event.clientX - dragGhostHotspotX)}px, ${Math.round(event.clientY - dragGhostHotspotY)}px, 0)`;
+  if (isAtAppBoundary(event)) {
+    void handleImageDragAtBoundary();
+    return;
+  }
   const elementAtPointer = document.elementFromPoint(event.clientX, event.clientY);
   if (elementAtPointer?.closest('[data-collection-tray-root]') && !config.collectionTray.expanded) {
     config.collectionTray.expanded = true;
@@ -2318,6 +2444,7 @@ function markContentInternalDrag({
   const draggedFile = fileList.value[index];
   const fileItem = document.getElementById(`item-${index}`);
   if (!fileItem || !isRealFileItem(draggedFile)) return;
+  nativeDragOutStarted = false;
   isContentInternalDrag.value = true;
   const selected = getActionableSelectedItems();
   pointerDragUsesSelection = Boolean(draggedFile.isSelected && selectedCount.value > 0);
@@ -2328,6 +2455,8 @@ function markContentInternalDrag({
     file_path: f.file_path,
     folder_id: f.folder_id,
     album_id: f.album_id,
+    file_type: f.file_type,
+    name: f.name,
   }));
   createDragGhost(
     fileItem,
@@ -2364,6 +2493,8 @@ async function clearContentInternalDrag(event?: PointerEvent) {
         file_path: file.file_path,
         folder_id: file.folder_id,
         album_id: file.album_id,
+        file_type: file.file_type,
+        name: file.name,
       }));
     }
 
@@ -2667,6 +2798,13 @@ onMounted(() => {
 
   migrateRightPanelWidthToPixels();
   window.addEventListener('resize', handleWindowResize);
+  if (isTauriRuntime) {
+    void listen('reference-board:closed', () => {
+      referenceBoardChoice = null;
+    }).then((unlisten) => {
+      unlistenReferenceBoardClosed = unlisten;
+    });
+  }
 });
 
 onBeforeUnmount(() => {
@@ -2684,6 +2822,7 @@ onBeforeUnmount(() => {
   if (unlistenImageViewer) unlistenImageViewer();
   if (unlistenImageEditor) unlistenImageEditor();
   if (unlistenLibraryTotalRefreshed) unlistenLibraryTotalRefreshed();
+  unlistenReferenceBoardClosed?.();
 });
 
 // New event handlers for GridView

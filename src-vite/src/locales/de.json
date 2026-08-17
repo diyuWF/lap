@@ -43,7 +43,7 @@
   },
   "album": {
     "album_list": "Alben",
-    "smart_album_list": "Intelligente Alben",
+    "smart_album_list": "KI-Klassifizierung",
     "add_smart_album": "Intelligentes Album hinzufügen",
     "folder_unavailable": {
       "title": "Ordner nicht verfügbar",

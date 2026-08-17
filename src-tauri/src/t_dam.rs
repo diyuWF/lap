@@ -1,8 +1,11 @@
-use crate::t_sqlite::{self, AFolder, ATag};
+use crate::t_sqlite::{self, AFile, AFolder, ATag, AThumb};
+use base64::{Engine as _, engine::general_purpose};
 use chrono::Utc;
 use rusqlite::{OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use std::collections::HashSet;
+use std::path::Path;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -24,6 +27,13 @@ pub struct DamFolder {
     pub album_id: i64,
     pub name: String,
     pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DamFolderCover {
+    pub folder_id: i64,
+    pub data_url: Option<String>,
 }
 
 fn table_has_column(table: &str, column: &str) -> Result<bool, String> {
@@ -190,6 +200,129 @@ pub fn list_folders() -> Result<Vec<DamFolder>, String> {
     Ok(folders)
 }
 
+pub fn get_folder_covers(folder_ids: &[i64]) -> Result<Vec<DamFolderCover>, String> {
+    let mut seen = HashSet::new();
+    folder_ids
+        .iter()
+        .copied()
+        .filter(|folder_id| *folder_id > 0 && seen.insert(*folder_id))
+        .take(12)
+        .map(|folder_id| {
+            let data_url = AFile::get_first_image_by_folder_id(folder_id)?
+                .and_then(|file| {
+                    let file_id = file.id?;
+                    let cached = AThumb::fetch(file_id)
+                        .ok()
+                        .flatten()
+                        .and_then(|thumbnail| thumbnail.thumb_data)
+                        .filter(|bytes| !bytes.is_empty());
+                    let bytes = cached.or_else(|| {
+                        let file_path = file.file_path.as_deref()?;
+                        AThumb::get_or_create_thumb(
+                            file_id,
+                            file_path,
+                            file.file_type.unwrap_or(1),
+                            file.e_orientation.unwrap_or(1) as i32,
+                            256,
+                            false,
+                            file.duration.map(|value| value as u64),
+                            None,
+                        )
+                        .ok()
+                        .flatten()
+                        .and_then(|thumbnail| thumbnail.thumb_data)
+                    })?;
+                    let mime = if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+                        "image/png"
+                    } else {
+                        "image/jpeg"
+                    };
+                    Some(format!(
+                        "data:{};base64,{}",
+                        mime,
+                        general_purpose::STANDARD.encode(bytes)
+                    ))
+                });
+            Ok(DamFolderCover {
+                folder_id,
+                data_url,
+            })
+        })
+        .collect()
+}
+
+pub fn create_child_folder(parent_path: &str, raw_name: &str) -> Result<DamFolder, String> {
+    let parent_path = parent_path.trim();
+    let name = raw_name.trim();
+    if parent_path.is_empty() {
+        return Err("请选择新目录的上级目录".to_string());
+    }
+    if name.is_empty() {
+        return Err("目录名称不能为空".to_string());
+    }
+    if name.chars().count() > 100 {
+        return Err("目录名称不能超过 100 个字符".to_string());
+    }
+    if matches!(name, "." | "..")
+        || name.ends_with('.')
+        || name.ends_with(' ')
+        || name
+            .chars()
+            .any(|character| character.is_control() || r#"<>:"/\|?*"#.contains(character))
+    {
+        return Err("目录名称包含 Windows 不支持的字符".to_string());
+    }
+
+    let reserved_stem = name
+        .split('.')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_uppercase();
+    let is_reserved = matches!(reserved_stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        || ["COM", "LPT"].iter().any(|prefix| {
+            reserved_stem
+                .strip_prefix(prefix)
+                .and_then(|suffix| suffix.parse::<u8>().ok())
+                .is_some_and(|number| (1..=9).contains(&number))
+        });
+    if is_reserved {
+        return Err("该名称是 Windows 保留名称，请更换目录名".to_string());
+    }
+
+    let parent = list_folders()?
+        .into_iter()
+        .find(|folder| folder.path == parent_path)
+        .ok_or_else(|| "所选上级目录已不存在，请刷新后重试".to_string())?;
+    let parent_directory = Path::new(&parent.path);
+    if !parent_directory.is_dir() {
+        return Err("所选上级目录在磁盘上不可用".to_string());
+    }
+
+    let child_path = parent_directory.join(name);
+    if child_path.exists() {
+        return Err("同名目录已存在".to_string());
+    }
+    std::fs::create_dir(&child_path).map_err(|error| format!("创建目录失败：{}", error))?;
+    let child_path_string = child_path.to_string_lossy().into_owned();
+    let folder = match AFolder::add_to_db(parent.album_id, &child_path_string) {
+        Ok(folder) => folder,
+        Err(error) => {
+            let _ = std::fs::remove_dir(&child_path);
+            return Err(error);
+        }
+    };
+
+    Ok(DamFolder {
+        id: folder
+            .id
+            .ok_or_else(|| "新目录没有数据库 ID".to_string())?,
+        album_id: folder.album_id,
+        name: folder.name,
+        path: folder.path,
+    })
+}
+
 pub fn find_folder(path: Option<&str>) -> Result<Option<DamFolder>, String> {
     let folders = list_folders()?;
     if let Some(path) = path.map(str::trim).filter(|value| !value.is_empty()) {
@@ -198,7 +331,12 @@ pub fn find_folder(path: Option<&str>) -> Result<Option<DamFolder>, String> {
 
     Ok(folders
         .iter()
-        .find(|folder| folder.name.eq_ignore_ascii_case("inbox"))
+        .find(|folder| {
+            matches!(
+                folder.name.trim().to_lowercase().as_str(),
+                "inbox" | "待整理" | "待整理区域"
+            )
+        })
         .cloned()
         .or_else(|| folders.into_iter().next()))
 }

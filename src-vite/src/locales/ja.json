@@ -43,7 +43,7 @@
   },
   "album": {
     "album_list": "アルバム",
-    "smart_album_list": "スマートアルバム",
+    "smart_album_list": "AI分類",
     "add_smart_album": "スマートアルバムを追加",
     "folder_unavailable": {
       "title": "フォルダーを利用できません",

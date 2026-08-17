@@ -93,6 +93,13 @@
         <template v-if="showExtraIcons">
           <IconSeparator class="t-icon-size-sm text-base-content/30" />
           <TButton
+            v-if="onlineAiEligible"
+            :icon="IconSparkles"
+            :disabled="fileIndex < 0 || isSlideShow || !canInteract"
+            :tooltip="$t('dam_features.analyze.title')"
+            @click="showAiAnalyzeDialog = true"
+          />
+          <TButton
             :icon="file?.is_favorite ? IconHeartFilled : IconHeart"
             :disabled="fileIndex < 0 || isSlideShow || !canInteract"
             :selected="file?.is_favorite && !isSlideShow"
@@ -292,8 +299,14 @@
         <IconRight class="w-8 h-8" />
       </button>
 
+      <PreviewPanel
+        v-if="usePreviewPanel"
+        class="absolute inset-0 z-20"
+        :file="file"
+      />
+
       <div
-        v-if="isLivePhoto"
+        v-if="!usePreviewPanel && isLivePhoto"
         :class="[
           'absolute inset-0 z-10 transition-opacity duration-150',
           isLivePhotoPlaying ? 'opacity-100' : 'pointer-events-none opacity-0',
@@ -319,7 +332,7 @@
       </div>
 
       <div
-        v-if="file?.file_type === 1 || file?.file_type === 3"
+        v-if="!usePreviewPanel && (file?.file_type === 1 || file?.file_type === 3)"
         :class="[
           'absolute inset-0 z-20 transition-opacity duration-150',
           isLivePhotoPlaying ? 'pointer-events-none opacity-0' : 'opacity-100',
@@ -352,7 +365,7 @@
       </div>
 
       <button
-        v-if="isLivePhoto"
+        v-if="!usePreviewPanel && isLivePhoto"
         class="absolute left-4 bottom-4 z-60 inline-flex h-10 items-center gap-2 rounded-box bg-base-100/70 px-3 text-sm font-medium text-base-content/70 shadow hover:bg-base-100 hover:text-base-content cursor-pointer"
         @mouseenter="startLivePhotoPreview"
         @mouseleave="isLivePhotoPlaying = false"
@@ -363,7 +376,7 @@
         <span>LIVE</span>
       </button>
 
-      <Video v-if="file?.file_type === 2"
+      <Video v-if="!usePreviewPanel && file?.file_type === 2"
         ref="mediaRef"
         :filePath="file?.file_path"
         :rotate="file?.rotate ?? 0"
@@ -379,6 +392,13 @@
     </div>
 
     </template>
+
+    <AiAnalyzeDialog
+      v-if="showAiAnalyzeDialog"
+      :file="file"
+      @close="showAiAnalyzeDialog = false"
+      @done="showAiAnalyzeDialog = false"
+    />
 
     <ContextMenu
       ref="backgroundContextMenuRef"
@@ -401,6 +421,8 @@ import { isWin, isMac, isLinux, getSlideShowInterval } from '@/common/utils';
 import { getShortcutLabel, ShortcutActionId, ShortcutPlatform, VIEW_BACKGROUND_SHORTCUTS } from '@/common/shortcuts';
 
 import Image from '@/components/Image.vue';
+import PreviewPanel from '@/components/PreviewPanel.vue';
+import AiAnalyzeDialog from '@/components/AiAnalyzeDialog.vue';
 import TButton from '@/components/TButton.vue';
 import { 
   IconLeft, 
@@ -436,6 +458,7 @@ import {
   IconLink,
   IconVideoPlay,
   IconLivePhoto,
+  IconSparkles,
 } from '@/common/icons';
 import ContextMenu from '@/components/ContextMenu.vue';
 import iconLogo from '@/assets/images/icon.png';
@@ -547,6 +570,19 @@ const props = defineProps({
   },
 });
 
+const PREVIEW_PANEL_EXTENSIONS = new Set([
+  'svg', 'pdf', 'glb', 'gltf', 'obj', 'stl',
+  'ai', 'eps', 'psb', 'blend', 'fbx', 'usd', 'usda', 'usdc', 'usdz',
+  'abc', '3ds', 'dae', 'c4d', 'dwg', 'dxf', 'aep', 'aepx', 'prproj',
+]);
+const currentExtension = computed(() => {
+  const path = String(props.file?.file_path || props.file?.name || '');
+  const name = path.split(/[\\/]/).pop() || '';
+  return name.includes('.') ? name.split('.').pop()?.toLowerCase() || '' : '';
+});
+const usePreviewPanel = computed(() => PREVIEW_PANEL_EXTENSIONS.has(currentExtension.value));
+const onlineAiEligible = computed(() => [1, 2, 3].includes(Number(props.file?.file_type)));
+const showAiAnalyzeDialog = ref(false);
 const isLivePhotoPlaying = ref(false);
 const isLivePhoto = computed(() => props.file?.media_subtype === 'live_photo' && !!props.file?.live_photo_video_path);
 const livePhotoViewport = ref<Record<string, number | boolean> | null>(null);
@@ -569,6 +605,7 @@ watch(
   () => {
     isLivePhotoPlaying.value = false;
     livePhotoViewport.value = null;
+    showAiAnalyzeDialog.value = false;
   },
 );
 

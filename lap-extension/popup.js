@@ -53,18 +53,33 @@ async function loadConfig() {
   elements.allowDuplicate.checked = Boolean(state.config.allowDuplicate);
 }
 
+function friendlyApiError(data, status) {
+  const message = String(data?.error || '');
+  if (status === 401 || message.toLowerCase().includes('invalid pairing token')) {
+    return '已找到本机 Lap，但配对 Token 不正确。请打开设置重新配对。';
+  }
+  return message || `请求失败：HTTP ${status}`;
+}
+
 async function api(path, options = {}) {
-  const response = await fetch(`${normalizeApiUrl(state.config.apiUrl)}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Lap-Token': state.config.token,
-      ...(options.headers || {}),
-    },
-  });
+  const { omitToken = false, ...requestOptions } = options;
+  const headers = {
+    ...(requestOptions.body ? { 'Content-Type': 'application/json' } : {}),
+    ...(omitToken ? {} : { 'X-Lap-Token': state.config.token }),
+    ...(requestOptions.headers || {}),
+  };
+  let response;
+  try {
+    response = await fetch(`${normalizeApiUrl(state.config.apiUrl)}${path}`, {
+      ...requestOptions,
+      headers,
+    });
+  } catch {
+    throw new Error('未找到本机 Lap。请先启动 Lap 桌面应用。');
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data.ok === false) {
-    throw new Error(data.error || `请求失败：HTTP ${response.status}`);
+    throw new Error(friendlyApiError(data, response.status));
   }
   return data;
 }
@@ -77,15 +92,21 @@ function setConnection(type, title, message) {
 }
 
 async function connect() {
+  try {
+    await api('/health', { omitToken: true });
+  } catch (error) {
+    setConnection('error', '未找到本机 Lap', error.message || '请确认 Lap 已启动。');
+    elements.captureButton.disabled = true;
+    return false;
+  }
   if (!state.config.token) {
-    setConnection('error', '尚未配对', '请打开设置并填写 Lap 配对 Token。');
+    setConnection('error', '已找到 Lap，尚未配对', '请打开设置，自动检测后粘贴 Lap 配对 Token。');
     elements.captureButton.disabled = true;
     return false;
   }
   try {
-    await api('/health');
     const result = await api('/folders');
-    renderFolders(result.folders || []);
+    renderFolders(result.folders || [], Boolean(result.aiConfigured));
     setConnection('connected', '已连接 Lap', '本地采集服务运行正常。');
     return true;
   } catch (error) {
@@ -95,21 +116,22 @@ async function connect() {
   }
 }
 
-function renderFolders(folders) {
+function renderFolders(folders, aiConfigured) {
   elements.folderSelect.replaceChildren();
-  const fallback = document.createElement('option');
-  fallback.value = '';
-  fallback.textContent = '自动选择 Inbox 或首个目录';
-  elements.folderSelect.append(fallback);
+  if (aiConfigured) {
+    const aiOption = document.createElement('option');
+    aiOption.value = '';
+    aiOption.textContent = 'AI 分类 — 保存后进入智能整理';
+    elements.folderSelect.append(aiOption);
+  }
   for (const folder of folders) {
     const option = document.createElement('option');
     option.value = folder.path;
     option.textContent = `${folder.name} — ${folder.path}`;
     elements.folderSelect.append(option);
   }
-  elements.folderSelect.value = folders.some((folder) => folder.path === state.config.folderPath)
-    ? state.config.folderPath
-    : '';
+  const configuredFolder = folders.find((folder) => folder.path === state.config.folderPath)?.path;
+  elements.folderSelect.value = configuredFolder || (aiConfigured ? '' : (folders[0]?.path || ''));
 }
 
 async function getActiveTab() {
@@ -240,6 +262,7 @@ async function captureOne(image) {
       siteName: page.siteName || '',
       altText: image.altText || '',
       folderPath: elements.folderSelect.value || null,
+      workflowStatus: elements.folderSelect.value ? 'selected' : 'inbox',
       tags: normalizeTags(elements.tagsInput.value),
       allowDuplicate: elements.allowDuplicate.checked,
       metadata: {

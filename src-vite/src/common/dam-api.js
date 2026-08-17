@@ -67,3 +67,33 @@ export async function analyzeFileWithOnlineAi(fileId, providerId, forceAutoApply
     forceAutoApply,
   });
 }
+
+export async function getPreviewDescriptor(fileId) {
+  return invoke('get_preview_descriptor', { fileId });
+}
+
+export async function listOnlineAiBatchCandidates(
+  workflowStatus = 'inbox',
+  limit = 200,
+  includeAnalyzed = false,
+) {
+  return invoke('list_online_ai_batch_candidates', {
+    workflowStatus,
+    limit,
+    includeAnalyzed,
+  });
+}
+
+export async function analyzeFilesWithOnlineAi(input) {
+  return invoke('analyze_files_with_online_ai', { input });
+}
+
+export async function listAiFolderSuggestions(limit = 200) {
+  return invoke('list_ai_folder_suggestions', { limit });
+}
+
+export async function executeAiFolderSuggestions(suggestionIds) {
+  return invoke('execute_ai_folder_suggestions', {
+    input: { suggestionIds },
+  });
+}

@@ -1,10 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Lap 素材采集器",
-  "version": "0.2.0",
-  "description": "将网页图片、来源信息和标签快速保存到本地 Lap 素材库。",
+  "version": "0.4.1",
+  "description": "拖动网页图片直接保存到 Lap 目录，或交给已配置的 AI 分类；工具栏可批量采集当前页面图片。",
   "permissions": [
-    "contextMenus",
     "activeTab",
     "tabs",
     "storage",
@@ -17,9 +16,56 @@
     "service_worker": "background.js",
     "type": "module"
   },
+  "icons": {
+    "16": "icon.png",
+    "32": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "icon.png",
+        "ai-classify.png",
+        "ai-wordmark.png",
+        "ai-orbit.png",
+        "back.svg",
+        "folder.svg",
+        "more.svg",
+        "plus.svg",
+        "radial-gauge.png"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
+    }
+  ],
   "action": {
-    "default_title": "保存到 Lap",
-    "default_popup": "popup.html"
+    "default_title": "Lap 素材采集器",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon.png",
+      "32": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
   },
   "options_page": "options.html"
 }

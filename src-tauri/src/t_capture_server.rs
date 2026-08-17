@@ -18,6 +18,7 @@ const MAX_REQUEST_BYTES: usize = 2 * 1024 * 1024;
 const MAX_DOWNLOAD_BYTES: u64 = 512 * 1024 * 1024;
 
 static CAPTURE_SERVER_INFO: OnceLock<CaptureServerInfo> = OnceLock::new();
+static CAPTURE_HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -38,12 +39,29 @@ pub struct CaptureRequest {
     pub site_name: Option<String>,
     pub alt_text: Option<String>,
     pub folder_path: Option<String>,
+    pub workflow_status: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
     #[serde(default)]
     pub metadata: JsonValue,
     #[serde(default)]
     pub allow_duplicate: bool,
+    #[serde(default)]
+    pub auto_classify: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateFolderRequest {
+    parent_path: String,
+    name: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FolderCoverRequest {
+    #[serde(default)]
+    folder_ids: Vec<i64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -56,11 +74,30 @@ pub struct CaptureResult {
     pub file_name: Option<String>,
     pub folder: Option<DamFolder>,
     pub applied_tag_ids: Vec<i64>,
+    pub ai_classification_started: bool,
     pub message: String,
 }
 
 pub fn get_capture_server_info() -> Option<CaptureServerInfo> {
     CAPTURE_SERVER_INFO.get().cloned()
+}
+
+fn capture_http_client() -> Result<&'static reqwest::Client, String> {
+    if let Some(client) = CAPTURE_HTTP_CLIENT.get() {
+        return Ok(client);
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(90))
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .pool_idle_timeout(Duration::from_secs(90))
+        .pool_max_idle_per_host(8)
+        .build()
+        .map_err(|error| error.to_string())?;
+    let _ = CAPTURE_HTTP_CLIENT.set(client);
+    CAPTURE_HTTP_CLIENT
+        .get()
+        .ok_or_else(|| "Failed to initialize the browser capture HTTP client".to_string())
 }
 
 pub fn init_capture_server() {
@@ -183,12 +220,25 @@ async fn handle_connection(
 
     match (request.method.as_str(), request.path.as_str()) {
         ("GET", "/folders") => match t_dam::list_folders() {
-            Ok(folders) => write_json(
-                &mut stream,
-                "200 OK",
-                &json!({ "ok": true, "folders": folders }),
-            )
-            .await,
+            Ok(folders) => {
+                let ai_configured = crate::t_ai_online::list_online_ai_providers()
+                    .map(|providers| {
+                        providers
+                            .iter()
+                            .any(|provider| provider.enabled && provider.has_api_key)
+                    })
+                    .unwrap_or(false);
+                write_json(
+                    &mut stream,
+                    "200 OK",
+                    &json!({
+                        "ok": true,
+                        "folders": folders,
+                        "aiConfigured": ai_configured
+                    }),
+                )
+                .await
+            }
             Err(error) => write_json(
                 &mut stream,
                 "500 Internal Server Error",
@@ -196,6 +246,60 @@ async fn handle_connection(
             )
             .await,
         },
+        ("POST", "/folders") => {
+            let create_request: CreateFolderRequest = match serde_json::from_slice(&request.body) {
+                Ok(value) => value,
+                Err(error) => {
+                    return write_json(
+                        &mut stream,
+                        "400 Bad Request",
+                        &json!({ "ok": false, "error": format!("Invalid JSON: {}", error) }),
+                    )
+                    .await;
+                }
+            };
+            match t_dam::create_child_folder(&create_request.parent_path, &create_request.name) {
+                Ok(folder) => write_json(
+                    &mut stream,
+                    "201 Created",
+                    &json!({ "ok": true, "folder": folder }),
+                )
+                .await,
+                Err(error) => write_json(
+                    &mut stream,
+                    "422 Unprocessable Entity",
+                    &json!({ "ok": false, "error": error }),
+                )
+                .await,
+            }
+        }
+        ("POST", "/folder-covers") => {
+            let cover_request: FolderCoverRequest = match serde_json::from_slice(&request.body) {
+                Ok(value) => value,
+                Err(error) => {
+                    return write_json(
+                        &mut stream,
+                        "400 Bad Request",
+                        &json!({ "ok": false, "error": format!("Invalid JSON: {}", error) }),
+                    )
+                    .await;
+                }
+            };
+            match t_dam::get_folder_covers(&cover_request.folder_ids) {
+                Ok(covers) => write_json(
+                    &mut stream,
+                    "200 OK",
+                    &json!({ "ok": true, "covers": covers }),
+                )
+                .await,
+                Err(error) => write_json(
+                    &mut stream,
+                    "500 Internal Server Error",
+                    &json!({ "ok": false, "error": error }),
+                )
+                .await,
+            }
+        }
         ("POST", "/capture") => {
             let capture_request: CaptureRequest = match serde_json::from_slice(&request.body) {
                 Ok(value) => value,
@@ -343,6 +447,16 @@ async fn capture_remote_asset(request: CaptureRequest) -> Result<CaptureResult, 
 
     if !request.allow_duplicate {
         if let Some(file_id) = t_dam::find_file_by_source_url(source_url)? {
+            t_dam::set_workflow_status(
+                file_id,
+                request.workflow_status.as_deref().unwrap_or("inbox"),
+            )?;
+            let applied_tag_ids = t_dam::apply_tags(file_id, &request.tags)?;
+            let ai_classification_started = if request.auto_classify {
+                queue_online_ai_classification(file_id).unwrap_or(false)
+            } else {
+                false
+            };
             return Ok(CaptureResult {
                 ok: true,
                 duplicate: true,
@@ -350,7 +464,8 @@ async fn capture_remote_asset(request: CaptureRequest) -> Result<CaptureResult, 
                 file_path: None,
                 file_name: None,
                 folder: None,
-                applied_tag_ids: Vec::new(),
+                applied_tag_ids,
+                ai_classification_started,
                 message: "This source URL is already in the library".to_string(),
             });
         }
@@ -358,12 +473,7 @@ async fn capture_remote_asset(request: CaptureRequest) -> Result<CaptureResult, 
 
     let folder = t_dam::find_folder(request.folder_path.as_deref())?
         .ok_or_else(|| "No Lap album folder is available. Add an album or an Inbox folder first.".to_string())?;
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(90))
-        .redirect(reqwest::redirect::Policy::limited(10))
-        .build()
-        .map_err(|error| error.to_string())?;
-    let mut builder = client
+    let mut builder = capture_http_client()?
         .get(source_url)
         .header(USER_AGENT, "Lap Browser Capture/1.0");
     if let Some(page_url) = request.page_url.as_deref() {
@@ -402,7 +512,9 @@ async fn capture_remote_asset(request: CaptureRequest) -> Result<CaptureResult, 
         .unwrap_or_else(|| format!("capture-{}", Utc::now().timestamp_millis()));
     let filename = ensure_extension(sanitize_filename(&filename), &mime);
     let target_path = unique_target_path(Path::new(&folder.path), &filename);
-    std::fs::write(&target_path, &bytes).map_err(|error| error.to_string())?;
+    tokio::fs::write(&target_path, &bytes)
+        .await
+        .map_err(|error| error.to_string())?;
 
     let target_path_string = target_path.to_string_lossy().into_owned();
     let file_type = match t_utils::get_file_type(&target_path_string) {
@@ -431,8 +543,16 @@ async fn capture_remote_asset(request: CaptureRequest) -> Result<CaptureResult, 
         metadata: request.metadata,
     };
     t_dam::upsert_source_metadata(file_id, &source)?;
-    t_dam::set_workflow_status(file_id, "inbox")?;
+    t_dam::set_workflow_status(
+        file_id,
+        request.workflow_status.as_deref().unwrap_or("inbox"),
+    )?;
     let applied_tag_ids = t_dam::apply_tags(file_id, &request.tags)?;
+    let ai_classification_started = if request.auto_classify {
+        queue_online_ai_classification(file_id).unwrap_or(false)
+    } else {
+        false
+    };
 
     Ok(CaptureResult {
         ok: true,
@@ -442,8 +562,37 @@ async fn capture_remote_asset(request: CaptureRequest) -> Result<CaptureResult, 
         file_name: Some(file.name),
         folder: Some(folder),
         applied_tag_ids,
+        ai_classification_started,
         message: "Captured successfully".to_string(),
     })
+}
+
+fn queue_online_ai_classification(file_id: i64) -> Result<bool, String> {
+    let provider = crate::t_ai_online::list_online_ai_providers()?
+        .into_iter()
+        .find(|provider| provider.enabled && provider.has_api_key)
+        .ok_or_else(|| "没有可用的在线 AI 服务".to_string())?;
+    let provider_id = provider.id;
+    let folder_options = crate::t_ai_batch::organization_folder_options("library", None)
+        .unwrap_or_default();
+
+    tauri::async_runtime::spawn(async move {
+        let result = if folder_options.is_empty() {
+            crate::t_ai_online::analyze_file_with_online_ai(file_id, provider_id, None).await
+        } else {
+            crate::t_ai_online::analyze_file_for_organization(
+                file_id,
+                provider_id,
+                folder_options,
+                None,
+            )
+            .await
+        };
+        if let Err(error) = result {
+            eprintln!("Browser capture AI classification failed: {}", error);
+        }
+    });
+    Ok(true)
 }
 
 fn filename_from_content_disposition(value: &str) -> Option<String> {

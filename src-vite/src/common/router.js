@@ -21,6 +21,11 @@ const routes = [
     path: '/settings',
     name: 'Settings',
     component: () => import('@/views/Settings.vue'),
+  },
+  {
+    path: '/reference-board',
+    name: 'ReferenceBoard',
+    component: () => import('@/views/ReferenceBoard.vue'),
   }
 ];
 

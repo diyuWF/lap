@@ -1,6 +1,6 @@
 <template>
   
-  <div class="w-screen h-screen flex flex-col overflow-hidden select-none bg-base-300 text-base-content/70">
+  <div class="lap-app-shell w-screen h-screen flex flex-col overflow-hidden select-none bg-base-300 text-base-content/70">
     <transition name="fade">
       <div
         v-if="isSwitchingLibrary"
@@ -30,7 +30,7 @@
         @focus="uiStore.setActivePane('left-sidebar')"
       >
           <div
-            class="absolute inset-y-0 left-0 bg-base-200 rounded-box"
+            class="lap-glass-panel lap-sidebar-shell absolute inset-y-0 left-0 bg-base-200 rounded-box"
             :class="isDraggingSplitter ? '' : 'transition-[width] duration-200 ease-in-out'"
             :style="{ width: leftPanelVisualExpanded ? leftPanelWidth : '4rem' }"
           ></div>
@@ -117,6 +117,8 @@
                 :is="activeSidebarButton.component"
                 :titlebar="activeSidebarButton.text"
                 v-bind="activeSidebarButton.props || {}"
+                @run-ai-classification="runAiClassification"
+                @refresh-ai-classification="refreshAiClassification"
               />
             </div>
             <div
@@ -152,12 +154,20 @@
       <!-- content area -->
       <div 
         :class="[
-          'flex-1 flex relative',
+          'lap-main-stage flex-1 flex relative',
           showDesktopTitleBar ? 'rounded-tl-box' : '',
         ]"
       >
         <!-- <MapHeatmapView v-if="config.main.sidebarIndex === SIDEBAR.MAP" /> -->
-        <Content ref="contentRef" :key="libraryVersion" :titlebar="activeSidebarButton.text" :libraryEmpty="libraryEmpty"/>
+        <AiInboxWorkbench
+          v-if="config.main.sidebarIndex === SIDEBAR.SMART_ALBUM"
+          ref="aiInboxWorkbenchRef"
+          :key="`ai-inbox-${libraryVersion}`"
+          embedded
+          @open-review="showAiReviewQueue = true"
+          @queue-updated="handleAiQueueUpdated"
+        />
+        <Content v-else ref="contentRef" :key="libraryVersion" :titlebar="activeSidebarButton.text" :libraryEmpty="libraryEmpty"/>
       </div>
     </div>
 
@@ -173,6 +183,7 @@
       @updated="onManageLibrariesUpdated"
       @cancel="showManageLibraries = false"
     />
+    <AiReviewQueue v-if="showAiReviewQueue" @close="showAiReviewQueue = false" />
   </div>
 
 </template>
@@ -193,15 +204,14 @@ import { SIDEBAR } from '@/common/constants';
 import { getAppConfig, switchLibrary, cancelIndexing, cancelFaceIndex } from '@/common/api';
 
 // vue components
-import Library from '@/components/Library.vue';
 import AlbumList from '@/components/AlbumList.vue';
-import SmartAlbumList from '@/components/SmartAlbumList.vue';
+import AiClassificationList from '@/components/AiClassificationList.vue';
+import AiInboxWorkbench from '@/components/AiInboxWorkbench.vue';
+import AiReviewQueue from '@/components/AiReviewQueue.vue';
 import ImageSearch from '@/components/ImageSearch.vue';
 import Tag from '@/components/Tag.vue';
 import Calendar from '@/components/Calendar.vue';
-import Location from '@/components/Location.vue';
 import Person from '@/components/Person.vue';
-import Camera from '@/components/Camera.vue';
 // import MapHeatmapView from '@/components/MapHeatmapView.vue';
 
 import TitleBar from '@/components/TitleBar.vue';
@@ -214,17 +224,14 @@ import iconLogo from '@/assets/images/icon.png';
 
 import {
   IconTag,
-  IconLocation,
   IconPerson,
-  IconCamera,
   IconSearch,
   IconSettings,
   IconDot,
-  IconStack,
   IconArrowDown,
   IconCalendarDay,
   IconFolders,
-  IconFolderCog
+  IconSparkles
 } from '@/common/icons';
 
 const isSwitchingLibrary = ref(false);
@@ -254,6 +261,7 @@ const uiStore = useUIStore();
 // Panel component ref
 const panelRef = ref<any>(null);
 const contentRef = ref<any>(null);
+const aiInboxWorkbenchRef = ref<any>(null);
 const leftPanelRootRef = ref<HTMLElement | null>(null);
 const showPanel = ref(true);
 const LEFT_PANEL_ANIMATION_MS = 200;
@@ -324,6 +332,7 @@ const currentLibrary = computed(() =>
 
 // Manage Libraries dialog state
 const showManageLibraries = ref(false);
+const showAiReviewQueue = ref(false);
 const showDesktopTitleBar = isWin || isLinux;
 
 /// Splitter for resizing the left pane
@@ -353,20 +362,25 @@ const {
 
 // buttons
 const buttons = computed(() =>  [
-  { index: SIDEBAR.LIBRARY, icon: IconStack, component: Library, text: localeMsg.value.sidebar.library },
   { index: SIDEBAR.ALBUM, icon: IconFolders, component: AlbumList, text: localeMsg.value.sidebar.album, props: { selectionSource: 'album' } },
-  { index: SIDEBAR.SMART_ALBUM, icon: IconFolderCog, component: SmartAlbumList, text: localeMsg.value.album.smart_album_list },
+  { index: SIDEBAR.SMART_ALBUM, icon: IconSparkles, component: AiClassificationList, text: localeMsg.value.album.smart_album_list },
   { index: SIDEBAR.SEARCH, icon: IconSearch, component: ImageSearch, text: localeMsg.value.sidebar.search },
   { index: SIDEBAR.CALENDAR, icon: IconCalendarDay, component: Calendar, text: localeMsg.value.sidebar.calendar },
   { index: SIDEBAR.TAG, icon: IconTag, component: Tag, text: localeMsg.value.sidebar.tag },
   { index: SIDEBAR.PERSON, icon: IconPerson, component: Person, text: localeMsg.value.sidebar.people, hidden: !config.settings.face.enabled },
-  { index: SIDEBAR.LOCATION, icon: IconLocation, component: Location, text: localeMsg.value.sidebar.location },
-  { index: SIDEBAR.CAMERA, icon: IconCamera, component: Camera, text: localeMsg.value.sidebar.camera },
   // { icon: IconMapDefault, component: null, text: localeMsg.value.sidebar.map },
 ]);
 
+const removedSidebarIndices = new Set<number>([
+  SIDEBAR.LIBRARY,
+  SIDEBAR.LOCATION,
+  SIDEBAR.CAMERA,
+]);
+
 const activeSidebarButton = computed(() =>
-  buttons.value.find(item => item.index === config.main.sidebarIndex) || buttons.value[SIDEBAR.LIBRARY]
+  buttons.value.find(item => item.index === config.main.sidebarIndex)
+  || buttons.value.find(item => item.index === SIDEBAR.ALBUM)
+  || buttons.value[0]
 );
 
 const leftPanelWidth = computed(() =>
@@ -378,6 +392,30 @@ const visibleButtons = computed(() =>
     .map((item) => ({ ...item, disabled: libraryEmpty.value && item.index !== SIDEBAR.ALBUM }))
     .filter(item => !item.hidden)
     .sort((a, b) => a.index - b.index)
+);
+
+async function refreshAiClassification() {
+  await aiInboxWorkbenchRef.value?.refreshAll?.();
+  await panelRef.value?.refreshCount?.();
+}
+
+async function runAiClassification() {
+  await nextTick();
+  await aiInboxWorkbenchRef.value?.runAllCandidates?.();
+}
+
+function handleAiQueueUpdated() {
+  void panelRef.value?.refreshCount?.();
+}
+
+watch(
+  () => config.main.sidebarIndex,
+  (index) => {
+    if (removedSidebarIndices.has(index)) {
+      config.main.sidebarIndex = SIDEBAR.ALBUM;
+    }
+  },
+  { immediate: true },
 );
 
 watch(() => config.settings.face.enabled, (enabled) => {

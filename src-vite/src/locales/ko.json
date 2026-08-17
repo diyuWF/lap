@@ -43,7 +43,7 @@
   },
   "album": {
     "album_list": "앨범",
-    "smart_album_list": "스마트 앨범",
+    "smart_album_list": "AI 분류",
     "add_smart_album": "스마트 앨범 추가",
     "folder_unavailable": {
       "title": "폴더를 사용할 수 없음",
