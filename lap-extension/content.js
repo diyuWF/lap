@@ -1,11 +1,12 @@
 (() => {
-  const HOVER_EXPAND_MS = 360;
+  const HOVER_EXPAND_MS = 220;
   const CLOSE_AFTER_DRAG_MS = 160;
   const DRAG_DISTANCE_VIEWPORT_RATIO = 1 / 3;
   const RADIAL_FOLDER_LIMIT = 8;
   const RADIAL_NAVIGATION_RELEASE_PX = 28;
   const RADIAL_DWELL_MISS_GRACE_MS = 140;
   const RADIAL_HIT_SLOP_PX = 16;
+  const RADIAL_DRAG_FOOTPRINT_SLOP_PX = 10;
   const folderCoverViews = new WeakMap();
 
   let overlay = null;
@@ -29,6 +30,8 @@
   let dragTravelDistance = 0;
   let selectedFolder = null;
   let dragGhost = null;
+  let dragGhostStageTimer = null;
+  let dragPreviewGeometry = null;
   let armedImage = null;
   let armedDraggableValue = null;
   let captureSession = 0;
@@ -210,14 +213,16 @@
     if (typeof document.elementsFromPoint === 'function') {
       hitElements.push(...document.elementsFromPoint(clientX, clientY));
     }
-    const directTarget = hitElements
-      .map((element) => element.closest?.('[data-radial-navigate]'))
+    const directAction = hitElements
+      .map((element) => element.closest?.('.lap-capture-radial-item, .lap-capture-radial-center'))
       .find((element) => element instanceof HTMLButtonElement && overlay.contains(element));
-    if (directTarget) return directTarget;
+    if (directAction) {
+      return directAction.matches('[data-radial-navigate]') ? directAction : null;
+    }
 
     let nearest = null;
     let nearestDistance = Number.POSITIVE_INFINITY;
-    for (const button of overlay.querySelectorAll('[data-radial-navigate]')) {
+    for (const button of overlay.querySelectorAll('.lap-capture-radial-item[data-radial-x]')) {
       if (!(button instanceof HTMLButtonElement)) continue;
       const offsetX = Number(button.dataset.radialX);
       const offsetY = Number(button.dataset.radialY);
@@ -232,7 +237,37 @@
         nearestDistance = distance;
       }
     }
-    return nearest;
+    if (nearest) return nearest.matches('[data-radial-navigate]') ? nearest : null;
+
+    if (!dragPreviewGeometry) return null;
+    const previewLeft = clientX - dragPreviewGeometry.hotspotX;
+    const previewTop = clientY - dragPreviewGeometry.hotspotY;
+    const previewRight = previewLeft + dragPreviewGeometry.width;
+    const previewBottom = previewTop + dragPreviewGeometry.height;
+    const previewCenterX = (previewLeft + previewRight) / 2;
+    const previewCenterY = (previewTop + previewBottom) / 2;
+    let overlappingFolder = null;
+    let overlappingFolderDistance = Number.POSITIVE_INFINITY;
+
+    for (const button of overlay.querySelectorAll('[data-radial-navigate="folder"]')) {
+      if (!(button instanceof HTMLButtonElement)) continue;
+      const offsetX = Number(button.dataset.radialX);
+      const offsetY = Number(button.dataset.radialY);
+      const hitRadius = Number(button.dataset.radialHitRadius);
+      if (![offsetX, offsetY, hitRadius].every(Number.isFinite)) continue;
+      const centerX = window.innerWidth / 2 + offsetX;
+      const centerY = window.innerHeight / 2 + offsetY;
+      const closestX = Math.max(previewLeft, Math.min(centerX, previewRight));
+      const closestY = Math.max(previewTop, Math.min(centerY, previewBottom));
+      const edgeDistance = Math.hypot(centerX - closestX, centerY - closestY);
+      if (edgeDistance > hitRadius + RADIAL_DRAG_FOOTPRINT_SLOP_PX) continue;
+      const centerDistance = Math.hypot(centerX - previewCenterX, centerY - previewCenterY);
+      if (centerDistance < overlappingFolderDistance) {
+        overlappingFolder = button;
+        overlappingFolderDistance = centerDistance;
+      }
+    }
+    return overlappingFolder;
   }
 
   function updateRadialDwell(clientX, clientY, eventTarget = null) {
@@ -265,8 +300,11 @@
   }
 
   function removeDragGhost() {
+    if (dragGhostStageTimer) clearTimeout(dragGhostStageTimer);
+    dragGhostStageTimer = null;
     dragGhost?.remove();
     dragGhost = null;
+    dragPreviewGeometry = null;
   }
 
   function closeOverlay() {
@@ -304,7 +342,7 @@
       .replaceAll("'", '&#039;');
   }
 
-  function createDragGhost(image, dataTransfer) {
+  function createDragGhost(image, dataTransfer, clientX, clientY) {
     if (!dataTransfer) return;
     removeDragGhost();
 
@@ -325,17 +363,40 @@
     const scale = Math.min(180 / sourceWidth, 140 / sourceHeight, 1);
     const width = Math.max(12, Math.round(sourceWidth * scale));
     const height = Math.max(12, Math.round(sourceHeight * scale));
+    const hotspotX = Math.round(width / 2);
+    const hotspotY = Math.round(height / 2);
+    const pointerX = Number.isFinite(clientX) ? clientX : window.innerWidth / 2;
+    const pointerY = Number.isFinite(clientY) ? clientY : window.innerHeight / 2;
+    const stageLeft = Math.max(0, Math.min(window.innerWidth - width, pointerX - hotspotX));
+    const stageTop = Math.max(0, Math.min(window.innerHeight - height, pointerY - hotspotY));
     dragGhost.style.width = `${width}px`;
     dragGhost.style.height = `${height}px`;
+    dragGhost.style.left = `${stageLeft}px`;
+    dragGhost.style.top = `${stageTop}px`;
     document.documentElement.appendChild(dragGhost);
+    dragPreviewGeometry = { width, height, hotspotX, hotspotY };
 
     try {
       dataTransfer.effectAllowed = 'copy';
-      dataTransfer.setData('application/x-lap-capture', currentAsset.sourceUrl);
-      dataTransfer.setDragImage(dragGhost, Math.round(width / 2), Math.round(height / 2));
     } catch {
-      // Some pages restrict custom drag data. The overlay remains usable.
+      // Managed pages can make drag effect metadata read-only.
     }
+    try {
+      dataTransfer.setData('application/x-lap-capture', currentAsset.sourceUrl);
+    } catch {
+      // Custom drag data is optional and must not disable the visual preview.
+    }
+    try {
+      dataTransfer.setDragImage(dragGhost, hotspotX, hotspotY);
+    } catch {
+      // Footprint hit testing still works if the browser rejects a custom preview.
+    }
+    dragGhostStageTimer = setTimeout(() => {
+      dragGhostStageTimer = null;
+      if (!dragGhost) return;
+      dragGhost.style.left = '-10000px';
+      dragGhost.style.top = '-10000px';
+    }, 0);
   }
 
   function createOverlay() {
@@ -349,13 +410,12 @@
     overlay.innerHTML = `
       <div class="lap-capture-radial" role="menu" aria-label="保存到文件夹">
         <img class="lap-capture-radial-gauge" src="${escapeHtml(radialGaugeUrl)}" alt="" />
-        <button class="lap-capture-radial-center" type="button" role="menuitem">
+        <button class="lap-capture-radial-center" type="button" role="menuitem" aria-label="AI 分类">
           <span class="lap-capture-ai-visual" aria-hidden="true">
             <img class="lap-capture-ai-orbit is-forward" src="${escapeHtml(aiOrbitUrl)}" alt="" />
             <img class="lap-capture-ai-orbit is-reverse" src="${escapeHtml(aiOrbitUrl)}" alt="" />
             <img class="lap-capture-ai-wordmark" src="${escapeHtml(aiWordmarkUrl)}" alt="" />
           </span>
-          <span class="lap-capture-ai-label">AI 分类</span>
         </button>
         <div class="lap-capture-radial-items"></div>
       </div>
@@ -1183,7 +1243,7 @@
     dragTravelDistance = 0;
     mode = 'tracking';
     const session = captureSession;
-    createDragGhost(image, event.dataTransfer);
+    createDragGhost(image, event.dataTransfer, event.clientX, event.clientY);
     try {
       await loadFolderState(session);
     } catch (error) {

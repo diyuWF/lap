@@ -8,6 +8,11 @@ const contentSource = fs.readFileSync(
   new URL('../../lap-extension/content.js', import.meta.url),
   'utf8',
 );
+const contentStyles = fs.readFileSync(
+  new URL('../../lap-extension/content.css', import.meta.url),
+  'utf8',
+);
+const DWELL_SETTLE_MS = 300;
 
 const folders = [
   { id: 1, name: 'lap资源', path: 'D:/Lap/lap资源' },
@@ -27,7 +32,12 @@ function dragEvent(window, type, x, y, dataTransfer) {
   return event;
 }
 
-async function createContentHarness({ width = 1200, height = 900, folderFixtures = folders } = {}) {
+async function createContentHarness({
+  width = 1200,
+  height = 900,
+  folderFixtures = folders,
+  throwOnSetData = false,
+} = {}) {
   const window = new Window({ url: 'https://example.test/inspiration' });
   const messages = [];
   Object.defineProperties(window, {
@@ -95,8 +105,21 @@ async function createContentHarness({ width = 1200, height = 900, folderFixtures
   const dataTransfer = {
     effectAllowed: '',
     dropEffect: '',
-    setData() {},
-    setDragImage() {},
+    setData() {
+      if (throwOnSetData) throw new Error('page rejected custom drag data');
+    },
+    dragImageCalls: [],
+    setDragImage(element, x, y) {
+      this.dragImageCalls.push({
+        element,
+        x,
+        y,
+        left: element.style.left,
+        top: element.style.top,
+        width: element.style.width,
+        height: element.style.height,
+      });
+    },
   };
   image.dispatchEvent(dragEvent(window, 'dragstart', 1020, 380, dataTransfer));
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -128,6 +151,10 @@ test('AI classification remains visible and silently queues an inbox item', asyn
   assert.equal(center.disabled, false);
   assert.match(center.querySelector('.lap-capture-ai-wordmark').src, /ai-wordmark\.png$/);
   assert.equal(center.querySelectorAll('.lap-capture-ai-orbit').length, 2);
+  assert.equal(center.querySelector('.lap-capture-ai-label'), null);
+  assert.equal(center.getAttribute('aria-label'), 'AI 分类');
+  assert.match(contentStyles, /hue-rotate\(225deg\)/);
+  assert.doesNotMatch(contentStyles, /rgba\(111, 74, 44/);
 
   center.click();
   assert.equal(window.document.querySelector('.lap-capture-overlay'), null);
@@ -139,7 +166,20 @@ test('AI classification remains visible and silently queues an inbox item', asyn
   window.close();
 });
 
-test('document-level dwell opens only the hovered folder direct children', async () => {
+test('custom drag preview is staged in the viewport with a centered hotspot', async () => {
+  const { window, dataTransfer } = await createContentHarness({ throwOnSetData: true });
+  assert.equal(dataTransfer.dragImageCalls.length, 1);
+  const preview = dataTransfer.dragImageCalls[0];
+  assert.notEqual(preview.left, '-10000px');
+  assert.notEqual(preview.top, '-10000px');
+  assert.equal(preview.x, Math.round(Number.parseFloat(preview.width) / 2));
+  assert.equal(preview.y, Math.round(Number.parseFloat(preview.height) / 2));
+  assert.ok(Number.parseFloat(preview.width) <= 180);
+  assert.ok(Number.parseFloat(preview.height) <= 140);
+  window.close();
+});
+
+test('drag-preview overlap opens only the covered folder direct children', async () => {
   const { window, dataTransfer } = await createContentHarness();
   assert.deepEqual(radialLabels(window).sort(), ['lap资源', '创建目录', '风景摄影'].sort());
   assert.equal(radialLabels(window).includes('1'), false);
@@ -147,17 +187,37 @@ test('document-level dwell opens only the hovered folder direct children', async
   const root = window.document.querySelector('[data-path="D:/Lap/lap资源"]');
   window.document.elementsFromPoint = () => [];
   const rootPoint = radialPoint(window, root);
-  window.document.dispatchEvent(
-    dragEvent(window, 'dragover', rootPoint.x, rootPoint.y, dataTransfer),
+  const previewWidth = Number.parseFloat(dataTransfer.dragImageCalls[0].width);
+  const overlapPointer = {
+    x: rootPoint.x + Number(root.dataset.radialHitRadius) + previewWidth / 2 - 4,
+    y: rootPoint.y,
+  };
+  assert.ok(
+    Math.hypot(overlapPointer.x - rootPoint.x, overlapPointer.y - rootPoint.y)
+      > Number(root.dataset.radialHitRadius) + 16,
+    'the pointer itself must remain outside the legacy radial hit target',
   );
-  await new Promise((resolve) => setTimeout(resolve, 410));
+  window.document.elementsFromPoint = () => [
+    window.document.querySelector('.lap-capture-radial-center'),
+  ];
+  window.document.dispatchEvent(
+    dragEvent(window, 'dragover', overlapPointer.x, overlapPointer.y, dataTransfer),
+  );
+  await new Promise((resolve) => setTimeout(resolve, DWELL_SETTLE_MS));
+  assert.deepEqual(radialLabels(window).sort(), ['lap资源', '创建目录', '风景摄影'].sort());
+
+  window.document.elementsFromPoint = () => [];
+  window.document.dispatchEvent(
+    dragEvent(window, 'dragover', overlapPointer.x, overlapPointer.y, dataTransfer),
+  );
+  await new Promise((resolve) => setTimeout(resolve, DWELL_SETTLE_MS));
   assert.deepEqual(radialLabels(window).sort(), ['1', '保存到 lap资源', '创建目录', '返回上级'].sort());
   assert.equal(radialLabels(window).includes('lap资源'), false);
 
   window.document.dispatchEvent(
-    dragEvent(window, 'dragover', rootPoint.x, rootPoint.y, dataTransfer),
+    dragEvent(window, 'dragover', overlapPointer.x, overlapPointer.y, dataTransfer),
   );
-  await new Promise((resolve) => setTimeout(resolve, 410));
+  await new Promise((resolve) => setTimeout(resolve, DWELL_SETTLE_MS));
   assert.deepEqual(radialLabels(window).sort(), ['1', '保存到 lap资源', '创建目录', '返回上级'].sort());
 
   const child = window.document.querySelector('[data-path="D:/Lap/lap资源/1"]');
@@ -165,7 +225,7 @@ test('document-level dwell opens only the hovered folder direct children', async
   window.document.dispatchEvent(
     dragEvent(window, 'dragover', childPoint.x, childPoint.y, dataTransfer),
   );
-  await new Promise((resolve) => setTimeout(resolve, 410));
+  await new Promise((resolve) => setTimeout(resolve, DWELL_SETTLE_MS));
   assert.deepEqual(radialLabels(window).sort(), ['三渲二', '写实', '保存到 1', '创建目录', '返回上级'].sort());
   window.close();
 });
@@ -215,7 +275,7 @@ test('the current folder action saves directly instead of navigating again', asy
   const root = window.document.querySelector('[data-path="D:/Lap/lap资源"]');
   window.document.elementsFromPoint = () => [root];
   window.document.dispatchEvent(dragEvent(window, 'dragover', 600, 160, dataTransfer));
-  await new Promise((resolve) => setTimeout(resolve, 410));
+  await new Promise((resolve) => setTimeout(resolve, DWELL_SETTLE_MS));
 
   const saveCurrent = [...window.document.querySelectorAll('.lap-capture-radial-item')]
     .find((button) => button.textContent.includes('保存到 lap资源'));

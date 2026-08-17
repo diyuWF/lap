@@ -206,4 +206,76 @@
 9. Current visual result — blocked until the fresh package is rendered and
    exercised in the user's real Chromium environment.
 
+## Package 27 manual defect and next-candidate QA — 2026-08-16
+
+- Source visual truth/user defect path:
+  `/workspace/scratch/b4cbe8668986/upload/efb352ec-3c61-4a94-8562-beaaf3331c5b.png`
+  (1185 × 1140 px).
+- Source state: packaged Chromium radial after the one-third-width threshold;
+  populated root `lap资源`, dragged-image preview covering that root, purple AI
+  center visible, bronze gauge/create accents, and visible `AI 分类` center copy.
+- Intended implementation state: the same desktop radial state with a cool-purple
+  instrument palette, logo-and-halo-only center, and direct children revealed
+  after the dragged preview—not only its pointer hotspot—dwells over the parent.
+- Intended CSS viewport/density: desktop Chromium at device scale 1. The uploaded
+  evidence is a cropped 1185 × 1140 raster and does not preserve browser viewport
+  metadata, so no false 1:1 viewport claim is made.
+- Implementation screenshot path: unavailable. This environment exposes no cloud
+  browser controller and no local Chromium/Chrome binary, so the revised extension
+  cannot be rendered and placed beside the source screenshot.
+- Full-view comparison evidence: blocked because there are no revised rendered
+  pixels for a same-state comparison.
+- Focused-region comparison evidence: blocked for the parent-overlap state and
+  purple gauge compositing. The source screenshot itself was opened at native
+  resolution and confirms the reported visible-preview/pointer mismatch, bronze
+  accents, and visible center label.
+- Primary interaction evidence: seven Happy DOM tests pass. The new regression
+  deliberately keeps the pointer outside the old circular hit radius while the
+  93 × 140 drag-preview rectangle overlaps `lap资源`; after 220 ms the direct
+  child level appears, remains stable under a stationary pointer, and can advance
+  to the next level. A separate assertion verifies that rejecting custom drag
+  data cannot prevent `setDragImage`, and that the preview is staged inside the
+  viewport with a centered hotspot.
+- Console errors checked: unavailable without a browser-rendered implementation.
+
+### Current findings
+
+- [P1] Revised packaged Chromium interaction and visual evidence is unavailable
+  - Location: `lap资源` preview-overlap dwell, purple gauge/create accents, and
+    logo-only animated center.
+  - Evidence: deterministic collision/state tests and source-level palette/copy
+    assertions pass, but no browser screenshot or live console exists for the
+    revised implementation.
+  - Impact: native drag-image snapshot behavior, final filter compositing, and
+    real motion smoothness still require the newly packaged extension.
+  - Fix/gate: build the fresh Windows/extension delivery, then manually compare
+    the same overlap state against the supplied screenshot.
+
+### Required fidelity surfaces
+
+- Fonts and typography: folder labels remain unchanged; the center has no visible
+  copy. Browser antialiasing remains a manual check.
+- Spacing and layout rhythm: orbit geometry is unchanged from package 27; the AI
+  visual is optically recentered after removing its label. Rendered balance is
+  not claimed without a browser capture.
+- Colors and visual tokens: all radial bronze control tokens were replaced by a
+  cool violet palette; the existing gauge raster receives a 225-degree hue shift
+  while its white ticks/orbit remain neutral. Final browser color is unverified.
+- Image quality and asset fidelity: the existing real gauge, AI wordmark, AI
+  particle orbit, folder covers, and bundled icons remain in use; no placeholder
+  or code-drawn visible asset was introduced.
+- Copy and content: visible `AI 分类` was removed only from the radial center;
+  `aria-label="AI 分类"`, the desktop workspace name, and inbox behavior remain.
+
+### Comparison history addendum
+
+10. Package 27 manual feedback — P1: the visible dragged image covered `lap资源`
+    without opening its children; bronze accents and visible center copy were
+    rejected.
+11. Current fix — staged centered custom preview, preview-rectangle/folder-circle
+    intersection dwell, 220 ms activation, all-purple radial accents, and a
+    logo-only AI center. Seven regression tests pass.
+12. Current visual result — blocked until the new packaged extension is rendered
+    and exercised in the user's real Chromium environment.
+
 final result: blocked

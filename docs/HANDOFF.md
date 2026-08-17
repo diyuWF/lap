@@ -70,22 +70,24 @@ The PR is intentionally kept Draft until manual validation is complete.
 
 Latest packaged candidate commit:
 
-`6e142647d52d2e8cbbe3572ada882d4b63da602a`
+`4eefde94d81ddbe7a745bf82b4c672e15ed5cafb`
 
 Automated validation:
 
-- PASS — PR Build #81
-- PASS — Chat Validation Package #26
-- PASS — artifact `Lap-0.4.1-Chat-Delivery-26`
+- PASS — PR Build #82
+- PASS — Chat Validation Package #27
+- PASS — artifact `Lap-0.4.1-Chat-Delivery-27`
 
 That package contains the cumulative-path browser capture, native reference-board
 drag-out correction, instrument-control radial, real folder-cover data path,
 the restored complete SQLite source, hierarchical AI-radial navigation,
-AI-classification collection, silent background capture, and first-install
-Token pairing. Manual feedback found that real native drag still did not reliably
-open child folders, orbit targets intersected the inner stroke, and the center AI
-mark did not match the requested moving purple wordmark direction. The focused
-working-tree correction requires a fresh PR build plus Windows package.
+AI-classification collection, silent background capture, first-install Token
+pairing, inner-orbit target placement, and the moving purple AI mark. Manual
+feedback found that the native drag preview could visibly cover a parent while
+its pointer hotspot remained outside the parent's circle, so child folders still
+did not open. The remaining bronze accents and visible center label were also
+rejected. The focused working-tree correction requires a fresh PR build plus
+Windows package.
 The Windows chat-delivery workflow now runs for every opened, synchronized, or
 reopened PR update so each focused modification produces a matching installer
 and browser-extension package automatically.
@@ -145,16 +147,16 @@ Windows validation-package build before that package is used for manual testing.
 
 Current state:
 
-`BLOCKED — RADIAL DWELL/GEOMETRY/AI MARK FOLLOW-UP AWAITING FRESH PACKAGE`
+`BLOCKED — DRAG-PREVIEW HIERARCHY/PURPLE RADIAL FOLLOW-UP AWAITING FRESH PACKAGE`
 
 Reason:
 
-`Lap-0.4.1-Chat-Delivery-26` passed its automated checks and resolved the prior
-hierarchy bounce, current-folder save, AI-collection, and silent-capture defects.
-Manual feedback found that native Chromium drag hit testing could still lose a
-folder target before the dwell completed, directory/create circles overlapped
-the inner orbit stroke, and the bronze planetary center mark needed replacement
-with an original purple AI wordmark and moving particle halo.
+`Lap-0.4.1-Chat-Delivery-27` passed its automated checks and resolved the prior
+orbit intersection and AI-mark defects. Manual feedback confirmed one native
+Chromium interaction gap: the visible drag preview can cover a parent folder
+while the pointer hotspot stays outside the circular hit area, so the child level
+does not open. The instrument accents also need to be purple and the center must
+show only the moving AI logo without a visible text label.
 
 Focused fixes are implemented in the working branch:
 
@@ -165,19 +167,24 @@ Focused fixes are implemented in the working branch:
 - after activation, the page is moderately dimmed/blurred and one 820 px
   precision-instrument dial is fixed to the exact viewport center;
 - the dial uses the selected source hierarchy: a full radial tick ring, one thin
-  inner orbit, and one restrained bronze partial arc rather than a solid disc;
+  inner orbit, and one restrained purple partial arc rather than a solid disc;
 - the center always uses an original transparent purple AI wordmark plus two
-  independently moving, counter-rotating particle-halo layers and the single
-  label “AI 分类”; reduced-motion mode stops those animations, while a drop
-  silently enters the logical AI classification queue with `autoClassify: false`
-  and never calls a model during browser capture;
+  independently moving, counter-rotating particle-halo layers with no visible
+  label; its accessible name remains “AI 分类”. Reduced-motion mode stops those
+  animations, while a drop silently enters the logical AI classification queue
+  with `autoClassify: false` and never calls a model during browser capture;
 - the first radial level contains top-level folders only; descendants and recent
   paths can no longer leak into that level;
-- dropping on, clicking, or dwelling 360 ms over a parent opens only that
-  parent's direct children; dwell detection combines the drag event target,
-  document hit testing, and viewport-centered radial geometry with a 140 ms miss
-  grace period, so native drag-preview interference cannot repeatedly reset the
-  dwell; a post-navigation pointer lock prevents stationary-cursor bounce;
+- dropping on, clicking, or dwelling 220 ms with the dragged preview over a
+  parent opens only that parent's direct children; dwell detection combines the
+  drag event target, document hit testing, viewport-centered radial geometry,
+  and dragged-image rectangle/circle intersection with a 140 ms miss grace
+  period, so an offset native hotspot cannot lose the visibly covered parent;
+  a post-navigation pointer lock prevents stationary-cursor bounce;
+- the custom semi-transparent drag preview is staged inside the viewport before
+  `setDragImage`, uses a centered hotspot, and is then moved off-screen after the
+  browser snapshots it; this prevents Chromium from falling back to an oversized
+  source-page preview;
 - every child level contains a dedicated “保存到 {current folder}” target in
   addition to its direct children, “返回上级”, and “创建目录”;
 - nested levels never render their parent or unrelated root siblings alongside
@@ -307,15 +314,17 @@ progress surface. Moving back toward the start must keep accumulating path
 length, and the circular UI must appear only after total travel reaches roughly
 one third of browser width. Verify the page is dimmed/blurred only after that
 threshold and the precision dial remains fixed at the viewport center. Its tick
-ring, inner orbit, bronze arc, and circular directory controls must remain crisp.
+ring, inner orbit, purple arc, and circular directory controls must remain crisp.
 Every directory/create target must sit wholly inside the inner orbit with a
-visible gap and must not intersect another target. The AI center must show the
-original purple AI wordmark, a slowly drifting/counter-rotating particle halo,
-and “AI 分类”.
+visible gap and must not intersect another target. The AI center must show only
+the original purple AI wordmark and a slowly drifting/counter-rotating particle
+halo; “AI 分类” remains its accessible and desktop-workspace name but is not
+visible inside the radial.
 It must silently collect with `workflowStatus: inbox` and `autoClassify: false`;
 no provider call or page-level saving toast may occur. The first level must show
-only roots; dwelling on a parent during a real native drag must show its direct
-children even when the drag preview crosses the target, plus an explicit
+only roots; dwelling with the dragged image visibly overlapping a parent during
+a real native drag must show its direct children even when the pointer hotspot
+itself is outside the circle, plus an explicit
 save-to-current-parent action and navigation. A stationary cursor must not make
 the new level bounce back; the pointer must move before another dwell begins.
 Empty

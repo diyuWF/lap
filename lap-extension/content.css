@@ -1,7 +1,7 @@
 .lap-capture-overlay,
 .lap-capture-drag-ghost {
   all: initial;
-  color: #f4f5f7;
+  color: #f5f3ff;
   font-family:
     Inter,
     'PingFang SC',
@@ -30,7 +30,7 @@
   inset: 0;
   z-index: 2147483646;
   display: block;
-  background: rgba(13, 12, 11, 0.54);
+  background: rgba(12, 10, 18, 0.54);
   backdrop-filter: blur(18px) brightness(0.6) saturate(0.68);
   -webkit-backdrop-filter: blur(18px) brightness(0.6) saturate(0.68);
   pointer-events: none;
@@ -41,7 +41,7 @@
 
 .lap-capture-overlay.is-radial-open,
 .lap-capture-overlay.is-panel-open {
-  background: rgba(13, 12, 11, 0.56);
+  background: rgba(12, 10, 18, 0.58);
   backdrop-filter: blur(20px) brightness(0.58) saturate(0.66);
   -webkit-backdrop-filter: blur(20px) brightness(0.58) saturate(0.66);
 }
@@ -80,7 +80,11 @@
   height: 100%;
   opacity: 0.9;
   pointer-events: none;
-  filter: drop-shadow(0 22px 42px rgba(0, 0, 0, 0.2));
+  filter:
+    hue-rotate(225deg)
+    saturate(1.55)
+    brightness(1.06)
+    drop-shadow(0 22px 42px rgba(0, 0, 0, 0.2));
   object-fit: contain;
   animation: lapRadialGaugeIn 420ms cubic-bezier(0.18, 0.9, 0.22, 1) both;
 }
@@ -108,7 +112,7 @@
     0 0 42px rgba(117, 49, 255, 0.16),
     0 24px 58px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  color: #f3f0e8;
+  color: #f5f1ff;
   cursor: copy;
   font: inherit;
   pointer-events: auto;
@@ -129,7 +133,7 @@
   width: 112px;
   height: 112px;
   flex: none;
-  margin-top: -5px;
+  margin-top: 0;
   place-items: center;
   pointer-events: none;
   animation: lapAiDrift 5.8s ease-in-out infinite;
@@ -173,17 +177,6 @@
   transform: translate(-50%, -50%);
 }
 
-.lap-capture-ai-label {
-  position: absolute;
-  bottom: 15px;
-  color: #f3f0e8;
-  font-size: 12px;
-  font-weight: 720;
-  letter-spacing: 0.04em;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8);
-  white-space: nowrap;
-}
-
 .lap-capture-radial-center.is-loading {
   cursor: wait;
   opacity: 0.72;
@@ -213,14 +206,14 @@
   height: var(--lap-radial-size, clamp(54px, 9vmin, 78px));
   padding: 0;
   overflow: hidden;
-  border: 1px solid rgba(243, 240, 232, 0.82);
+  border: 1px solid rgba(239, 235, 255, 0.86);
   border-radius: 50%;
   appearance: none;
-  background: rgba(243, 240, 232, 0.94);
+  background: rgba(244, 241, 252, 0.95);
   box-shadow:
     0 13px 30px rgba(0, 0, 0, 0.22),
     inset 0 1px 0 rgba(255, 255, 255, 0.72);
-  color: #25211d;
+  color: #26222e;
   cursor: copy;
   font: inherit;
   pointer-events: auto;
@@ -245,7 +238,7 @@
   z-index: 2;
   display: block;
   overflow: hidden;
-  color: #2d2925;
+  color: #2c2833;
   font-size: 10px;
   font-weight: 720;
   line-height: 1.2;
@@ -301,42 +294,43 @@
 }
 
 .lap-capture-radial-item.is-create {
-  border-color: rgba(178, 136, 92, 0.82);
-  background: rgba(111, 74, 44, 0.96);
+  border-color: rgba(171, 132, 255, 0.9);
+  background: rgba(82, 45, 164, 0.97);
   box-shadow:
+    0 0 0 4px rgba(126, 77, 240, 0.12),
     0 17px 38px rgba(0, 0, 0, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .lap-capture-radial-item.is-current-folder {
-  border-color: rgba(211, 170, 121, 0.9);
-  background: rgba(224, 197, 165, 0.97);
+  border-color: rgba(188, 158, 255, 0.94);
+  background: rgba(220, 208, 255, 0.97);
   box-shadow:
-    0 0 0 4px rgba(154, 107, 63, 0.12),
+    0 0 0 4px rgba(124, 78, 236, 0.13),
     0 16px 36px rgba(0, 0, 0, 0.28);
 }
 
 .lap-capture-radial-item.is-current-folder strong {
-  color: #30251c;
+  color: #2f2540;
 }
 
 .lap-capture-radial-item.has-children {
-  border-color: rgba(181, 133, 82, 0.9);
+  border-color: rgba(170, 132, 255, 0.92);
   box-shadow:
-    0 0 0 3px rgba(154, 107, 63, 0.11),
+    0 0 0 3px rgba(123, 76, 235, 0.12),
     0 13px 30px rgba(0, 0, 0, 0.22);
 }
 
 .lap-capture-radial-item.is-back {
-  border-color: rgba(243, 240, 232, 0.35);
-  background: rgba(30, 28, 25, 0.9);
+  border-color: rgba(239, 235, 255, 0.36);
+  background: rgba(31, 28, 39, 0.92);
   box-shadow:
     0 13px 30px rgba(0, 0, 0, 0.28),
     inset 0 1px 0 rgba(255, 255, 255, 0.09);
 }
 
 .lap-capture-radial-item.is-back strong {
-  color: #eee9df;
+  color: #f0ecfa;
 }
 
 .lap-capture-radial-item.is-back .lap-capture-radial-action-icon {
@@ -345,7 +339,7 @@
 }
 
 .lap-capture-radial-item.is-create strong {
-  color: #f5e5d4;
+  color: #f3edff;
 }
 
 .lap-capture-radial-item.is-create .lap-capture-radial-action-icon {
@@ -354,33 +348,33 @@
 }
 
 .lap-capture-radial-item.is-more strong {
-  color: #2d2925;
+  color: #2c2833;
 }
 
 .lap-capture-radial-item:hover,
 .lap-capture-radial-item.is-target {
   z-index: 2;
-  border-color: rgba(211, 170, 121, 0.96);
-  background: rgba(255, 252, 246, 0.98);
+  border-color: rgba(192, 163, 255, 0.98);
+  background: rgba(250, 248, 255, 0.99);
   box-shadow:
-    0 0 0 5px rgba(178, 136, 92, 0.12),
+    0 0 0 5px rgba(128, 79, 240, 0.14),
     0 20px 44px rgba(0, 0, 0, 0.48);
   transform: translate(-50%, -50%) translate(var(--lap-radial-x), var(--lap-radial-y)) scale(1.065);
 }
 
 .lap-capture-radial-item.is-create:hover,
 .lap-capture-radial-item.is-create.is-target {
-  background: rgba(130, 86, 50, 0.98);
+  background: rgba(100, 55, 198, 0.99);
 }
 
 .lap-capture-radial-item.is-back:hover,
 .lap-capture-radial-item.is-back.is-target {
-  background: rgba(40, 36, 31, 0.98);
+  background: rgba(41, 36, 51, 0.99);
 }
 
 .lap-capture-radial-center:focus-visible,
 .lap-capture-radial-item:focus-visible {
-  outline: 2px solid rgba(224, 190, 148, 0.96);
+  outline: 2px solid rgba(200, 179, 255, 0.98);
   outline-offset: 4px;
 }
 
@@ -492,7 +486,7 @@
   background: rgba(24, 25, 29, 0.97);
   box-shadow:
     -28px 28px 90px rgba(82, 50, 224, 0.1),
-    30px -18px 90px rgba(231, 100, 45, 0.07),
+    30px -18px 90px rgba(151, 88, 255, 0.08),
     0 34px 110px rgba(0, 0, 0, 0.56);
   color: #f2f3f5;
   pointer-events: auto;
@@ -912,8 +906,8 @@
 
 .lap-capture-drag-ghost {
   position: fixed;
-  top: -10000px;
-  left: -10000px;
+  top: 0;
+  left: 0;
   z-index: 2147483647;
   display: block;
   max-width: 180px;
