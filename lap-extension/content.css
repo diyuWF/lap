@@ -90,19 +90,22 @@
   top: 50%;
   left: 50%;
   display: flex;
-  width: clamp(112px, 15vmin, 132px);
-  height: clamp(112px, 15vmin, 132px);
+  width: clamp(142px, 18vmin, 164px);
+  height: clamp(142px, 18vmin, 164px);
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 15px;
-  border: 1px solid rgba(243, 240, 232, 0.48);
+  gap: 0;
+  padding: 0;
+  border: 1px solid rgba(158, 104, 255, 0.4);
   border-radius: 50%;
   appearance: none;
-  background: rgba(25, 23, 20, 0.8);
+  background:
+    radial-gradient(circle at 50% 42%, rgba(74, 39, 128, 0.22), transparent 56%),
+    rgba(18, 17, 23, 0.82);
   box-shadow:
-    0 0 0 10px rgba(154, 107, 63, 0.055),
+    0 0 0 10px rgba(116, 65, 238, 0.055),
+    0 0 42px rgba(117, 49, 255, 0.16),
     0 24px 58px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.12);
   color: #f3f0e8;
@@ -120,20 +123,64 @@
   -webkit-backdrop-filter: blur(16px) saturate(0.74);
 }
 
-.lap-capture-radial-center img {
-  display: block;
-  width: 64px;
-  height: 64px;
+.lap-capture-ai-visual {
+  position: relative;
+  display: grid;
+  width: 112px;
+  height: 112px;
   flex: none;
-  filter: none;
-  object-fit: contain;
-  opacity: 1;
+  margin-top: -5px;
+  place-items: center;
+  pointer-events: none;
+  animation: lapAiDrift 5.8s ease-in-out infinite;
 }
 
-.lap-capture-radial-center > span {
+.lap-capture-ai-orbit,
+.lap-capture-ai-wordmark {
+  position: absolute;
+  display: block;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.lap-capture-ai-orbit {
+  inset: -9px;
+  width: 130px;
+  height: 130px;
+  opacity: 0.72;
+  filter: saturate(1.08) drop-shadow(0 0 9px rgba(128, 65, 255, 0.28));
+}
+
+.lap-capture-ai-orbit.is-forward {
+  animation: lapAiOrbitForward 13s linear infinite;
+}
+
+.lap-capture-ai-orbit.is-reverse {
+  inset: 3px;
+  width: 106px;
+  height: 106px;
+  opacity: 0.34;
+  transform: rotate(142deg) scaleX(-1);
+  animation: lapAiOrbitReverse 9s linear infinite;
+}
+
+.lap-capture-ai-wordmark {
+  top: 50%;
+  left: 50%;
+  width: 72px;
+  height: 72px;
+  filter: drop-shadow(0 0 11px rgba(147, 70, 255, 0.38));
+  transform: translate(-50%, -50%);
+}
+
+.lap-capture-ai-label {
+  position: absolute;
+  bottom: 15px;
   color: #f3f0e8;
   font-size: 12px;
   font-weight: 720;
+  letter-spacing: 0.04em;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8);
   white-space: nowrap;
 }
 
@@ -144,9 +191,10 @@
 
 .lap-capture-radial-center:hover,
 .lap-capture-radial-center.is-target {
-  border-color: rgba(211, 170, 121, 0.96);
+  border-color: rgba(173, 113, 255, 0.96);
   box-shadow:
-    0 0 0 8px rgba(178, 136, 92, 0.14),
+    0 0 0 8px rgba(127, 66, 236, 0.13),
+    0 0 54px rgba(117, 49, 255, 0.28),
     0 28px 62px rgba(0, 0, 0, 0.5);
   transform: translate(-50%, -50%) scale(1.045);
 }
@@ -161,8 +209,8 @@
   top: 50%;
   left: 50%;
   display: block;
-  width: clamp(68px, 9.5vmin, 82px);
-  height: clamp(68px, 9.5vmin, 82px);
+  width: var(--lap-radial-size, clamp(54px, 9vmin, 78px));
+  height: var(--lap-radial-size, clamp(54px, 9vmin, 78px));
   padding: 0;
   overflow: hidden;
   border: 1px solid rgba(243, 240, 232, 0.82);
@@ -245,9 +293,9 @@
 .lap-capture-radial-folder-icon,
 .lap-capture-radial-action-icon {
   display: block;
-  width: 29px;
-  height: 29px;
-  margin-bottom: 10px;
+  width: min(29px, calc(var(--lap-radial-size, 78px) * 0.38));
+  height: min(29px, calc(var(--lap-radial-size, 78px) * 0.38));
+  margin-bottom: min(10px, calc(var(--lap-radial-size, 78px) * 0.13));
   filter: none;
   opacity: 0.72;
 }
@@ -379,6 +427,43 @@
   to {
     opacity: 1;
     transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes lapAiDrift {
+  0%,
+  100% {
+    transform: translate3d(-2px, 1px, 0) rotate(-1deg);
+  }
+  35% {
+    transform: translate3d(3px, -3px, 0) rotate(1.5deg);
+  }
+  68% {
+    transform: translate3d(1px, 3px, 0) rotate(-0.5deg);
+  }
+}
+
+@keyframes lapAiOrbitForward {
+  from {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.035);
+  }
+  to {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+@keyframes lapAiOrbitReverse {
+  from {
+    transform: rotate(142deg) scaleX(-1) scale(0.98);
+  }
+  50% {
+    transform: rotate(-38deg) scaleX(-1) scale(1.045);
+  }
+  to {
+    transform: rotate(-218deg) scaleX(-1) scale(0.98);
   }
 }
 

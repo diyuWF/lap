@@ -4,6 +4,8 @@
   const DRAG_DISTANCE_VIEWPORT_RATIO = 1 / 3;
   const RADIAL_FOLDER_LIMIT = 8;
   const RADIAL_NAVIGATION_RELEASE_PX = 28;
+  const RADIAL_DWELL_MISS_GRACE_MS = 140;
+  const RADIAL_HIT_SLOP_PX = 16;
   const folderCoverViews = new WeakMap();
 
   let overlay = null;
@@ -15,6 +17,7 @@
   let expanded = new Set();
   let hoverTimer = null;
   let radialDwellTimer = null;
+  let radialDwellMissTimer = null;
   let radialDwellTarget = null;
   let radialPointer = null;
   let radialNavigationLock = null;
@@ -161,9 +164,19 @@
 
   function clearRadialDwell() {
     if (radialDwellTimer) clearTimeout(radialDwellTimer);
+    if (radialDwellMissTimer) clearTimeout(radialDwellMissTimer);
     radialDwellTimer = null;
+    radialDwellMissTimer = null;
     radialDwellTarget?.classList.remove('is-target');
     radialDwellTarget = null;
+  }
+
+  function deferRadialDwellClear() {
+    if (!radialDwellTarget || radialDwellMissTimer) return;
+    radialDwellMissTimer = setTimeout(() => {
+      radialDwellMissTimer = null;
+      clearRadialDwell();
+    }, RADIAL_DWELL_MISS_GRACE_MS);
   }
 
   function activateRadialNavigation(button) {
@@ -190,8 +203,40 @@
     }, HOVER_EXPAND_MS);
   }
 
-  function updateRadialDwell(clientX, clientY) {
-    if (!overlay || mode !== 'radial' || typeof document.elementsFromPoint !== 'function') {
+  function findRadialNavigationTarget(clientX, clientY, eventTarget = null) {
+    if (!overlay) return null;
+    const hitElements = [];
+    if (eventTarget instanceof Element) hitElements.push(eventTarget);
+    if (typeof document.elementsFromPoint === 'function') {
+      hitElements.push(...document.elementsFromPoint(clientX, clientY));
+    }
+    const directTarget = hitElements
+      .map((element) => element.closest?.('[data-radial-navigate]'))
+      .find((element) => element instanceof HTMLButtonElement && overlay.contains(element));
+    if (directTarget) return directTarget;
+
+    let nearest = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    for (const button of overlay.querySelectorAll('[data-radial-navigate]')) {
+      if (!(button instanceof HTMLButtonElement)) continue;
+      const offsetX = Number(button.dataset.radialX);
+      const offsetY = Number(button.dataset.radialY);
+      const hitRadius = Number(button.dataset.radialHitRadius);
+      if (![offsetX, offsetY, hitRadius].every(Number.isFinite)) continue;
+      const distance = Math.hypot(
+        clientX - (window.innerWidth / 2 + offsetX),
+        clientY - (window.innerHeight / 2 + offsetY),
+      );
+      if (distance <= hitRadius + RADIAL_HIT_SLOP_PX && distance < nearestDistance) {
+        nearest = button;
+        nearestDistance = distance;
+      }
+    }
+    return nearest;
+  }
+
+  function updateRadialDwell(clientX, clientY, eventTarget = null) {
+    if (!overlay || mode !== 'radial') {
       clearRadialDwell();
       return;
     }
@@ -207,11 +252,16 @@
       }
       radialNavigationLock = null;
     }
-    const button = document
-      .elementsFromPoint(clientX, clientY)
-      .map((element) => element.closest?.('[data-radial-navigate]'))
-      .find((element) => element instanceof HTMLButtonElement && overlay.contains(element));
-    scheduleRadialDwell(button || null);
+    const button = findRadialNavigationTarget(clientX, clientY, eventTarget);
+    if (!button) {
+      deferRadialDwellClear();
+      return;
+    }
+    if (radialDwellMissTimer) {
+      clearTimeout(radialDwellMissTimer);
+      radialDwellMissTimer = null;
+    }
+    scheduleRadialDwell(button);
   }
 
   function removeDragGhost() {
@@ -293,14 +343,19 @@
     overlay = document.createElement('div');
     overlay.className = 'lap-capture-overlay is-radial-open';
     const extensionIconUrl = chrome.runtime.getURL('icon.png');
-    const aiClassifyIconUrl = chrome.runtime.getURL('ai-classify.png');
+    const aiWordmarkUrl = chrome.runtime.getURL('ai-wordmark.png');
+    const aiOrbitUrl = chrome.runtime.getURL('ai-orbit.png');
     const radialGaugeUrl = chrome.runtime.getURL('radial-gauge.png');
     overlay.innerHTML = `
       <div class="lap-capture-radial" role="menu" aria-label="保存到文件夹">
         <img class="lap-capture-radial-gauge" src="${escapeHtml(radialGaugeUrl)}" alt="" />
         <button class="lap-capture-radial-center" type="button" role="menuitem">
-          <img src="${escapeHtml(aiClassifyIconUrl)}" alt="" />
-          <span>AI 分类</span>
+          <span class="lap-capture-ai-visual" aria-hidden="true">
+            <img class="lap-capture-ai-orbit is-forward" src="${escapeHtml(aiOrbitUrl)}" alt="" />
+            <img class="lap-capture-ai-orbit is-reverse" src="${escapeHtml(aiOrbitUrl)}" alt="" />
+            <img class="lap-capture-ai-wordmark" src="${escapeHtml(aiWordmarkUrl)}" alt="" />
+          </span>
+          <span class="lap-capture-ai-label">AI 分类</span>
         </button>
         <div class="lap-capture-radial-items"></div>
       </div>
@@ -468,14 +523,40 @@
     return {
       parent,
       siblings,
-      candidates: siblings.slice(0, RADIAL_FOLDER_LIMIT),
     };
   }
 
+  function radialControlCapacity() {
+    const stageSize = Math.min(840, window.innerWidth - 32, window.innerHeight - 32);
+    const scale = Math.max(0.3, Math.min(1, stageSize / 840));
+    const innerOrbitRadius = 270 * scale;
+    const orbitGap = Math.max(8, 18 * scale);
+    const minimumItemSize = 42;
+    const radius = innerOrbitRadius - minimumItemSize / 2 - orbitGap;
+    const minimumChord = minimumItemSize + 7;
+    const ratio = Math.min(1, minimumChord / Math.max(1, 2 * radius));
+    const capacity = Math.floor(Math.PI / Math.asin(ratio));
+    return Math.max(4, Math.min(10, capacity));
+  }
+
   function radialOrbitPosition(index, total) {
-    const stageSize = Math.min(820, window.innerWidth - 48, window.innerHeight - 80);
-    const scale = Math.max(0.42, Math.min(1, stageSize / 820));
-    const radius = (total <= 4 ? 248 : total <= 7 ? 266 : 278) * scale;
+    const stageSize = Math.min(840, window.innerWidth - 32, window.innerHeight - 32);
+    const scale = Math.max(0.3, Math.min(1, stageSize / 840));
+    const innerOrbitRadius = 270 * scale;
+    const requestedSize = Math.max(
+      42,
+      Math.min(78, Math.min(window.innerWidth, window.innerHeight) * 0.09),
+    );
+    const orbitGap = Math.max(8, 18 * scale);
+    const initialRadius = innerOrbitRadius - requestedSize / 2 - orbitGap;
+    const availableChord = total > 1
+      ? 2 * initialRadius * Math.sin(Math.PI / total)
+      : requestedSize;
+    const itemSize = Math.max(
+      42,
+      Math.min(requestedSize, availableChord - Math.max(8, 11 * scale)),
+    );
+    const radius = innerOrbitRadius - itemSize / 2 - orbitGap;
     const startAngle = total === 1 ? 90 : -90;
     const angle = startAngle + (360 / Math.max(1, total)) * index;
     const radians = (angle * Math.PI) / 180;
@@ -483,7 +564,19 @@
       x: Math.cos(radians) * radius,
       y: Math.sin(radians) * radius,
       angle,
+      itemSize,
     };
+  }
+
+  function applyRadialPosition(button, index, total) {
+    const position = radialOrbitPosition(index, total);
+    button.style.setProperty('--lap-radial-x', `${position.x}px`);
+    button.style.setProperty('--lap-radial-y', `${position.y}px`);
+    button.style.setProperty('--lap-radial-size', `${position.itemSize}px`);
+    button.style.setProperty('--lap-radial-order', index);
+    button.dataset.radialX = String(position.x);
+    button.dataset.radialY = String(position.y);
+    button.dataset.radialHitRadius = String(position.itemSize / 2);
   }
 
   function applyRadialFolderCover(button, folder) {
@@ -566,20 +659,23 @@
       <strong>${escapeHtml(saveDirectly ? `保存到 ${folder.name}` : folder.name)}</strong>`;
     applyRadialFolderCover(button, folder);
 
-    const position = radialOrbitPosition(index, total);
-    button.style.setProperty('--lap-radial-x', `${position.x}px`);
-    button.style.setProperty('--lap-radial-y', `${position.y}px`);
-    button.style.setProperty('--lap-radial-order', index);
+    applyRadialPosition(button, index, total);
 
+    button.addEventListener('dragenter', (event) => {
+      if (mode !== 'radial' || !navigates) return;
+      event.preventDefault();
+      scheduleRadialDwell(button);
+    });
     button.addEventListener('dragover', (event) => {
       if (mode !== 'radial') return;
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+      if (navigates) scheduleRadialDwell(button);
     });
     if (navigates) {
       button.addEventListener('mouseenter', () => scheduleRadialDwell(button));
       button.addEventListener('mouseleave', () => {
-        if (radialDwellTarget === button) clearRadialDwell();
+        if (radialDwellTarget === button) deferRadialDwellClear();
       });
     }
     button.addEventListener('drop', (event) => {
@@ -625,11 +721,20 @@
     const radial = overlay.querySelector('.lap-capture-radial');
     const items = overlay.querySelector('.lap-capture-radial-items');
     const level = radialFolderCandidates();
-    const candidates = level.candidates;
     const showBack = Boolean(level.parent);
     const showCurrentFolder = Boolean(level.parent);
-    const showMore = level.siblings.length > candidates.length;
     const showCreate = folders.length > 0;
+    const reservedControls = (showBack ? 1 : 0)
+      + (showCurrentFolder ? 1 : 0)
+      + (showCreate ? 1 : 0);
+    const capacity = radialControlCapacity();
+    let folderSlots = Math.max(1, capacity - reservedControls);
+    let candidates = level.siblings.slice(0, Math.min(RADIAL_FOLDER_LIMIT, folderSlots));
+    const showMore = level.siblings.length > candidates.length;
+    if (showMore) {
+      folderSlots = Math.max(1, capacity - reservedControls - 1);
+      candidates = level.siblings.slice(0, Math.min(RADIAL_FOLDER_LIMIT, folderSlots));
+    }
     const total = candidates.length
       + (showBack ? 1 : 0)
       + (showCurrentFolder ? 1 : 0)
@@ -693,10 +798,7 @@
       back.dataset.radialTarget = level.parent.parentKey || '';
       back.setAttribute('role', 'menuitem');
       back.innerHTML = `<span class="lap-capture-radial-visual"><img class="lap-capture-radial-action-icon" src="${escapeHtml(chrome.runtime.getURL('back.svg'))}" alt="" /></span><strong>返回上级</strong>`;
-      const backPosition = radialOrbitPosition(nextIndex, total);
-      back.style.setProperty('--lap-radial-x', `${backPosition.x}px`);
-      back.style.setProperty('--lap-radial-y', `${backPosition.y}px`);
-      back.style.setProperty('--lap-radial-order', nextIndex);
+      applyRadialPosition(back, nextIndex, total);
       const goBack = () => showRadialLevel(level.parent.parentKey);
       back.addEventListener('dragover', (event) => {
         if (mode !== 'radial') return;
@@ -704,7 +806,7 @@
       });
       back.addEventListener('mouseenter', () => scheduleRadialDwell(back));
       back.addEventListener('mouseleave', () => {
-        if (radialDwellTarget === back) clearRadialDwell();
+        if (radialDwellTarget === back) deferRadialDwellClear();
       });
       back.addEventListener('drop', (event) => {
         if (mode !== 'radial') return;
@@ -734,10 +836,7 @@
       createFolder.setAttribute('role', 'menuitem');
       createFolder.innerHTML = `<span class="lap-capture-radial-visual"><img class="lap-capture-radial-action-icon" src="${escapeHtml(chrome.runtime.getURL('plus.svg'))}" alt="" /></span><strong>创建目录</strong>`;
       const createIndex = nextIndex;
-      const createPosition = radialOrbitPosition(createIndex, total);
-      createFolder.style.setProperty('--lap-radial-x', `${createPosition.x}px`);
-      createFolder.style.setProperty('--lap-radial-y', `${createPosition.y}px`);
-      createFolder.style.setProperty('--lap-radial-order', createIndex);
+      applyRadialPosition(createFolder, createIndex, total);
       createFolder.addEventListener('dragenter', (event) => {
         if (mode !== 'radial') return;
         event.preventDefault();
@@ -768,10 +867,7 @@
       more.setAttribute('role', 'menuitem');
       more.innerHTML = `<span class="lap-capture-radial-visual"><img class="lap-capture-radial-action-icon" src="${escapeHtml(chrome.runtime.getURL('more.svg'))}" alt="" /></span><strong>更多</strong>`;
       const moreIndex = nextIndex;
-      const morePosition = radialOrbitPosition(moreIndex, total);
-      more.style.setProperty('--lap-radial-x', `${morePosition.x}px`);
-      more.style.setProperty('--lap-radial-y', `${morePosition.y}px`);
-      more.style.setProperty('--lap-radial-order', moreIndex);
+      applyRadialPosition(more, moreIndex, total);
       more.addEventListener('dragenter', (event) => {
         if (mode !== 'radial') return;
         event.preventDefault();
@@ -1125,7 +1221,7 @@
       if (mode === 'tracking' || mode === 'intent') updateDragTravel(event.clientX, event.clientY);
       if (mode === 'radial') {
         event.preventDefault();
-        updateRadialDwell(event.clientX, event.clientY);
+        updateRadialDwell(event.clientX, event.clientY, event.target);
       }
     },
     true,

@@ -140,4 +140,70 @@
 6. Current visual result — blocked by cloud preview access; no claim of visual
    pass is made for this iteration.
 
+## Package 26 radial follow-up — 2026-08-16
+
+- Source visual truth paths:
+  - `/workspace/scratch/b4cbe8668986/upload/7f7a08d3-0d2a-4616-86c5-a7344f77ea32.png`
+    (1291 × 1141): user evidence for the intersecting orbit controls and rejected
+    center mark.
+  - `/workspace/scratch/b4cbe8668986/upload/00c214f3-ee6e-4a8b-8220-676d530a5e74.png`
+    (682 × 681): particle-ring purple AI wordmark direction; inspiration only,
+    not a geometry to copy.
+- Intended implementation state: desktop Chromium after the one-third-width drag
+  threshold, root radial visible, `lap资源` containing child folder `1`.
+- Intended viewport/density: 1200 × 900 CSS px at device scale 1; compact geometry
+  also exercised at 360 × 640 CSS px.
+- Browser-rendered implementation screenshot path: unavailable. This environment
+  exposes neither the cloud browser control nor a local Chromium/Chrome binary,
+  and direct Playwright use was not authorized.
+- Full-view comparison evidence: blocked because no current browser-rendered
+  pixels can be placed beside the source.
+- Focused-region evidence: the generated production assets
+  `lap-extension/ai-wordmark.png` (384 × 384 RGBA) and
+  `lap-extension/ai-orbit.png` (512 × 512 RGBA) were opened at native resolution.
+  Both have real alpha, retain crisp purple/violet edges, and are visibly distinct
+  from the reference; this asset inspection is not substituted for browser QA.
+- Primary interactions tested: geometry fallback opens `lap资源 → 1 →
+  三渲二/写实` when `elementsFromPoint()` returns no target; the stationary
+  pointer lock prevents immediate return; current-parent save remains direct;
+  crowded target sets retain `更多` and do not intersect at both tested viewports.
+- Console errors checked: unavailable without a browser-rendered implementation.
+
+### Current findings
+
+- [P1] Packaged native-drag and rendered-motion evidence remains unavailable
+  - Location: parent dwell, radial target geometry, center AI animation.
+  - Evidence: six deterministic extension tests, JavaScript parsing, Manifest
+    parsing, PNG alpha checks, strict i18n audit, and Vite production build pass;
+    no browser screenshot or console session is available in this environment.
+  - Impact: Chromium drag cadence, final compositing, motion smoothness, and the
+    perceived stroke gap still require the actual extension package.
+  - Fix/gate: generate the fresh Windows/extension package and manually verify
+    it on a real Chromium image page at desktop scale.
+
+### Required fidelity surfaces
+
+- Fonts and typography: unchanged system-sans folder labels; `AI 分类` remains a
+  twelve-pixel optical label. Browser antialiasing remains a manual check.
+- Spacing and layout rhythm: computed geometry keeps every target inside the
+  inner orbit with at least seven pixels of stroke clearance and seven pixels of
+  target-to-target clearance; browser pixels remain unverified.
+- Colors and visual tokens: the gauge keeps the ivory/bronze instrument system;
+  purple/violet is isolated to the AI action as requested.
+- Image quality and asset fidelity: both custom visuals are generated raster
+  assets with alpha, not CSS/HTML drawings. CSS only transforms the real orbit
+  asset for drift and counter-rotation.
+- Copy and content: root and child states retain only folder names, `保存到 …`,
+  `返回上级`, `创建目录`, `更多`, and `AI 分类`.
+
+### Comparison history addendum
+
+7. Package 26 manual feedback — P1: native drag still did not reveal children,
+   controls intersected the orbit stroke, and the bronze center mark was rejected.
+8. Current fix — event-target/document/geometry hybrid dwell with miss grace,
+   capacity-aware inner placement, and original purple AI wordmark plus two
+   independently animated particle layers. Six regression tests pass.
+9. Current visual result — blocked until the fresh package is rendered and
+   exercised in the user's real Chromium environment.
+
 final result: blocked

@@ -12,18 +12,18 @@ Manual feedback baseline commit: `d541af4f97cea3cd069ece8139324cb18b11d809`
 
 Manual feedback baseline package: `Lap-0.4.1-Chat-Delivery-12`
 
-Latest packaged candidate commit: `94ab32584c46c28ee431f05ced9d62be6709310b`
+Latest packaged candidate commit: `6e142647d52d2e8cbbe3572ada882d4b63da602a`
 
-Latest packaged candidate: `Lap-0.4.1-Chat-Delivery-25`
+Latest packaged candidate: `Lap-0.4.1-Chat-Delivery-26`
 
-Next implementation commit: pending hierarchy-lock, AI-collection, and silent-save correction
+Next implementation commit: pending radial dwell, geometry, and animated AI-mark correction
 
 Next candidate package: pending fresh GitHub build
 
 Automated gate:
 
-- PASS — PR Build #80
-- PASS — Chat Validation Package #25
+- PASS — PR Build #81
+- PASS — Chat Validation Package #26
 
 Environment: Windows desktop application and Chromium browser extension; Pinterest image detail page
 
@@ -115,7 +115,7 @@ Functions:
 - [ ] Page title saved
 - [ ] Duplicate handling works
 
-Result: FAILED — package 25 exposed hierarchy bounce, missing current-folder save, and non-silent capture; fixes await a fresh package
+Result: FAILED — package 26 still loses real-drag parent dwell and intersects the orbit stroke; visual correction awaits a fresh package
 
 Evidence:
 
@@ -147,7 +147,8 @@ Issues:
   displacement or the shorter viewport side.
 - After the threshold, one instrument-like circular menu must dim/blur the page
   and stay fixed at the exact viewport center.
-- The center always contains only the dedicated Lap AI mark and “AI 分类”. A drop
+- The center contains the original purple AI wordmark, its moving particle halo,
+  and “AI 分类”. A drop
   must collect with `workflowStatus: inbox` and `autoClassify: false`; AI starts
   only after the user opens the desktop AI classification workspace.
 - Folder destinations and “创建目录” must be circular controls distributed around
@@ -260,6 +261,7 @@ Issues:
 | LAP-VAL-019 | The AI center lacked a dedicated mark and did not start classification directly; root and descendant folders were rendered together instead of opening one hierarchy level at a time. | High | Replaced by an original AI center asset, background AI queueing, and root/direct-child radial navigation; cloud-browser interaction and visual QA passed, awaiting packaged manual validation |
 | LAP-VAL-020 | Package 24 could hide the AI center, parent dwell depended on unstable child drag events, and first install did not open Token pairing. | High | AI center is now always available, document-level dwell opens direct children, and `onInstalled: install` opens setup; deterministic extension tests pass, awaiting packaged Chromium validation |
 | LAP-VAL-021 | Package 25 can bounce between radial levels, cannot save directly to the current parent, auto-runs AI before collection is complete, hides the queue behind Smart Albums, and blocks the page with saving status. | High | Pointer-lock hierarchy, current-folder target, `autoClassify: false`, embedded AI classification collection, silent background capture, pooled HTTP client, and async write implemented; awaiting fresh package |
+| LAP-VAL-022 | Package 26 still fails to open child folders under real native drag, places destination circles across the inner orbit stroke, and uses the rejected bronze planetary AI mark. | High | Hybrid event/hit/geometry dwell with miss grace, capacity-aware inner-orbit placement, and an original purple AI wordmark with drifting counter-rotating particle halos implemented; awaiting fresh package |
 
 ## 5.2 Browser radial classification follow-up
 
@@ -274,6 +276,8 @@ Drag intent:
 - [ ] The 820 px precision dial remains centered while the pointer moves
 - [ ] The dial shows one crisp outer tick ring, one thin inner orbit, and one bronze partial arc
 - [ ] Circular destination controls are distributed evenly around the inner orbit
+- [ ] Every destination/create circle is wholly inside the inner orbit with a visible gap
+- [ ] Destination/create circles never intersect each other at desktop or compact widths
 - [ ] Empty folders show the bundled folder icon
 - [ ] Populated folders show the first image as a circular thumbnail
 - [ ] A missing or unreadable cover falls back to the folder icon
@@ -281,6 +285,7 @@ Drag intent:
 - [ ] The first level contains top-level folders only
 - [ ] A child folder is absent until its parent is activated
 - [ ] Dropping on or dwelling over a parent opens only its direct children
+- [ ] Native drag-preview interference does not reset the parent dwell
 - [ ] Keeping the pointer stationary after navigation does not bounce to another level
 - [ ] Moving the pointer after navigation allows the next intended dwell
 - [ ] Every child level includes “保存到 {current folder}”
@@ -290,7 +295,9 @@ Drag intent:
 
 AI classification collection:
 
-- [ ] Center “AI 分类” is visible with the dedicated Lap AI mark
+- [ ] Center “AI 分类” is visible with the original purple AI wordmark
+- [ ] Two particle-halo layers drift and rotate independently without moving the center action
+- [ ] Reduced-motion mode stops the AI halo motion
 - [ ] Dropping there closes the overlay immediately with no save/success toast
 - [ ] Capture uses `workflowStatus: inbox` and `autoClassify: false`
 - [ ] The desktop sidebar label is “AI 分类”, not “智能相册”
@@ -302,7 +309,7 @@ AI classification collection:
 With an enabled AI provider and stored API key:
 
 - [ ] Center “AI 分类” card appears
-- [ ] Center contains the dedicated Lap AI mark and “AI 分类”
+- [ ] Center contains the purple AI wordmark, moving particle halo, and “AI 分类”
 - [ ] Dropping on “AI 分类” saves with workflow status `inbox`
 - [ ] The capture request sets `autoClassify: false`
 - [ ] Lap does not call the provider until “一键 AI 分类” is clicked
@@ -326,12 +333,16 @@ Result:
 Evidence: the focused local regression suite now verifies the new contracts;
 packaged Chromium validation is still required.
 
-Current follow-up evidence: the committed Happy DOM suite passes five tests. It
+Current follow-up evidence: the committed Happy DOM suite passes six tests. It
 verifies `workflowStatus: inbox` plus `autoClassify: false`, immediate overlay
-removal with no capture toast, a stationary-pointer navigation lock, direct save
-to the current parent, direct-child traversal, and first-install pairing. Frontend
-strict i18n audit and production Vite build pass. Cloud-browser recapture remains
-blocked by the preview bridge, so visual QA is not reported as passed.
+removal with no capture toast, geometry-fallback direct-child dwell when browser
+hit testing returns nothing, a stationary-pointer navigation lock, current-parent
+save, capacity-aware nonintersecting orbit placement at 1200 × 900 and 360 × 640,
+first-install pairing, and the new AI asset markup. Frontend strict i18n audit and
+production Vite build pass. Both generated PNGs have real alpha channels. Local
+Rust validation is skipped because Cargo is unavailable; cloud-browser recapture
+is blocked because no browser-control tool is available, so visual QA is not
+reported as passed.
 
 First-install pairing:
 

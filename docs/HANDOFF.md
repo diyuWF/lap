@@ -70,20 +70,22 @@ The PR is intentionally kept Draft until manual validation is complete.
 
 Latest packaged candidate commit:
 
-`94ab32584c46c28ee431f05ced9d62be6709310b`
+`6e142647d52d2e8cbbe3572ada882d4b63da602a`
 
 Automated validation:
 
-- PASS — PR Build #80
-- PASS — Chat Validation Package #25
-- PASS — artifact `Lap-0.4.1-Chat-Delivery-25`
+- PASS — PR Build #81
+- PASS — Chat Validation Package #26
+- PASS — artifact `Lap-0.4.1-Chat-Delivery-26`
 
 That package contains the cumulative-path browser capture, native reference-board
 drag-out correction, instrument-control radial, real folder-cover data path,
-the restored complete SQLite source, hierarchical AI-radial navigation, and
-first-install Token pairing. Manual feedback found another focused hierarchy,
-AI-collection, and silent-save correction; the working branch requires a fresh
-PR build plus Windows package.
+the restored complete SQLite source, hierarchical AI-radial navigation,
+AI-classification collection, silent background capture, and first-install
+Token pairing. Manual feedback found that real native drag still did not reliably
+open child folders, orbit targets intersected the inner stroke, and the center AI
+mark did not match the requested moving purple wordmark direction. The focused
+working-tree correction requires a fresh PR build plus Windows package.
 The Windows chat-delivery workflow now runs for every opened, synchronized, or
 reopened PR update so each focused modification produces a matching installer
 and browser-extension package automatically.
@@ -143,16 +145,16 @@ Windows validation-package build before that package is used for manual testing.
 
 Current state:
 
-`BLOCKED — HIERARCHY/AI COLLECTION/SILENT SAVE FOLLOW-UP AWAITING FRESH PACKAGE`
+`BLOCKED — RADIAL DWELL/GEOMETRY/AI MARK FOLLOW-UP AWAITING FRESH PACKAGE`
 
 Reason:
 
-`Lap-0.4.1-Chat-Delivery-25` passed its automated checks. Manual feedback found
-that a stationary pointer could immediately hit a newly rendered back/child
-control and bounce between hierarchy levels, child levels lacked an explicit
-save-to-current-parent action, AI-center captures were analyzed too early and
-were difficult to find in the desktop app, and saving still displayed a blocking
-in-page status surface.
+`Lap-0.4.1-Chat-Delivery-26` passed its automated checks and resolved the prior
+hierarchy bounce, current-folder save, AI-collection, and silent-capture defects.
+Manual feedback found that native Chromium drag hit testing could still lose a
+folder target before the dwell completed, directory/create circles overlapped
+the inner orbit stroke, and the bronze planetary center mark needed replacement
+with an original purple AI wordmark and moving particle halo.
 
 Focused fixes are implemented in the working branch:
 
@@ -164,22 +166,26 @@ Focused fixes are implemented in the working branch:
   precision-instrument dial is fixed to the exact viewport center;
 - the dial uses the selected source hierarchy: a full radial tick ring, one thin
   inner orbit, and one restrained bronze partial arc rather than a solid disc;
-- the center always uses the purpose-built transparent Lap AI mark and the single
-  label “AI 分类”; a drop silently enters the logical AI classification queue
-  with `autoClassify: false` and never calls a model during browser capture;
+- the center always uses an original transparent purple AI wordmark plus two
+  independently moving, counter-rotating particle-halo layers and the single
+  label “AI 分类”; reduced-motion mode stops those animations, while a drop
+  silently enters the logical AI classification queue with `autoClassify: false`
+  and never calls a model during browser capture;
 - the first radial level contains top-level folders only; descendants and recent
   paths can no longer leak into that level;
 - dropping on, clicking, or dwelling 360 ms over a parent opens only that
-  parent's direct children; dwell detection uses document-level hit testing and
-  a post-navigation pointer lock, so the stationary cursor cannot immediately
-  activate a newly rendered back/child control and bounce to another level;
+  parent's direct children; dwell detection combines the drag event target,
+  document hit testing, and viewport-centered radial geometry with a 140 ms miss
+  grace period, so native drag-preview interference cannot repeatedly reset the
+  dwell; a post-navigation pointer lock prevents stationary-cursor bounce;
 - every child level contains a dedicated “保存到 {current folder}” target in
   addition to its direct children, “返回上级”, and “创建目录”;
 - nested levels never render their parent or unrelated root siblings alongside
   the children; “创建目录” remains available and preselects the current parent;
-- visible folders plus “创建目录” are circular controls distributed evenly around
-  the inner orbit, with a complete folder browser retained behind “更多” when a
-  single level contains more than eight entries;
+- visible folders plus “创建目录” are circular controls distributed evenly and
+  completely inside the inner orbit; their size/capacity adapts to the viewport,
+  keeps a visible stroke gap, prevents target intersections, and retains the
+  complete folder browser behind “更多” when a level exceeds the safe capacity;
 - empty destination folders show the bundled folder icon; populated folders ask
   the authenticated local service for the first image and show its thumbnail as
   a circular cover, falling back safely to the icon if decoding fails;
@@ -215,10 +221,11 @@ Focused fixes are implemented in the working branch:
 - a first-time extension install immediately opens the existing setup page so
   local Lap detection and Token pairing are the first visible task; updates do
   not reopen it.
-- a committed Happy DOM regression suite covers the always-visible AI center,
-  inbox/auto-classify payload, root-to-child dwell navigation through nested
-  visual elements, and first-install setup behavior; both PR and package jobs run
-  this suite.
+- a committed six-test Happy DOM regression suite covers the always-visible AI
+  center and generated assets, inbox/auto-classify payload, geometry-fallback
+  root-to-child dwell, stationary-pointer lock, desktop/compact no-overlap orbit
+  layouts, direct current-folder save, and first-install setup behavior; both PR
+  and package jobs run this suite.
 - the default day/night pair is now `lap-light` and `lap-dark`;
 - title bars, sidebars, content surfaces, settings cards, popovers, buttons,
   fields, and toggles share the same restrained glass hierarchy;
@@ -301,11 +308,15 @@ length, and the circular UI must appear only after total travel reaches roughly
 one third of browser width. Verify the page is dimmed/blurred only after that
 threshold and the precision dial remains fixed at the viewport center. Its tick
 ring, inner orbit, bronze arc, and circular directory controls must remain crisp.
-The AI center must always contain only the dedicated Lap AI mark and “AI 分类”.
+Every directory/create target must sit wholly inside the inner orbit with a
+visible gap and must not intersect another target. The AI center must show the
+original purple AI wordmark, a slowly drifting/counter-rotating particle halo,
+and “AI 分类”.
 It must silently collect with `workflowStatus: inbox` and `autoClassify: false`;
 no provider call or page-level saving toast may occur. The first level must show
-only roots; activating a parent must show its direct children, an explicit
-save-to-current-parent action, and navigation. A stationary cursor must not make
+only roots; dwelling on a parent during a real native drag must show its direct
+children even when the drag preview crosses the target, plus an explicit
+save-to-current-parent action and navigation. A stationary cursor must not make
 the new level bounce back; the pointer must move before another dwell begins.
 Empty
 folders must show the folder icon, populated folders must show their first image

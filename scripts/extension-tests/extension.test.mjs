@@ -27,12 +27,12 @@ function dragEvent(window, type, x, y, dataTransfer) {
   return event;
 }
 
-async function createContentHarness() {
+async function createContentHarness({ width = 1200, height = 900, folderFixtures = folders } = {}) {
   const window = new Window({ url: 'https://example.test/inspiration' });
   const messages = [];
   Object.defineProperties(window, {
-    innerWidth: { configurable: true, value: 1200 },
-    innerHeight: { configurable: true, value: 900 },
+    innerWidth: { configurable: true, value: width },
+    innerHeight: { configurable: true, value: height },
   });
   window.document.body.innerHTML =
     '<img id="source" src="https://images.example.test/source.jpg" alt="测试素材">';
@@ -62,7 +62,7 @@ async function createContentHarness() {
           queueMicrotask(() =>
             callback({
               ok: true,
-              folders,
+              folders: folderFixtures,
               recentFolders: [],
               aiConfigured: false,
             }),
@@ -113,12 +113,21 @@ function radialLabels(window) {
   );
 }
 
+function radialPoint(window, button) {
+  return {
+    x: window.innerWidth / 2 + Number(button.dataset.radialX),
+    y: window.innerHeight / 2 + Number(button.dataset.radialY),
+  };
+}
+
 test('AI classification remains visible and silently queues an inbox item', async () => {
   const { window, messages } = await createContentHarness();
   const center = window.document.querySelector('.lap-capture-radial-center');
   assert.ok(center, 'AI center should render');
   assert.equal(center.hidden, false);
   assert.equal(center.disabled, false);
+  assert.match(center.querySelector('.lap-capture-ai-wordmark').src, /ai-wordmark\.png$/);
+  assert.equal(center.querySelectorAll('.lap-capture-ai-orbit').length, 2);
 
   center.click();
   assert.equal(window.document.querySelector('.lap-capture-overlay'), null);
@@ -136,24 +145,69 @@ test('document-level dwell opens only the hovered folder direct children', async
   assert.equal(radialLabels(window).includes('1'), false);
 
   const root = window.document.querySelector('[data-path="D:/Lap/lap资源"]');
-  const rootCover = root.querySelector('.lap-capture-radial-cover');
-  window.document.elementsFromPoint = () => [rootCover, root];
-  window.document.dispatchEvent(dragEvent(window, 'dragover', 600, 160, dataTransfer));
+  window.document.elementsFromPoint = () => [];
+  const rootPoint = radialPoint(window, root);
+  window.document.dispatchEvent(
+    dragEvent(window, 'dragover', rootPoint.x, rootPoint.y, dataTransfer),
+  );
   await new Promise((resolve) => setTimeout(resolve, 410));
   assert.deepEqual(radialLabels(window).sort(), ['1', '保存到 lap资源', '创建目录', '返回上级'].sort());
   assert.equal(radialLabels(window).includes('lap资源'), false);
 
-  const child = window.document.querySelector('[data-path="D:/Lap/lap资源/1"]');
-  const childIcon = child.querySelector('.lap-capture-radial-folder-icon');
-  window.document.elementsFromPoint = () => [childIcon, child];
-  window.document.dispatchEvent(dragEvent(window, 'dragover', 600, 160, dataTransfer));
+  window.document.dispatchEvent(
+    dragEvent(window, 'dragover', rootPoint.x, rootPoint.y, dataTransfer),
+  );
   await new Promise((resolve) => setTimeout(resolve, 410));
   assert.deepEqual(radialLabels(window).sort(), ['1', '保存到 lap资源', '创建目录', '返回上级'].sort());
 
-  window.document.dispatchEvent(dragEvent(window, 'dragover', 650, 200, dataTransfer));
+  const child = window.document.querySelector('[data-path="D:/Lap/lap资源/1"]');
+  const childPoint = radialPoint(window, child);
+  window.document.dispatchEvent(
+    dragEvent(window, 'dragover', childPoint.x, childPoint.y, dataTransfer),
+  );
   await new Promise((resolve) => setTimeout(resolve, 410));
   assert.deepEqual(radialLabels(window).sort(), ['三渲二', '写实', '保存到 1', '创建目录', '返回上级'].sort());
   window.close();
+});
+
+test('radial actions stay completely inside the inner orbit without intersecting', async () => {
+  const crowdedFolders = Array.from({ length: 12 }, (_, index) => ({
+    id: 100 + index,
+    name: `目录 ${index + 1}`,
+    path: `D:/Lap/目录 ${index + 1}`,
+  }));
+  for (const viewport of [{ width: 1200, height: 900 }, { width: 360, height: 640 }]) {
+    const { window } = await createContentHarness({ ...viewport, folderFixtures: crowdedFolders });
+    const buttons = [...window.document.querySelectorAll('.lap-capture-radial-item')];
+    const stageSize = Math.min(840, window.innerWidth - 32, window.innerHeight - 32);
+    const innerOrbitRadius = 270 * Math.max(0.3, Math.min(1, stageSize / 840));
+
+    for (const button of buttons) {
+      const centerRadius = Math.hypot(Number(button.dataset.radialX), Number(button.dataset.radialY));
+      const itemRadius = Number(button.dataset.radialHitRadius);
+      assert.ok(
+        centerRadius + itemRadius <= innerOrbitRadius - 7,
+        `${button.textContent.trim()} should have a visible gap from the orbit stroke`,
+      );
+    }
+
+    for (let leftIndex = 0; leftIndex < buttons.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < buttons.length; rightIndex += 1) {
+        const left = buttons[leftIndex];
+        const right = buttons[rightIndex];
+        const distance = Math.hypot(
+          Number(left.dataset.radialX) - Number(right.dataset.radialX),
+          Number(left.dataset.radialY) - Number(right.dataset.radialY),
+        );
+        const minimumGap = Number(left.dataset.radialHitRadius)
+          + Number(right.dataset.radialHitRadius)
+          + 7;
+        assert.ok(distance >= minimumGap, 'radial actions should not overlap each other');
+      }
+    }
+    assert.ok(radialLabels(window).includes('更多'), 'crowded levels should retain the full browser');
+    window.close();
+  }
 });
 
 test('the current folder action saves directly instead of navigating again', async () => {
