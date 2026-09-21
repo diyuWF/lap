@@ -19,6 +19,7 @@ mod t_ai_online;
 mod t_ai_png;
 mod t_ai_review;
 mod t_apple_sidecar;
+mod t_capture_pairing;
 mod t_capture_server;
 mod t_cluster;
 mod t_cmds;
@@ -116,7 +117,7 @@ async fn main() {
             if let Err(e) = t_dam::ensure_schema() {
                 eprintln!("Failed to initialize DAM schema: {}", e);
             }
-            t_capture_server::init_capture_server();
+            t_capture_server::init_capture_server(app.handle().clone());
 
             #[cfg(target_os = "linux")]
             t_http::init_video_http_server();
@@ -341,6 +342,8 @@ async fn main() {
             t_dam_cmds::dam_set_workflow_status,
             t_dam_cmds::dam_apply_tags,
             t_dam_cmds::get_capture_server_info,
+            t_capture_pairing::get_capture_pairing,
+            t_capture_pairing::decide_capture_pairing,
             // taxonomy
             t_taxonomy::taxonomy_get_snapshot,
             t_taxonomy::taxonomy_save_group,

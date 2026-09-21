@@ -1304,7 +1304,9 @@
       "choose_app": "Choisir",
       "clear_app": "Effacer",
       "section_diagnostics": "Diagnostics",
-      "debug_mode": "Mode débogage"
+      "debug_mode": "Mode débogage",
+      "browser_capture_hint": "Choose Connect in the extension settings, compare the code, and approve here. This browser then reconnects automatically. Older extensions can still use a copied token.",
+      "browser_capture_manual": "Manual connection · Older extensions"
     },
     "database": {
       "title": "Stockage",
@@ -1396,5 +1398,17 @@
         "failed_install": "Échec de l'installation de la mise à jour"
       }
     }
+  },
+  "capturePairing": {
+    "eyebrow": "BROWSER CAPTURE · FIRST CONNECTION",
+    "title": "Allow this browser to connect?",
+    "hint": "Check that these digits match the extension settings page. Only approve a connection you started.",
+    "code": "Pairing code",
+    "expires": "Expires in {seconds} seconds",
+    "permission": "This extension will be able to read asset folders, create folders, and save web assets. Its credential stays in this browser and reconnects automatically.",
+    "extension": "View extension ID",
+    "reject": "Deny",
+    "approve": "Codes match · Allow",
+    "failed": "This request expired or could not be approved. Connect again from the extension settings."
   }
 }

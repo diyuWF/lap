@@ -1,147 +1,218 @@
-const DEFAULT_URL = 'http://127.0.0.1:47821';
-
-function normalizeApiUrl(value) {
-  return (value || DEFAULT_URL).trim().replace(/\/+$/, '');
+import { getConfig, request, normalizeTags } from "./api.js";
+let writes = Promise.resolve();
+function serialize(action) {
+  const next = writes.then(action);
+  writes = next.catch(() => {});
+  return next;
 }
-
-async function getConfig() {
-  return chrome.storage.local.get({
-    apiUrl: DEFAULT_URL,
-    token: '',
-    tags: [],
-    allowDuplicate: false,
-    recentFolders: [],
+async function rememberFolder(path) {
+  if (!path) return;
+  await serialize(async () => {
+    const { recentFolders } = await getConfig();
+    await chrome.storage.local.set({
+      recentFolders: [path, ...recentFolders.filter((x) => x !== path)].slice(
+        0,
+        8,
+      ),
+    });
   });
 }
-
-function friendlyApiError(data, status) {
-  const message = String(data?.error || '');
-  if (status === 401 || message.toLowerCase().includes('invalid pairing token')) {
-    return '已找到本机 Lap，但配对 Token 不正确。请打开扩展设置重新检测并复制 Token。';
-  }
-  return message || `Lap 请求失败：HTTP ${status}`;
-}
-
-async function apiRequest(path, options = {}) {
-  const config = await getConfig();
-  if (!config.token && path !== '/health') {
-    throw new Error('请先在扩展设置中填写 Lap 配对 Token');
-  }
-
-  const headers = new Headers(options.headers || {});
-  if (config.token) headers.set('X-Lap-Token', config.token);
-  if (options.body && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
-  }
-
-  let response;
-  try {
-    response = await fetch(`${normalizeApiUrl(config.apiUrl)}${path}`, {
-      ...options,
-      headers,
-    });
-  } catch {
-    throw new Error('无法连接本机 Lap。请确认 Lap 已启动并且采集服务可用。');
-  }
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || data.ok === false) {
-    throw new Error(friendlyApiError(data, response.status));
-  }
-  return data;
-}
-
-async function rememberFolder(folderPath) {
-  if (!folderPath) return;
-  const { recentFolders = [] } = await getConfig();
-  const next = [folderPath, ...recentFolders.filter((item) => item !== folderPath)].slice(0, 8);
-  await chrome.storage.local.set({ recentFolders: next });
-}
-
 async function capture(payload) {
   const config = await getConfig();
-  const data = await apiRequest('/capture', {
-    method: 'POST',
+  const source = new URL(payload.sourceUrl);
+  if (!["http:", "https:"].includes(source.protocol))
+    throw new Error("仅支持 HTTP 或 HTTPS 图片地址。");
+  const result = await request("/capture", {
+    method: "POST",
     body: JSON.stringify({
       ...payload,
-      tags: Array.isArray(payload.tags) && payload.tags.length
-        ? payload.tags
-        : (Array.isArray(config.tags) ? config.tags : []),
+      tags: normalizeTags(
+        Array.isArray(payload.tags) ? payload.tags : config.tags,
+      ),
       allowDuplicate: payload.allowDuplicate ?? Boolean(config.allowDuplicate),
     }),
   });
-  if (!data.duplicate) await rememberFolder(payload.folderPath);
-  return data;
+  await rememberFolder(payload.folderPath).catch(() => {});
+  return result;
 }
-
-async function openInitialPairing() {
-  try {
-    await chrome.storage.local.set({ pairingOnboarding: true });
-  } catch {
-    // Pairing can still proceed even when a managed browser blocks storage.
+// Store each outcome before beginning another item. Never replay an uncertain POST.
+let activeJob = null;
+let starting = false;
+async function saveJob(job) {
+  await chrome.storage.local.set({ captureJob: structuredClone(job) });
+}
+function jobSummary(job) {
+  if (!job) return null;
+  return {
+    id: job.id,
+    status: job.status,
+    total: job.items.length,
+    completed: job.items.filter((x) =>
+      ["saved", "duplicate", "failed", "unknown"].includes(x.status),
+    ).length,
+    saved: job.items.filter((x) => x.status === "saved").length,
+    duplicate: job.items.filter((x) => x.status === "duplicate").length,
+    failed: job.items.filter((x) => x.status === "failed").length,
+    unknown: job.items.filter((x) => x.status === "unknown").length,
+    errors: job.items
+      .filter((x) => x.error)
+      .map((x) => ({ sourceUrl: x.payload.sourceUrl, error: x.error }))
+      .slice(0, 20),
+  };
+}
+async function recoverJob() {
+  if (activeJob) return activeJob;
+  const { captureJob } = await chrome.storage.local.get("captureJob");
+  if (activeJob) return activeJob;
+  if (captureJob?.status === "running") {
+    captureJob.status = "interrupted";
+    for (const item of captureJob.items) {
+      if (item.status === "saving") {
+        item.status = "unknown";
+        item.error = "浏览器任务中断，请先在 Lap 中确认是否已保存。";
+      } else if (item.status === "pending") {
+        item.status = "failed";
+        item.error = "任务中断，尚未提交。";
+      }
+    }
+    await saveJob(captureJob);
   }
+  return captureJob || null;
+}
+async function runJob(job) {
+  const keepAlive = setInterval(() => {
+    void chrome.runtime.getPlatformInfo().catch(() => {});
+  }, 20000);
   try {
-    await chrome.runtime.openOptionsPage();
-  } catch {
-    // The toolbar remains a fallback when policy suppresses first-install tabs.
+    // Sequential writes avoid desktop URL-dedup races and deterministic progress is retained.
+    for (const item of job.items) {
+      item.status = "saving";
+      await saveJob(job);
+      try {
+        const data = await capture(item.payload);
+        item.status = data.duplicate ? "duplicate" : "saved";
+      } catch (error) {
+        item.status = /结果待确认/.test(error.message) ? "unknown" : "failed";
+        item.error = error.message;
+      }
+      await saveJob(job);
+    }
+    job.status = "done";
+    await saveJob(job);
+  } catch (error) {
+    job.status = "interrupted";
+    for (const item of job.items) {
+      if (item.status === "saving") {
+        item.status = "unknown";
+        item.error = "任务中断，请在 Lap 中确认保存结果。";
+      }
+      if (item.status === "pending") {
+        item.status = "failed";
+        item.error = "任务中断，尚未提交。";
+      }
+    }
+    await saveJob(job).catch(() => {});
+  } finally {
+    clearInterval(keepAlive);
+    activeJob = null;
   }
 }
-
+async function startBatch(payloads) {
+  if (starting || activeJob)
+    throw new Error("已有采集任务进行中，请等待完成。");
+  starting = true;
+  try {
+    const items = (Array.isArray(payloads) ? payloads : []).slice(0, 300);
+    if (!items.length) throw new Error("没有选择图片。");
+    const config = await getConfig();
+    await request("/folders", { config });
+    const job = {
+      id: crypto.randomUUID(),
+      status: "running",
+      items: items.map((payload) => ({ payload, status: "pending" })),
+    };
+    activeJob = job;
+    try {
+      await saveJob(job);
+    } catch (error) {
+      activeJob = null;
+      throw error;
+    }
+    void runJob(job);
+    return jobSummary(job);
+  } finally {
+    starting = false;
+  }
+}
 chrome.runtime.onInstalled.addListener((details) => {
-  if (details.reason !== 'install') return;
-  void openInitialPairing();
+  if (details.reason === "install")
+    void chrome.runtime.openOptionsPage().catch(() => {});
 });
-
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (sender.id && sender.id !== chrome.runtime.id) return false;
   const run = async () => {
     switch (message?.type) {
-      case 'lap:get-state': {
+      case "lap:get-state": {
         const config = await getConfig();
-        const foldersResponse = await apiRequest('/folders');
+        const data = await request("/folders");
+        if (!Array.isArray(data.folders))
+          throw new Error("Lap 返回的目录格式不正确。");
         return {
           ok: true,
-          folders: foldersResponse.folders || [],
-          aiConfigured: Boolean(foldersResponse.aiConfigured),
-          recentFolders: config.recentFolders || [],
-          configured: Boolean(config.token),
+          folders: data.folders,
+          aiConfigured: Boolean(data.aiConfigured),
+          recentFolders: config.recentFolders,
+          configured: true,
         };
       }
-      case 'lap:create-folder': {
-        const result = await apiRequest('/folders', {
-          method: 'POST',
-          body: JSON.stringify({
-            parentPath: message.parentPath || '',
-            name: message.name || '',
-          }),
+      case "lap:create-folder": {
+        const name = String(message.name || "").trim();
+        if (
+          !name ||
+          name.length > 100 ||
+          /[<>:"/\\|?*\x00-\x1f]/.test(name) ||
+          /[. ]$/.test(name) ||
+          /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name)
+        )
+          throw new Error("目录名称包含 Windows 不支持的字符或保留名称。");
+        const data = await request("/folders", {
+          method: "POST",
+          body: JSON.stringify({ parentPath: message.parentPath || "", name }),
         });
-        return { ok: true, folder: result.folder };
+        return { ok: true, folder: data.folder };
       }
-      case 'lap:get-folder-covers': {
-        const folderIds = Array.isArray(message.folderIds)
-          ? message.folderIds.map(Number).filter((value) => Number.isInteger(value) && value > 0).slice(0, 12)
-          : [];
+      case "lap:get-folder-covers": {
+        const folderIds = [
+          ...new Set(
+            (message.folderIds || [])
+              .map(Number)
+              .filter((x) => Number.isInteger(x) && x > 0),
+          ),
+        ].slice(0, 12);
         if (!folderIds.length) return { ok: true, covers: [] };
-        const result = await apiRequest('/folder-covers', {
-          method: 'POST',
+        const data = await request("/folder-covers", {
+          method: "POST",
           body: JSON.stringify({ folderIds }),
         });
-        return { ok: true, covers: result.covers || [] };
+        return { ok: true, covers: data.covers || [] };
       }
-      case 'lap:capture':
+      case "lap:capture":
         return { ok: true, result: await capture(message.payload || {}) };
-      case 'lap:open-options':
+      case "lap:start-batch":
+        return { ok: true, job: await startBatch(message.payloads) };
+      case "lap:get-job":
+        return { ok: true, job: jobSummary(await recoverJob()) };
+      case "lap:open-options":
         await chrome.runtime.openOptionsPage();
         return { ok: true };
       default:
-        return { ok: false, error: '未知的扩展消息' };
+        return { ok: false, error: "未知的扩展消息" };
     }
   };
-
   run()
     .then(sendResponse)
-    .catch((error) => sendResponse({
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    }));
+    .catch((error) =>
+      sendResponse({ ok: false, error: error.message || String(error) }),
+    );
   return true;
 });

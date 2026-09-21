@@ -5,6 +5,7 @@
   <template v-else>
     <router-view />
     <ToastContainer />
+    <CapturePairingDialog v-if="isTauriRuntime && getAppWindow().label === 'main'" />
   </template>
 </template>
  
@@ -18,6 +19,7 @@ import { clearIndexRecoveryInfo } from '@/common/api';
 import { isMac, isTauriRuntime, setTheme, SCALE_VALUES } from '@/common/utils';
 import { matchesShortcut } from '@/common/shortcuts';
 import ToastContainer from '@/components/ToastContainer.vue';
+import CapturePairingDialog from '@/components/CapturePairingDialog.vue';
 
 const libConfig = useLibraryStore();
 const isReady = ref(false);

@@ -289,7 +289,7 @@ test('the current folder action saves directly instead of navigating again', asy
   window.close();
 });
 
-test('first install opens Token pairing and updates do not reopen it', async () => {
+test('first install opens pairing and updates do not reopen it', async () => {
   const backgroundSource = fs.readFileSync(
     new URL('../../lap-extension/background.js', import.meta.url),
     'utf8',
@@ -317,7 +317,7 @@ test('first install opens Token pairing and updates do not reopen it', async () 
       },
     },
   };
-  vm.runInNewContext(backgroundSource, { chrome, Headers, fetch, console, URL });
+  vm.runInNewContext(backgroundSource.replace(/^import[\s\S]*?from ['"]\.\/api\.js['"];?\s*/, ''), { chrome, Headers, fetch, console, URL });
 
   assert.equal(typeof installedListener, 'function');
   installedListener({ reason: 'update' });
@@ -326,41 +326,5 @@ test('first install opens Token pairing and updates do not reopen it', async () 
   installedListener({ reason: 'install' });
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(opened, 1);
-  assert.equal(stored.pairingOnboarding, true);
-});
 
-test('first-install options reveal and focus the Token field', async () => {
-  const optionsHtml = fs.readFileSync(
-    new URL('../../lap-extension/options.html', import.meta.url),
-    'utf8',
-  );
-  const optionsSource = fs.readFileSync(
-    new URL('../../lap-extension/options.js', import.meta.url),
-    'utf8',
-  );
-  const window = new Window({ url: 'chrome-extension://lap/options.html' });
-  const stored = {};
-  window.document.write(optionsHtml);
-  window.chrome = {
-    storage: {
-      local: {
-        get: async (defaults) => ({ ...defaults, pairingOnboarding: true }),
-        set: async (value) => Object.assign(stored, value),
-      },
-    },
-  };
-  window.fetch = async () => ({
-    ok: false,
-    status: 0,
-    json: async () => ({}),
-  });
-  window.eval(optionsSource);
-  await new Promise((resolve) => setTimeout(resolve, 50));
-
-  const advanced = window.document.querySelector('#advancedSettings');
-  const token = window.document.querySelector('#token');
-  assert.equal(advanced.open, true);
-  assert.equal(window.document.activeElement, token);
-  assert.equal(stored.pairingOnboarding, false);
-  window.close();
 });

@@ -579,14 +579,14 @@
           </div>
 
           <!-- browser capture -->
-          <div class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">
-            <div class="flex items-center justify-between gap-2 text-base-content/30">
+          <div class="rounded-xl p-4 space-y-4 bg-base-200/50 border border-base-content/10 shadow-sm">
+            <div class="flex items-center justify-between gap-2 text-base-content/65">
               <span class="font-bold uppercase text-[10px] tracking-widest">{{ $t('settings.advanced.section_browser_capture') }}</span>
               <span class="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-semibold text-success">
                 {{ $t('settings.advanced.browser_capture_local_only') }}
               </span>
             </div>
-            <div class="px-1 text-xs leading-5 text-base-content/45">
+            <div class="px-1 text-xs leading-5 text-base-content/70">
               {{ $t('settings.advanced.browser_capture_hint') }}
             </div>
             <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
@@ -604,6 +604,8 @@
                 {{ copiedCaptureField === 'address' ? $t('settings.advanced.browser_capture_copied') : $t('settings.advanced.browser_capture_copy_address') }}
               </button>
             </div>
+            <details class="rounded-lg border border-base-content/10 p-3">
+              <summary class="cursor-pointer text-xs text-base-content/70">{{ $t('settings.advanced.browser_capture_manual') }}</summary>
             <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.advanced.browser_capture_token') }}</div>
@@ -619,6 +621,7 @@
                 {{ copiedCaptureField === 'token' ? $t('settings.advanced.browser_capture_copied') : $t('settings.advanced.browser_capture_copy_token') }}
               </button>
             </div>
+            </details>
             <div v-if="captureServerError" class="px-1 text-xs text-error">
               {{ $t('settings.advanced.browser_capture_unavailable') }}
               <button class="ml-2 underline" type="button" @click="loadCaptureServerInfo">{{ $t('settings.advanced.browser_capture_retry') }}</button>
@@ -845,6 +848,7 @@ async function loadCaptureServerInfo() {
       port: number;
       apiVersion: number;
     };
+    if (!captureServerInfo.value) throw new Error('Capture service unavailable');
   } catch (error) {
     captureServerInfo.value = null;
     captureServerError.value = String(error);

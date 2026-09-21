@@ -1,193 +1,198 @@
-const DEFAULT_URL = 'http://127.0.0.1:47821';
-
-const elements = {
-  apiUrl: document.querySelector('#apiUrl'),
-  token: document.querySelector('#token'),
-  folderPath: document.querySelector('#folderPath'),
-  tags: document.querySelector('#tags'),
-  allowDuplicate: document.querySelector('#allowDuplicate'),
-  advanced: document.querySelector('#advancedSettings'),
-  detectButton: document.querySelector('#detectButton'),
-  testButton: document.querySelector('#testButton'),
-  saveButton: document.querySelector('#saveButton'),
-  badge: document.querySelector('#connectionBadge'),
-  message: document.querySelector('#connectionMessage'),
-};
-
-function normalizeApiUrl(value) {
-  return (value || DEFAULT_URL).trim().replace(/\/$/, '');
+import {
+  DEFAULT_URL,
+  getConfig,
+  request,
+  normalizeApiUrl,
+  normalizeTags,
+} from "./api.js";
+const $ = (id) => document.getElementById(id);
+let stored = null;
+let foldersLoaded = false;
+let busy = false;
+function status(state, message) {
+  $("connectionBadge").className = `badge ${state}`;
+  $("connectionBadge").textContent = {
+    online: "已连接",
+    detected: "需要配对",
+    checking: "连接中",
+    offline: "未连接",
+  }[state];
+  $("connectionMessage").textContent = message;
+  $("connectionMessage").className =
+    `message ${state === "online" ? "success" : state === "offline" ? "error" : ""}`;
 }
-
-function parseTags(value) {
-  return value
-    .split(/[\n,]/)
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .filter((item, index, array) => array.indexOf(item) === index);
+function setBusy(value) {
+  busy = value;
+  for (const id of [
+    "detectButton",
+    "testButton",
+    "saveButton",
+    "token",
+    "showToken",
+    "folderPath",
+    "tags",
+    "allowDuplicate",
+  ])
+    $(id).disabled = value;
 }
-
-function setConnectionState(state, message) {
-  const online = state === 'online';
-  const detected = state === 'detected';
-  const checking = state === 'checking';
-  elements.badge.textContent = online
-    ? '已连接'
-    : detected
-      ? '已找到 Lap'
-      : checking
-        ? '检测中'
-        : '未连接';
-  elements.badge.classList.toggle('online', online);
-  elements.badge.classList.toggle('detected', detected);
-  elements.badge.classList.toggle('checking', checking);
-  elements.badge.classList.toggle('offline', !online && !detected && !checking);
-  elements.message.textContent = message || '';
-  elements.message.classList.toggle('success', online || detected);
-  elements.message.classList.toggle('error', state === 'offline' && Boolean(message));
+function readConnection() {
+  return {
+    apiUrl: normalizeApiUrl($("apiUrl").value),
+    token: $("token").value.trim(),
+  };
 }
-
-async function getStoredConfig() {
-  return chrome.storage.local.get({
-    apiUrl: DEFAULT_URL,
-    token: '',
-    folderPath: '',
-    tags: [],
-    allowDuplicate: false,
-    pairingOnboarding: false,
-  });
+function renderFolders(data) {
+  const selected = $("folderPath").value || stored.folderPath || "";
+  $("folderPath").replaceChildren(
+    new Option(data.aiConfigured ? "AI 收件箱" : "第一个可用目录", ""),
+  );
+  for (const folder of data.folders || [])
+    $("folderPath").add(
+      new Option(`${folder.name} — ${folder.path}`, folder.path),
+    );
+  if (
+    selected &&
+    ![...$("folderPath").options].some((x) => x.value === selected)
+  )
+    $("folderPath").add(new Option(`原目录暂不可用 — ${selected}`, selected));
+  $("folderPath").value = selected;
+  foldersLoaded = true;
 }
-
-async function request(path, config) {
-  let response;
+async function verify({ manual = false, saveRules = false } = {}) {
+  if (busy) return;
+  setBusy(true);
+  status("checking", "正在连接本机 Lap…");
   try {
-    response = await fetch(`${normalizeApiUrl(config.apiUrl)}${path}`, {
-      headers: config.token ? { 'X-Lap-Token': config.token } : {},
-    });
-  } catch {
-    const error = new Error('未找到本机 Lap。请先启动 Lap 桌面应用，再重新检测。');
-    error.status = 0;
-    throw error;
-  }
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || data.ok === false) {
-    const error = new Error(data.error || `请求失败：HTTP ${response.status}`);
-    error.status = response.status;
-    error.data = data;
-    throw error;
-  }
-  return data;
-}
-
-function isInvalidToken(error) {
-  return error?.status === 401
-    || String(error?.message || '').toLowerCase().includes('invalid pairing token');
-}
-
-async function loadFolders(config) {
-  const data = await request('/folders', config);
-  const selected = elements.folderPath.value || config.folderPath || '';
-  elements.folderPath.innerHTML = '<option value="">自动选择第一个可用目录</option>';
-  for (const folder of data.folders || []) {
-    const option = document.createElement('option');
-    option.value = folder.path;
-    option.textContent = `${folder.name} — ${folder.path}`;
-    elements.folderPath.append(option);
-  }
-  elements.folderPath.value = selected;
-}
-
-function setBusy(busy) {
-  elements.detectButton.disabled = busy;
-  elements.testButton.disabled = busy;
-}
-
-async function verifyConnection(config) {
-  await request('/health', { ...config, token: '' });
-  if (!config.token) {
-    elements.advanced.open = true;
-    setConnectionState('detected', '已找到本机 Lap。请在高级连接设置中粘贴配对 Token，然后验证配对。');
-    return false;
-  }
-  try {
-    await loadFolders(config);
-  } catch (error) {
-    if (isInvalidToken(error)) {
-      elements.advanced.open = true;
-      setConnectionState('detected', '已找到本机 Lap，但配对 Token 不正确。请从 Lap 设置中重新复制。');
-      return false;
+    const config = readConnection();
+    if (!config.token) {
+      const health = await request("/health", { config, timeout: 8000 });
+      $("advancedSettings").open = !health.pairingSupported;
+      status(
+        "detected",
+        health.pairingSupported
+          ? "点击“连接并记住”，在 Lap 中核对确认码并允许连接。"
+          : "当前桌面版本需手动配对一次，请粘贴 Token 后验证。",
+      );
+      return;
     }
-    throw error;
-  }
-  setConnectionState('online', '连接成功，已读取 Lap 素材目录。');
-  return true;
-}
-
-async function testConnection() {
-  const config = {
-    apiUrl: normalizeApiUrl(elements.apiUrl.value),
-    token: elements.token.value.trim(),
-  };
-  setBusy(true);
-  setConnectionState('checking', '正在检测本机 Lap…');
-  try {
-    await verifyConnection(config);
+    const data = await request("/folders", { config, timeout: 8000 });
+    if (!Array.isArray(data.folders))
+      throw new Error("服务返回的目录数据不正确。");
+    const rules = saveRules
+      ? {
+          folderPath: foldersLoaded ? $("folderPath").value : stored.folderPath,
+          tags: normalizeTags($("tags").value),
+          allowDuplicate: $("allowDuplicate").checked,
+        }
+      : {};
+    // Connection verification and persistence are one operation.
+    await chrome.storage.local.set({ ...config, ...rules });
+    stored = { ...stored, ...config, ...rules };
+    renderFolders(data);
+    $("advancedSettings").open = false;
+    status(
+      "online",
+      saveRules
+        ? "设置已保存，后续自动使用此配对。"
+        : "已连接，配对已记住。下次启动无需重复填写。",
+    );
   } catch (error) {
-    setConnectionState('offline', error instanceof Error ? error.message : String(error));
+    status(error.status === 401 ? "detected" : "offline", error.message);
+    if (error.status === 401 || manual) $("advancedSettings").open = true;
   } finally {
     setBusy(false);
   }
 }
-
-async function detectLocalLap() {
-  elements.apiUrl.value = DEFAULT_URL;
-  setBusy(true);
-  setConnectionState('checking', '正在检测本机 Lap…');
-  try {
-    await verifyConnection({
-      apiUrl: DEFAULT_URL,
-      token: elements.token.value.trim(),
-    });
-  } catch (error) {
-    setConnectionState('offline', error instanceof Error ? error.message : String(error));
-  } finally {
-    setBusy(false);
-  }
-}
-
-async function saveConfig() {
-  const config = {
-    apiUrl: normalizeApiUrl(elements.apiUrl.value),
-    token: elements.token.value.trim(),
-    folderPath: elements.folderPath.value,
-    tags: parseTags(elements.tags.value),
-    allowDuplicate: elements.allowDuplicate.checked,
-  };
-  await chrome.storage.local.set(config);
-  elements.saveButton.textContent = '已保存';
-  setTimeout(() => {
-    elements.saveButton.textContent = '保存设置';
-  }, 1200);
-}
-
 async function initialize() {
-  const config = await getStoredConfig();
-  elements.apiUrl.value = config.apiUrl;
-  elements.token.value = config.token;
-  elements.tags.value = (config.tags || []).join('\n');
-  elements.allowDuplicate.checked = Boolean(config.allowDuplicate);
-  elements.folderPath.value = config.folderPath || '';
-
-  if (config.pairingOnboarding) {
-    elements.advanced.open = true;
-    requestAnimationFrame(() => elements.token.focus());
-    await chrome.storage.local.set({ pairingOnboarding: false });
+  try {
+    stored = await getConfig();
+    $("apiUrl").value = stored.apiUrl;
+    $("token").value = stored.token;
+    $("tags").value = normalizeTags(stored.tags).join("\n");
+    $("allowDuplicate").checked = Boolean(stored.allowDuplicate);
+    if (stored.folderPath) {
+      $("folderPath").add(new Option(stored.folderPath, stored.folderPath));
+      $("folderPath").value = stored.folderPath;
+    }
+    await verify();
+  } catch (error) {
+    status("offline", error.message);
   }
-
-  await testConnection();
-  elements.folderPath.value = config.folderPath || '';
 }
-
-elements.detectButton.addEventListener('click', detectLocalLap);
-elements.testButton.addEventListener('click', testConnection);
-elements.saveButton.addEventListener('click', saveConfig);
-initialize();
+async function connect() {
+  if (busy) return;
+  if ($("token").value.trim()) {
+    await verify({ manual: true });
+    if ($("connectionBadge").classList.contains("online")) return;
+    // An unavailable service must not discard an existing credential.
+    if (!$("connectionBadge").classList.contains("detected")) return;
+  }
+  setBusy(true);
+  try {
+    const config = { apiUrl: DEFAULT_URL, token: "" };
+    const health = await request("/health", { config, timeout: 8000 });
+    if (!health.pairingSupported) {
+      $("advancedSettings").open = true;
+      status("detected", "此桌面版本请手动粘贴 Token 并验证一次。");
+      return;
+    }
+    const pairing = await request("/pair/request", {
+      config,
+      method: "POST",
+      body: "{}",
+      timeout: 8000,
+    });
+    $("pairingCode").textContent = pairing.code;
+    $("pairingPanel").hidden = false;
+    status("checking", "请切换到 Lap，确认两处数字一致，然后允许连接。");
+    const deadline = Date.now() + pairing.expiresIn * 1000;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const result = await request("/pair/status", {
+        config,
+        method: "POST",
+        body: JSON.stringify({
+          requestId: pairing.requestId,
+          secret: pairing.secret,
+        }),
+        timeout: 8000,
+      });
+      if (result.status === "rejected")
+        throw new Error("你已在 Lap 中拒绝连接。两分钟后可重试。");
+      if (result.status === "approved") {
+        if (typeof result.token !== "string" || result.token.length < 32)
+          throw new Error("配对响应格式不正确。");
+        config.token = result.token;
+        const data = await request("/folders", { config, timeout: 8000 });
+        if (!Array.isArray(data.folders))
+          throw new Error("服务返回的目录数据不正确。");
+        await chrome.storage.local.set(config);
+        stored = { ...stored, ...config };
+        $("token").value = config.token;
+        $("apiUrl").value = config.apiUrl;
+        renderFolders(data);
+        $("advancedSettings").open = false;
+        status("online", "已连接并记住。以后启动 Lap 即可采集，无需重复授权。");
+        return;
+      }
+    }
+    throw new Error("配对已超时，请重新连接。");
+  } catch (error) {
+    status("offline", error.message);
+  } finally {
+    $("pairingPanel").hidden = true;
+    setBusy(false);
+  }
+}
+$("detectButton").addEventListener("click", connect);
+$("testButton").addEventListener("click", () => verify({ manual: true }));
+$("saveButton").addEventListener("click", () =>
+  verify({ manual: true, saveRules: true }),
+);
+$("showToken").addEventListener("click", () => {
+  const hidden = $("token").type === "password";
+  $("token").type = hidden ? "text" : "password";
+  $("showToken").textContent = hidden ? "隐藏" : "显示";
+  $("showToken").setAttribute("aria-pressed", String(hidden));
+});
+void initialize();

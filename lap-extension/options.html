@@ -2,8 +2,8 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Lap 素材采集器设置</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Lap · 采集设置</title>
     <link rel="icon" href="icon.png" />
     <link rel="stylesheet" href="options.css" />
   </head>
@@ -13,66 +13,119 @@
         <div class="brand-heading">
           <img class="brand-icon" src="icon.png" alt="" />
           <div>
-            <p class="eyebrow">LAP BROWSER CAPTURE</p>
-            <h1>素材采集器设置</h1>
-            <p class="description">连接本机 Lap，设置工具栏采集的默认目录与标签。首次使用说明请在项目介绍中查看。</p>
+            <p class="eyebrow">LAP / BROWSER CAPTURE</p>
+            <h1>让灵感，随手归档。</h1>
+            <p class="description">连接一次，之后专注于收集。</p>
           </div>
         </div>
-        <span id="connectionBadge" class="badge offline">未连接</span>
+        <span class="version">0.4.3</span>
       </header>
-
-      <section class="card">
-        <div class="section-heading">
-          <div>
-            <h2>连接本机 Lap</h2>
-            <p>先启动 Lap，再让扩展自动查找本机采集服务。</p>
+      <div class="settings-layout">
+        <aside>
+          <a href="#connection" class="nav-link">连接与配对</a
+          ><a href="#rules" class="nav-link">采集偏好</a>
+          <div class="side-note">
+            素材保存在你的电脑中。<br />启动 Lap，即可开始收集。
           </div>
-          <button id="detectButton" class="detect-button" type="button">自动检测本机 Lap</button>
+        </aside>
+        <div class="settings-main">
+          <section class="card" id="connection">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">01 / CONNECTION</p>
+                <h2>连接本机 Lap</h2>
+              </div>
+              <span id="connectionBadge" class="badge offline" role="status"
+                >未连接</span
+              >
+            </div>
+            <p class="section-description">
+              首次在桌面端确认授权，以后打开 Lap 即可自动连接。
+            </p>
+            <button id="detectButton" class="detect-button" type="button">
+              连接并记住
+            </button>
+            <div id="pairingPanel" class="pairing-panel" hidden>
+              <span>请核对两处确认码</span><strong id="pairingCode"></strong
+              ><small>在 Lap 中允许连接 · 两分钟内有效</small>
+            </div>
+            <p
+              id="connectionMessage"
+              class="message"
+              role="status"
+              aria-live="polite"
+            ></p>
+            <details id="advancedSettings" class="advanced-settings">
+              <summary>手动配对 / 兼容旧版 Lap</summary>
+              <label
+                ><span>配对 Token</span>
+                <div class="secret-field">
+                  <input
+                    id="token"
+                    type="password"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="粘贴桌面端提供的 Token"
+                  /><button
+                    id="showToken"
+                    class="secondary"
+                    type="button"
+                    aria-pressed="false"
+                  >
+                    显示
+                  </button>
+                </div>
+                <small
+                  >在 Lap 的「设置 → 高级 → 浏览器采集」中复制。</small
+                ></label
+              ><label
+                ><span>本地服务地址</span
+                ><input
+                  id="apiUrl"
+                  type="url"
+                  value="http://127.0.0.1:47821"
+                  readonly /></label
+              ><button id="testButton" class="primary" type="button">
+                验证并记住 Token
+              </button>
+            </details>
+            <p class="privacy-note">
+              配对信息仅保存在当前浏览器。重载扩展会保留；移除扩展会清除。
+            </p>
+          </section>
+          <section class="card" id="rules">
+            <p class="eyebrow">02 / CAPTURE</p>
+            <h2>按你的习惯收集</h2>
+            <label
+              ><span>默认保存位置</span
+              ><select id="folderPath">
+                <option value="">连接后读取目录</option>
+              </select></label
+            ><label
+              ><span>默认标签</span
+              ><textarea
+                id="tags"
+                rows="3"
+                placeholder="例如：灵感，待整理"
+              ></textarea
+              ><small>使用逗号或换行分隔，自动去重。</small></label
+            ><label class="check-row"
+              ><input id="allowDuplicate" type="checkbox" /><span
+                >允许重复保存同一来源<small
+                  >默认关闭，减少重复素材。</small
+                ></span
+              ></label
+            >
+            <div class="actions">
+              <button id="saveButton" class="primary" type="button">
+                保存采集偏好
+              </button>
+            </div>
+          </section>
         </div>
-        <ol class="connection-steps">
-          <li><span>1</span><strong>启动 Lap 桌面应用</strong></li>
-          <li><span>2</span><strong>点击自动检测</strong></li>
-          <li><span>3</span><strong>仅在提示时粘贴配对 Token</strong></li>
-        </ol>
-        <p class="privacy-note">只检测本机 127.0.0.1:47821，不会把数据上传到网络。</p>
-        <details id="advancedSettings" class="advanced-settings">
-          <summary>高级连接设置</summary>
-          <label>
-            <span>本地服务地址</span>
-            <input id="apiUrl" type="url" value="http://127.0.0.1:47821" />
-          </label>
-          <label>
-            <span>配对 Token</span>
-            <input id="token" type="password" autocomplete="off" placeholder="从 Lap 设置中复制" />
-            <small>在 Lap 的“设置 → 高级 → 浏览器采集”中复制。</small>
-          </label>
-        </details>
-        <div class="actions">
-          <button id="testButton" class="secondary">验证配对</button>
-          <button id="saveButton" class="primary">保存设置</button>
-        </div>
-        <p id="connectionMessage" class="message" aria-live="polite"></p>
-      </section>
-
-      <section class="card">
-        <h2>默认采集规则</h2>
-        <label>
-          <span>工具栏默认采集目录</span>
-          <select id="folderPath">
-            <option value="">自动选择第一个可用目录</option>
-          </select>
-        </label>
-        <label>
-          <span>默认标签</span>
-          <textarea id="tags" rows="4" placeholder="每行一个，例如：&#10;source:web&#10;status:inbox"></textarea>
-        </label>
-        <label class="check-row">
-          <input id="allowDuplicate" type="checkbox" />
-          <span>允许保存相同来源 URL 的重复素材</span>
-        </label>
-      </section>
+      </div>
+      <footer>拖动网页图片选择目录，或点击工具栏批量采集。</footer>
     </main>
-
     <script type="module" src="options.js"></script>
   </body>
 </html>

@@ -1511,7 +1511,7 @@
       "debug_mode": "Debug mode",
       "section_browser_capture": "Browser capture",
       "browser_capture_local_only": "Local only",
-      "browser_capture_hint": "Copy these values into the Lap browser extension. The Token is used only to pair with this computer.",
+      "browser_capture_hint": "Choose Connect in the extension settings, compare the code, and approve here. This browser then reconnects automatically. Older extensions can still use a copied token.",
       "browser_capture_address": "Local service address",
       "browser_capture_token": "Pairing Token",
       "browser_capture_copy_address": "Copy address",
@@ -1529,7 +1529,8 @@
       "open_queue": "Open queue",
       "ai_batch_title": "AI batch organization",
       "ai_batch_hint": "Find unorganized assets in batches and generate structured suggestions",
-      "start_organizing": "Start"
+      "start_organizing": "Start",
+      "browser_capture_manual": "Manual connection · Older extensions"
     },
     "database": {
       "title": "Storage",
@@ -1621,5 +1622,17 @@
         "failed_install": "Failed to install update"
       }
     }
+  },
+  "capturePairing": {
+    "eyebrow": "BROWSER CAPTURE · FIRST CONNECTION",
+    "title": "Allow this browser to connect?",
+    "hint": "Check that these digits match the extension settings page. Only approve a connection you started.",
+    "code": "Pairing code",
+    "expires": "Expires in {seconds} seconds",
+    "permission": "This extension will be able to read asset folders, create folders, and save web assets. Its credential stays in this browser and reconnects automatically.",
+    "extension": "View extension ID",
+    "reject": "Deny",
+    "approve": "Codes match · Allow",
+    "failed": "This request expired or could not be approved. Connect again from the extension settings."
   }
 }

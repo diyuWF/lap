@@ -469,3 +469,25 @@ Evidence:
 - Native Home/viewer/data-backed screens require the Windows Tauri package.
 
 Issues:
+
+## 0.4.3 capture pairing and reliability candidate (2026-09-21)
+
+The concrete repeated-Token defect reported by the user authorizes focused work at the manual-validation gate. Baseline: `c8b271b68b54e33fb5919aed1093af7af50eb425` on `feat/phase4-ai-preview-pipeline`; keep PR #2 Draft.
+
+- Extension validation now persists the credential immediately. A new first-connection flow uses a 120-second request secret and six-digit comparison code; only the main desktop window can approve. Web-page origins cannot start or poll pairing. Tokens remain local and existing credentials are reused across restarts. Manual pairing remains for older desktops.
+- Desktop no longer silently overwrites an unreadable/invalid credential. Listener startup publishes service state even after a slow start. HTTP reads have a deadline and reject truncated bodies; chunked downloads enforce the size limit; atomic file creation prevents concurrent overwrites. Content-Disposition filenames now skip the attachment directive correctly.
+- Extension API validation, errors, timeouts and tags share one module. Batch captures run in the worker with persisted outcomes; interrupted POSTs are reported as unknown and are never automatically replayed. Recent-folder writes are serialized. Hover and stale drag/create timers are guarded. Normal drag saves remain silent; failures are visible. AI capture remains inbox-first with no automatic AI execution.
+- Settings use a focused connection card, comparison-code prompt, remembered state, advanced manual fallback, responsive spacing and keyboard focus. Desktop capture settings place manual credentials behind disclosure. Inspiration: Eagle browser capture (https://en.eagle.cool/extensions) and Raycast preferences hierarchy (https://developers.raycast.com/api-reference/preferences); these are design references, not copied UI assets.
+
+Validation: `pnpm install --frozen-lockfile`, strict i18n audit, Vite build and 16 extension regression tests passed locally before packaging. Full `cargo fmt --check` reports pre-existing formatting differences in untouched modules; edited Rust files pass targeted rustfmt. Local `cargo check --locked` is BLOCKED by native dependency linker errors (target-lexicon), so Windows CI is the authoritative compile gate. Browser/native visual and real end-to-end pairing still require manual validation. Added Rust pairing security and filename regression tests are pending execution in a native-capable environment.
+
+The chat validation workflow now packages version 0.4.3 instead of silently rewriting it to 0.4.1. No database migration, release or merge is included.
+
+Required native checks for this candidate:
+- [ ] Install the new desktop and load the 0.4.3 unpacked extension from a stable folder.
+- [ ] Start Connect, compare both codes, approve; close/reopen both apps and verify no repeat prompt.
+- [ ] Reject a request; verify no credential is stored. Let a request expire and retry.
+- [ ] Keep the desktop offline; verify the previous token is retained and Save is disabled.
+- [ ] Save via drag and AI inbox; verify silent success, visible failure, and no unsolicited AI call.
+- [ ] Start a batch, close/reopen the popup, verify progress; restart the worker during a write and inspect unknown results before retrying.
+- [ ] Inspect desktop and extension at 100%/125% scaling, both themes, and keyboard-only navigation.

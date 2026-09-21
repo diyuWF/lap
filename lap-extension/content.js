@@ -17,6 +17,7 @@
   let recentFolderPaths = [];
   let expanded = new Set();
   let hoverTimer = null;
+  let hoverRow = null;
   let radialDwellTimer = null;
   let radialDwellMissTimer = null;
   let radialDwellTarget = null;
@@ -141,6 +142,7 @@
   }
 
   function armImageForNativeDrag(event) {
+    if (event.button !== 0 || overlay?.contains(event.target)) return;
     const image = findDraggedImage(event.target, event.clientX, event.clientY);
     if (!image || image === armedImage) return;
     restoreArmedImage();
@@ -163,6 +165,8 @@
   function clearHoverTimer() {
     if (hoverTimer) clearTimeout(hoverTimer);
     hoverTimer = null;
+    hoverRow?.classList.remove('is-waiting');
+    hoverRow = null;
   }
 
   function clearRadialDwell() {
@@ -194,6 +198,7 @@
       clearRadialDwell();
       return;
     }
+    if (radialDwellMissTimer) { clearTimeout(radialDwellMissTimer); radialDwellMissTimer = null; }
     if (radialDwellTarget === button && radialDwellTimer) return;
     clearRadialDwell();
     radialDwellTarget = button;
@@ -989,10 +994,15 @@
   }
 
   function scheduleExpand(folder, row) {
+    if (hoverRow === row && hoverTimer) return;
     clearHoverTimer();
     if (!folder.children.length || expanded.has(folder.key)) return;
+    hoverRow = row;
     row.classList.add('is-waiting');
+    const session = captureSession;
     hoverTimer = setTimeout(() => {
+      if (session !== captureSession || mode !== 'browsing' || !row.isConnected) return;
+      clearHoverTimer();
       expanded.add(folder.key);
       renderFolders();
     }, HOVER_EXPAND_MS);
@@ -1008,6 +1018,12 @@
     row.className = `lap-capture-folder-row${recent ? ' is-recent' : ''}`;
     row.dataset.path = folder.path;
     row.style.setProperty('--lap-depth', String(depth));
+    row.tabIndex = 0;
+    row.setAttribute('role', 'button');
+    row.setAttribute('aria-label', `保存到 ${folder.name}`);
+    row.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); row.click(); }
+    });
 
     const hasChildren = folder.children?.length > 0;
     const isExpanded = expanded.has(folder.key);
@@ -1028,7 +1044,8 @@
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
     });
     row.addEventListener('dragleave', (event) => {
-      if (row.contains(event.relatedTarget)) return;
+      const rect = row.getBoundingClientRect();
+      if (row.contains(event.relatedTarget) || (event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom)) return;
       row.classList.remove('is-target');
       cancelExpand(row);
     });
@@ -1172,12 +1189,14 @@
     error.hidden = true;
     submitButton.disabled = true;
     submitButton.textContent = '正在创建…';
+    const session = captureSession;
     try {
       const response = await sendMessage({
         type: 'lap:create-folder',
         parentPath,
         name,
       });
+      if (session !== captureSession || !overlay) return;
       if (!response?.ok || !response.folder) {
         showCreateError(response?.error || '创建目录失败');
         return;
@@ -1186,6 +1205,7 @@
       selectedFolder = response.folder;
       await saveSelectedAsset();
     } catch (errorValue) {
+      if (session !== captureSession || !overlay) return;
       showCreateError(errorValue instanceof Error ? errorValue.message : String(errorValue));
     }
   }
@@ -1219,18 +1239,23 @@
     };
 
     closeOverlay();
-    void sendMessage({ type: 'lap:capture', payload })
-      .then((response) => {
-        if (!response?.ok) {
-          console.warn('Lap background capture failed:', response?.error || 'Unknown capture error');
-        }
+    return sendMessage({ type: 'lap:capture', payload })
+      .then(response => {
+        if (!response?.ok) throw new Error(response?.error || '保存失败');
       })
-      .catch((error) => {
-        console.warn(
-          'Lap background capture failed:',
-          error instanceof Error ? error.message : String(error),
-        );
-      });
+      .catch(error => showToast(error.message || String(error), true));
+  }
+
+  function showToast(message, failed = false) {
+    const host = document.createElement('div');
+    const shadow = host.attachShadow({mode:'closed'});
+    const style = document.createElement('style');
+    style.textContent = ':host{all:initial;position:fixed;right:24px;bottom:24px;z-index:2147483647;max-width:min(420px,calc(100vw - 48px));font:13px/1.6 system-ui,"Microsoft YaHei",sans-serif} .toast{display:flex;align-items:center;gap:18px;padding:14px 18px;background:#211c2c;color:#f1eafa;border:1px solid #716083;border-radius:12px;box-shadow:0 8px 30px #0005} .error{border-color:#ba6c77}button{background:transparent;border:0;color:inherit;cursor:pointer;font:inherit;white-space:nowrap}button:focus-visible{outline:2px solid #c9b3ff}';
+    const box=document.createElement('div');box.className=failed?'toast error':'toast';box.setAttribute('role',failed?'alert':'status');
+    const text=document.createElement('span');text.textContent=message;
+    const dismiss=document.createElement('button');dismiss.textContent='关闭';dismiss.addEventListener('click',()=>host.remove());
+    box.append(text,dismiss);shadow.append(style,box);document.documentElement.append(host);
+    setTimeout(()=>host.remove(),failed?15000:4500);
   }
 
   async function beginCapture(image, event) {
@@ -1312,8 +1337,9 @@
         keepRadialAfterDragEnd = false;
         return;
       }
+      const session = captureSession;
       setTimeout(() => {
-        if (['tracking', 'intent', 'radial'].includes(mode)) closeOverlay();
+        if (session === captureSession && ['tracking', 'intent', 'radial'].includes(mode)) closeOverlay();
       }, CLOSE_AFTER_DRAG_MS);
     },
     true,

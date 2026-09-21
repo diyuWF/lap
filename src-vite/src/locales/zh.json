@@ -1511,7 +1511,7 @@
       "debug_mode": "调试模式",
       "section_browser_capture": "浏览器采集",
       "browser_capture_local_only": "仅限本机",
-      "browser_capture_hint": "将下面的信息复制到 Lap 浏览器扩展。Token 仅用于与这台电脑配对。",
+      "browser_capture_hint": "在扩展设置中点击“连接并记住”，核对确认码并在此允许。授权一次即可自动重连；旧版扩展仍可手动复制 Token。",
       "browser_capture_address": "本地服务地址",
       "browser_capture_token": "配对 Token",
       "browser_capture_copy_address": "复制地址",
@@ -1529,7 +1529,8 @@
       "open_queue": "打开队列",
       "ai_batch_title": "AI 批量整理工作台",
       "ai_batch_hint": "批量发现未整理素材并生成结构化建议",
-      "start_organizing": "开始整理"
+      "start_organizing": "开始整理",
+      "browser_capture_manual": "手动连接 · 兼容旧版扩展"
     },
     "database": {
       "title": "存储",
@@ -1621,5 +1622,17 @@
         "failed_install": "安装更新失败"
       }
     }
+  },
+  "capturePairing": {
+    "eyebrow": "浏览器采集 · 首次授权",
+    "title": "允许浏览器连接 Lap？",
+    "hint": "确认下方数字与扩展设置页面一致。仅批准由你主动发起的连接。",
+    "code": "配对确认码",
+    "expires": "{seconds} 秒后过期",
+    "permission": "授权后，此扩展可读取素材目录、创建目录并保存网页素材。凭据仅保存在当前浏览器，后续启动自动连接。",
+    "extension": "查看扩展标识",
+    "reject": "拒绝",
+    "approve": "数字一致，允许连接",
+    "failed": "请求已失效或授权失败，请在扩展设置中重新连接。"
   }
 }
