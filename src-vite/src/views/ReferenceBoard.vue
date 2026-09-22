@@ -1,16 +1,7 @@
 <template>
-  <div class="reference-board">
-    <header class="reference-board-titlebar" data-tauri-drag-region>
-      <div class="reference-board-brand" data-tauri-drag-region>
-        <img :src="lapLogo" alt="" draggable="false" />
-        <span data-tauri-drag-region>
-          <strong>{{ $t("reference_board.title") }}</strong>
-          <small>{{
-            $t("reference_board.asset_count", { count: items.length })
-          }}</small>
-        </span>
-      </div>
-
+  <div class="reference-board" tabindex="-1" @pointerdown.capture="focusBoard">
+    <div class="reference-board-toolbar" role="toolbar" :aria-label="$t('reference_board.title')">
+      <button class="reference-board-move" type="button" :title="$t('reference_board.move_window')" @pointerdown="startWindowDrag">⠿</button>
       <div class="reference-board-tools">
         <button
           type="button"
@@ -65,7 +56,7 @@
           <IconClose />
         </button>
       </div>
-    </header>
+    </div>
 
     <main
       ref="viewportRef"
@@ -116,7 +107,8 @@
       </div>
     </main>
 
-    <footer class="reference-board-status">
+    <footer class="reference-board-status" aria-live="polite">
+      <span v-if="persistError" class="reference-board-save-error">{{ $t("reference_board.save_failed") }}</span>
       <span>{{ $t("reference_board.controls_hint") }}</span>
       <strong>{{ Math.round(camera.scale * 100) }}%</strong>
     </footer>
@@ -134,6 +126,7 @@ import {
   watch,
 } from "vue";
 import { emit } from "@tauri-apps/api/event";
+import { BOARD_STORAGE_KEY, readBoardState, writeBoardState } from "@/common/reference-board-state.mjs";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getAssetSrc, isTauriRuntime } from "@/common/utils";
@@ -191,7 +184,7 @@ type Interaction =
       itemId: string;
     };
 
-const STORAGE_KEY = "lap-reference-board-v1";
+const persistError = ref(false);
 const MIN_ZOOM = 0.05;
 const MAX_ZOOM = 32;
 const viewportRef = ref<HTMLElement | null>(null);
@@ -228,35 +221,40 @@ function assetSource(item: BoardItem) {
 
 function restoreBoard() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    const state = JSON.parse(raw);
-    if (Array.isArray(state.items)) {
-      items.value = state.items.filter(
-        (item: BoardItem) => item?.id && item?.path,
-      );
-    }
-    if (state.camera) {
-      camera.x = Number(state.camera.x) || 0;
-      camera.y = Number(state.camera.y) || 0;
-      camera.scale = clampZoom(Number(state.camera.scale) || 1);
-    }
+    const state = readBoardState(localStorage.getItem(BOARD_STORAGE_KEY));
+    items.value = state.items;
+    Object.assign(camera, state.camera);
+    alwaysOnTop.value = state.alwaysOnTop;
   } catch {
-    localStorage.removeItem(STORAGE_KEY);
+    persistError.value = true;
   }
 }
 
 function persistBoard() {
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({
-      items: items.value,
-      camera: { ...camera },
-    }),
-  );
+  try {
+    writeBoardState(localStorage, items.value, { ...camera }, alwaysOnTop.value);
+    persistError.value = false;
+    return true;
+  } catch {
+    persistError.value = true;
+    return false;
+  }
+}
+
+function focusBoard(event: PointerEvent) {
+  const target = event.target as HTMLElement;
+  if (!target.closest('button')) (event.currentTarget as HTMLElement).focus({ preventScroll: true });
+}
+
+async function startWindowDrag(event: PointerEvent) {
+  if (event.button === 0 && isTauriRuntime) {
+    event.preventDefault();
+    await getCurrentWebviewWindow().startDragging();
+  }
 }
 
 function schedulePersist() {
+  if (isClosing) return;
   if (persistTimer) clearTimeout(persistTimer);
   persistTimer = setTimeout(() => {
     persistTimer = null;
@@ -488,6 +486,12 @@ function removeItem(id: string) {
 }
 
 function handleKeyDown(event: KeyboardEvent) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    event.stopPropagation();
+    void closeWindow();
+    return;
+  }
   if (
     (event.key === "Delete" || event.key === "Backspace") &&
     selectedId.value
@@ -533,29 +537,24 @@ async function minimizeWindow() {
   if (isTauriRuntime) await getCurrentWebviewWindow().minimize();
 }
 
-async function prepareToClose() {
+async function closeWindow() {
   if (isClosing) return;
   isClosing = true;
-  if (persistTimer) {
-    clearTimeout(persistTimer);
-    persistTimer = null;
-  }
-  items.value = [];
-  selectedId.value = "";
-  camera.x = 0;
-  camera.y = 0;
-  camera.scale = 1;
-  localStorage.removeItem(STORAGE_KEY);
-  if (isTauriRuntime) await emit("reference-board:closed");
-}
-
-async function closeWindow() {
-  if (!isTauriRuntime) return;
-  await prepareToClose();
-  await getCurrentWebviewWindow().close();
+  try {
+    if (persistTimer) { clearTimeout(persistTimer); persistTimer = null; }
+    interaction.value = null;
+    unbindInteractionListeners();
+    if (!persistBoard()) return;
+    if (isTauriRuntime) {
+      // Keep the native window and its geometry; reopening shows this same board.
+      await getCurrentWebviewWindow().hide();
+      await emit("reference-board:closed");
+    }
+  } finally { isClosing = false; }
 }
 
 onMounted(async () => {
+  document.documentElement.classList.add("reference-board-window");
   restoreBoard();
   await nextTick();
 
@@ -586,17 +585,19 @@ onMounted(async () => {
       }
     });
     const currentWindow = getCurrentWebviewWindow();
-    unlistenCloseRequested = await currentWindow.onCloseRequested(() => {
-      void prepareToClose();
+    unlistenCloseRequested = await currentWindow.onCloseRequested((event) => {
+      event.preventDefault();
+      void closeWindow();
     });
-    await currentWindow.setAlwaysOnTop(true);
+    await currentWindow.setAlwaysOnTop(alwaysOnTop.value);
     await currentWindow.show();
   }
 });
 
-watch([items, camera], schedulePersist, { deep: true });
+watch([items, camera, alwaysOnTop], schedulePersist, { deep: true });
 
 onBeforeUnmount(() => {
+  document.documentElement.classList.remove("reference-board-window");
   if (persistTimer) clearTimeout(persistTimer);
   if (!isClosing) persistBoard();
   window.removeEventListener("keydown", handleKeyDown, true);
@@ -607,73 +608,56 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+:global(html.reference-board-window),
+:global(html.reference-board-window body),
+:global(html.reference-board-window #app) {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
 .reference-board {
+  --board-surface: rgb(0 0 0 / 0.46);
+  --board-controls: rgb(16 16 19 / 0.72);
+  position: relative;
   display: flex;
   width: 100vw;
   height: 100vh;
-  flex-direction: column;
   overflow: hidden;
-  border: 1px solid
-    color-mix(in oklab, var(--color-base-content) 11%, transparent);
-  border-radius: 12px;
-  background: color-mix(in oklab, var(--color-base-300) 96%, transparent);
-  box-shadow:
-    -28px 24px 78px rgb(91 55 255 / 0.12),
-    28px -18px 72px rgb(241 113 59 / 0.08),
-    0 28px 80px rgb(0 0 0 / 0.45);
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: var(--board-surface);
   color: var(--color-base-content);
 }
-
-.reference-board-titlebar {
-  display: flex;
-  min-height: 48px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 0 8px 0 12px;
-  border-bottom: 1px solid
-    color-mix(in oklab, var(--color-base-content) 8%, transparent);
-  background: color-mix(in oklab, var(--color-base-200) 90%, transparent);
-  user-select: none;
-  backdrop-filter: blur(18px);
+:global(html[data-lap-appearance="light"] .reference-board) {
+  --board-surface: rgb(255 255 255 / 0.46);
+  --board-controls: rgb(255 255 255 / 0.78);
 }
-
-.reference-board-brand {
+.reference-board-toolbar {
+  position: absolute;
+  z-index: 5;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 9px;
+  gap: 4px;
+  padding: 5px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--board-controls);
+  backdrop-filter: blur(16px);
+  opacity: 0.25;
+  transition: opacity 150ms ease;
 }
-
-.reference-board-brand img {
+.reference-board-toolbar:hover, .reference-board-toolbar:focus-within { opacity: 1; }
+.reference-board-move {
   width: 28px;
-  height: 28px;
-  flex: none;
-  border-radius: 9px;
-  box-shadow: 0 7px 20px rgb(103 76 255 / 0.22);
+  border: 0;
+  color: var(--color-base-content);
+  background: transparent;
+  cursor: move;
+  font-size: 24px;
 }
-
-.reference-board-brand > span {
-  display: grid;
-  min-width: 0;
-  gap: 0;
-}
-
-.reference-board-brand strong {
-  overflow: hidden;
-  font-size: 12px;
-  font-weight: 750;
-  line-height: 16px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.reference-board-brand small {
-  color: color-mix(in oklab, var(--color-base-content) 48%, transparent);
-  font-size: 9px;
-  line-height: 12px;
-}
-
 .reference-board-tools {
   display: flex;
   align-items: center;
@@ -726,7 +710,7 @@ onBeforeUnmount(() => {
   min-height: 0;
   flex: 1;
   overflow: hidden;
-  background: color-mix(in oklab, var(--color-base-300) 94%, #07080b);
+  background: transparent;
   cursor: grab;
   touch-action: none;
 }
@@ -747,11 +731,10 @@ onBeforeUnmount(() => {
   display: grid;
   place-items: center;
   overflow: hidden;
-  border: 1px solid
-    color-mix(in oklab, var(--color-base-content) 10%, transparent);
-  border-radius: 10px;
-  background: color-mix(in oklab, var(--color-base-100) 88%, transparent);
-  box-shadow: 0 18px 48px rgb(0 0 0 / 0.34);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   cursor: move;
   transform-origin: center;
   transition:
@@ -760,12 +743,7 @@ onBeforeUnmount(() => {
 }
 
 .reference-board-item.is-selected {
-  border-color: color-mix(in oklab, var(--color-primary) 74%, white 12%);
-  box-shadow:
-    0 0 0 3px color-mix(in oklab, var(--color-primary) 16%, transparent),
-    -18px 16px 48px rgb(91 55 255 / 0.16),
-    18px -10px 42px rgb(241 113 59 / 0.08),
-    0 20px 52px rgb(0 0 0 / 0.42);
+  outline: 1px solid color-mix(in oklab, var(--color-primary) 70%, transparent);
 }
 
 .reference-board-item > img {
@@ -862,19 +840,19 @@ onBeforeUnmount(() => {
 }
 
 .reference-board-status {
+  position: absolute;
+  z-index: 4;
+  inset: auto 12px 6px;
   display: flex;
-  min-height: 28px;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 0 12px;
-  border-top: 1px solid
-    color-mix(in oklab, var(--color-base-content) 8%, transparent);
-  background: color-mix(in oklab, var(--color-base-200) 88%, transparent);
-  color: color-mix(in oklab, var(--color-base-content) 44%, transparent);
-  font-size: 9px;
+  color: color-mix(in oklab, var(--color-base-content) 65%, transparent);
+  font-size: 10px;
+  pointer-events: none;
   user-select: none;
 }
+.reference-board-save-error { color: var(--color-error); }
 
 .reference-board-status strong {
   color: color-mix(in oklab, var(--color-base-content) 70%, transparent);

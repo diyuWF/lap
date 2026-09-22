@@ -15,9 +15,10 @@ use uuid::Uuid;
 
 const CONFIG_VERSION: u32 = 1;
 const MAX_IMAGE_BYTES: usize = 20 * 1024 * 1024;
-const DEFAULT_SYSTEM_PROMPT: &str = r##"你是专业的数字素材库管理员。分析图像并且只输出严格 JSON，不要输出 Markdown。标签必须简洁、稳定、可复用，优先使用 namespace:value 形式，例如 subject:car、style:minimal、composition:centered、lighting:studio、color:blue、usage:ui-reference。不要虚构人物、作者或项目名称。返回结构：{"title":"","description":"","tags":["namespace:value"],"dominantColors":["#RRGGBB"],"confidence":0.0}。"##;
+const DEFAULT_SYSTEM_PROMPT: &str =
+    include_str!("../../src-vite/src/common/online-ai-system-prompt.txt");
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OnlineAiProviderKind {
     OpenaiCompatible,
@@ -192,6 +193,7 @@ pub struct OnlineAiProviderTestResult {
     pub model: String,
     pub message: String,
     pub elapsed_ms: i64,
+    pub analysis: OnlineAiAnalysis,
 }
 
 fn default_true() -> bool {
@@ -315,10 +317,9 @@ pub fn list_online_ai_providers() -> Result<Vec<OnlineAiProviderSummary>, String
 
 #[tauri::command]
 pub fn save_online_ai_provider(
-    input: OnlineAiProviderInput,
+    mut input: OnlineAiProviderInput,
 ) -> Result<OnlineAiProviderSummary, String> {
     let mut config = load_config()?;
-    let now = Utc::now().timestamp_millis();
     let provider_id = input
         .id
         .clone()
@@ -330,6 +331,41 @@ pub fn save_online_ai_provider(
         .find(|provider| provider.id == provider_id)
         .cloned();
 
+    input.id = Some(provider_id.clone());
+    let provider = provider_from_input(input, existing.as_ref())?;
+
+    if let Some(index) = config
+        .providers
+        .iter()
+        .position(|provider| provider.id == provider_id)
+    {
+        config.providers[index] = provider.clone();
+    } else {
+        config.providers.push(provider.clone());
+    }
+    config.version = CONFIG_VERSION;
+    save_config(&config)?;
+    Ok(provider_summary(&provider))
+}
+
+fn provider_from_input(
+    input: OnlineAiProviderInput,
+    existing: Option<&StoredOnlineAiProvider>,
+) -> Result<StoredOnlineAiProvider, String> {
+    let now = Utc::now().timestamp_millis();
+    let provider_id = input.id.clone().filter(|id| !id.trim().is_empty())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+    let base_url = normalize_http_url(&input.base_url)?;
+    // Never reuse a saved credential after changing its destination or protocol.
+    if input.api_key.as_deref().unwrap_or_default().trim().is_empty() {
+        if let Some(previous) = existing {
+            if !previous.api_key.is_empty()
+                && (normalize_http_url(&previous.base_url)? != base_url || previous.kind != input.kind)
+            {
+                return Err("API 地址或接口类型已更改，请重新填写对应服务的 API 密钥".to_string());
+            }
+        }
+    }
     let supplied_key = input.api_key.unwrap_or_default().trim().to_string();
     let api_key = if supplied_key.is_empty() {
         existing
@@ -348,11 +384,11 @@ pub fn save_online_ai_provider(
         return Err("模型名称不能为空".to_string());
     }
 
-    let provider = StoredOnlineAiProvider {
+    Ok(StoredOnlineAiProvider {
         id: provider_id.clone(),
         name: name.to_string(),
         kind: input.kind,
-        base_url: normalize_http_url(&input.base_url)?,
+        base_url,
         model: model.to_string(),
         api_key,
         auth_header: input
@@ -382,20 +418,7 @@ pub fn save_online_ai_provider(
             .map(|provider| provider.created_at)
             .unwrap_or(now),
         updated_at: now,
-    };
-
-    if let Some(index) = config
-        .providers
-        .iter()
-        .position(|provider| provider.id == provider_id)
-    {
-        config.providers[index] = provider.clone();
-    } else {
-        config.providers.push(provider.clone());
-    }
-    config.version = CONFIG_VERSION;
-    save_config(&config)?;
-    Ok(provider_summary(&provider))
+    })
 }
 
 #[tauri::command]
@@ -498,7 +521,7 @@ fn load_image_payload(file_id: i64) -> Result<ImagePayload, String> {
 
 fn analysis_prompt(provider: &StoredOnlineAiProvider) -> String {
     format!(
-        "使用 {} 输出结果，最多生成 {} 个标签。标签优先使用 namespace:value 形式。只输出 JSON。",
+        "使用 {} 输出结果，最多生成 {} 个标签。标签使用 namespace:value 形式，值使用指定语言。只输出严格 JSON：{{\"title\":\"\",\"description\":\"\",\"tags\":[],\"dominantColors\":[],\"confidence\":0.0}}。confidence 范围 0 到 1；没有素材时返回空值和 0，不虚构内容。",
         provider.language, provider.max_tags
     )
 }
@@ -726,7 +749,7 @@ fn extract_openai_text(value: &JsonValue) -> Result<String, String> {
             return Ok(text);
         }
     }
-    Err(format!("OpenAI 兼容响应中没有文本：{}", value))
+    Err("OpenAI 兼容响应中没有文本，请检查模型是否完成输出".to_string())
 }
 
 fn extract_gemini_text(value: &JsonValue) -> Result<String, String> {
@@ -735,13 +758,14 @@ fn extract_gemini_text(value: &JsonValue) -> Result<String, String> {
         .map(|parts| {
             parts
                 .iter()
+                .filter(|part| part.get("thought").and_then(JsonValue::as_bool) != Some(true))
                 .filter_map(|part| part.get("text").and_then(JsonValue::as_str))
                 .collect::<Vec<_>>()
                 .join("\n")
         })
         .unwrap_or_default();
     if text.is_empty() {
-        Err(format!("Gemini 响应中没有文本：{}", value))
+        Err("Gemini 响应中没有文本，请检查模型可用性或内容限制".to_string())
     } else {
         Ok(text)
     }
@@ -760,7 +784,7 @@ fn extract_anthropic_text(value: &JsonValue) -> Result<String, String> {
         })
         .unwrap_or_default();
     if text.is_empty() {
-        Err(format!("Anthropic 响应中没有文本：{}", value))
+        Err("Anthropic 响应中没有文本，请检查模型是否完成输出".to_string())
     } else {
         Ok(text)
     }
@@ -786,7 +810,6 @@ async fn call_provider(
             }
             let body = json!({
                 "model": provider.model,
-                "temperature": 0.1,
                 "messages": [
                     { "role": "system", "content": provider.system_prompt },
                     { "role": "user", "content": content }
@@ -808,7 +831,7 @@ async fn call_provider(
                 &format!("models/{}:generateContent", provider.model),
             );
             let mut parts = vec![json!({
-                "text": format!("{}\n{}", provider.system_prompt, prompt)
+                "text": prompt
             })];
             if let Some(image) = image {
                 parts.push(json!({
@@ -819,6 +842,7 @@ async fn call_provider(
                 }));
             }
             let body = json!({
+                "systemInstruction": { "parts": [{ "text": provider.system_prompt }] },
                 "contents": [{ "role": "user", "parts": parts }],
                 "generationConfig": {
                     "temperature": 0.1,
@@ -923,13 +947,21 @@ fn parse_analysis(
     provider: &StoredOnlineAiProvider,
 ) -> Result<OnlineAiAnalysis, String> {
     let clean = strip_json_fence(raw);
-    let analysis: OnlineAiAnalysis = serde_json::from_str(clean).map_err(|error| {
-        format!(
-            "AI 返回的 JSON 不符合格式：{}；原始内容：{}",
-            error,
-            clean.chars().take(800).collect::<String>()
-        )
-    })?;
+    let value: JsonValue = serde_json::from_str(clean)
+        .map_err(|_| "AI 返回的内容不是有效 JSON，请恢复内置提示词后重试".to_string())?;
+    let valid = value.get("title").is_some_and(JsonValue::is_string)
+        && value.get("description").is_some_and(JsonValue::is_string)
+        && value.get("tags").and_then(JsonValue::as_array)
+            .is_some_and(|items| items.iter().all(JsonValue::is_string))
+        && value.get("dominantColors").and_then(JsonValue::as_array)
+            .is_some_and(|items| items.iter().all(JsonValue::is_string))
+        && value.get("confidence").and_then(JsonValue::as_f64)
+            .is_some_and(|score| (0.0..=1.0).contains(&score));
+    if !valid {
+        return Err("AI 返回的 JSON 缺少必要字段或类型不正确，请恢复内置提示词后重试".to_string());
+    }
+    let analysis: OnlineAiAnalysis = serde_json::from_value(value)
+        .map_err(|_| "AI 返回的分类字段格式不正确".to_string())?;
     Ok(normalize_analysis(analysis, provider))
 }
 
@@ -1004,19 +1036,44 @@ fn save_suggestions(
 
 #[tauri::command]
 pub async fn test_online_ai_provider(
-    provider_id: String,
+    provider_id: Option<String>,
+    input: Option<OnlineAiProviderInput>,
 ) -> Result<OnlineAiProviderTestResult, String> {
-    let provider = find_provider(&provider_id)?;
+    let provider = if let Some(input) = input {
+        let config = load_config()?;
+        let existing = input.id.as_ref().and_then(|id|
+            config.providers.iter().find(|provider| &provider.id == id));
+        provider_from_input(input, existing)?
+    } else {
+        find_provider(&provider_id.ok_or_else(|| "请填写服务配置".to_string())?)?
+    };
+    if provider.api_key.trim().is_empty() {
+        return Err("请填写 API 密钥后再测试".to_string());
+    }
     let started = Instant::now();
+    // A generated test pattern verifies the actual multimodal request path without user files.
+    let image = image::RgbImage::from_fn(128, 128, |x, y| {
+        if (32..96).contains(&x) && (32..96).contains(&y) {
+            image::Rgb([160u8, 100, 240])
+        } else {
+            image::Rgb([245u8, 245, 245])
+        }
+    });
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::ImageRgb8(image)
+        .write_to(&mut bytes, image::ImageFormat::Png)
+        .map_err(|error| format!("测试图生成失败：{}", error))?;
+    let image = ImagePayload { mime: "image/png".to_string(), base64: STANDARD.encode(bytes.into_inner()) };
     let prompt = analysis_prompt(&provider);
-    let raw = call_provider(&provider, None, &prompt).await?;
-    let _ = parse_analysis(&raw, &provider)?;
+    let raw = call_provider(&provider, Some(&image), &prompt).await?;
+    let analysis = parse_analysis(&raw, &provider)?;
     Ok(OnlineAiProviderTestResult {
         ok: true,
         provider_id: provider.id,
         model: provider.model,
-        message: "连接成功，模型返回了有效的结构化 JSON".to_string(),
+        message: "测试图请求成功，模型返回了有效的分类 JSON；配置尚未自动保存".to_string(),
         elapsed_ms: started.elapsed().as_millis() as i64,
+        analysis,
     })
 }
 
@@ -1104,4 +1161,75 @@ pub async fn analyze_file_for_organization(
         workflow_updated: false,
         folder_suggestion_id,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn input() -> OnlineAiProviderInput {
+        serde_json::from_value(json!({
+            "name": "Test service", "kind": "openai_compatible",
+            "baseUrl": "https://api.deepseek.com", "model": "deepseek-flash",
+            "apiKey": "fixture-key", "systemPrompt": " "
+        })).unwrap()
+    }
+
+    #[test]
+    fn draft_uses_builtin_prompt_and_preserves_custom_edits() {
+        let provider = provider_from_input(input(), None).unwrap();
+        assert_eq!(provider.system_prompt, DEFAULT_SYSTEM_PROMPT);
+        let mut draft = input();
+        draft.system_prompt = Some("custom rules".into());
+        draft.model = "edited-model".into();
+        let provider = provider_from_input(draft, None).unwrap();
+        assert_eq!(provider.system_prompt, "custom rules");
+        assert_eq!(provider.model, "edited-model");
+        assert!(analysis_prompt(&provider).contains("dominantColors"));
+    }
+
+    #[test]
+    fn stored_key_is_reused_only_for_the_same_destination() {
+        let saved = provider_from_input(input(), None).unwrap();
+        let mut draft = input();
+        draft.api_key = None;
+        assert_eq!(provider_from_input(draft.clone(), Some(&saved)).unwrap().api_key, "fixture-key");
+        draft.base_url = "https://api.openai.com/v1".into();
+        assert!(provider_from_input(draft.clone(), Some(&saved)).is_err());
+        draft.api_key = Some("new-service-key".into());
+        assert_eq!(provider_from_input(draft, Some(&saved)).unwrap().api_key, "new-service-key");
+    }
+
+    #[test]
+    fn changing_protocol_also_requires_a_new_key() {
+        let saved = provider_from_input(input(), None).unwrap();
+        let mut draft = input();
+        draft.api_key = None;
+        draft.kind = OnlineAiProviderKind::Gemini;
+        assert!(provider_from_input(draft, Some(&saved)).is_err());
+    }
+
+    #[test]
+    fn empty_or_wrong_json_is_not_a_successful_connection_test() {
+        let provider = provider_from_input(input(), None).unwrap();
+        assert!(parse_analysis("{}", &provider).is_err());
+        assert!(parse_analysis(r#"{"title":"x","description":"","tags":"wrong","dominantColors":[],"confidence":0.9}"#, &provider).is_err());
+        assert!(parse_analysis(r#"{"title":"x","description":"","tags":[],"dominantColors":[],"confidence":2}"#, &provider).is_err());
+        assert!(parse_analysis(r#"{"title":"x","description":"","tags":["subject:test"],"dominantColors":[],"confidence":0.9}"#, &provider).is_ok());
+    }
+
+    #[test]
+    fn parsing_errors_do_not_echo_private_model_output() {
+        let provider = provider_from_input(input(), None).unwrap();
+        assert!(!parse_analysis("private-user-content", &provider).unwrap_err().contains("private-user-content"));
+        assert!(!extract_openai_text(&json!({"private": "secret"})).unwrap_err().contains("secret"));
+    }
+
+    #[test]
+    fn gemini_thinking_parts_are_not_mixed_into_classification_json() {
+        let result = extract_gemini_text(&json!({"candidates": [{"content": {"parts": [
+            {"thought": true, "text": "internal reasoning"}, {"text": "{}"}
+        ]}}]})).unwrap();
+        assert_eq!(result, "{}");
+    }
 }

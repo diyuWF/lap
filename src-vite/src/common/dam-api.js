@@ -56,8 +56,8 @@ export async function deleteOnlineAiProvider(providerId) {
   return invoke('delete_online_ai_provider', { providerId });
 }
 
-export async function testOnlineAiProvider(providerId) {
-  return invoke('test_online_ai_provider', { providerId });
+export async function testOnlineAiProvider(providerId = null, input = null) {
+  return invoke('test_online_ai_provider', { providerId, input });
 }
 
 export async function analyzeFileWithOnlineAi(fileId, providerId, forceAutoApply = null) {

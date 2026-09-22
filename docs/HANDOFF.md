@@ -430,3 +430,27 @@ User-selected visual reference replaces the old dark AI disk, white folder butto
 The Windows 0.4.3 build found a cross-platform test-runner defect: Node 20 on Windows does not expand `*.test.mjs`. The test command now explicitly names all three suites. Local 16-test suite passes; rebuilt Windows installer pending CI. Pairing/backend changes from 4174a94 are retained without changing database schema.
 
 Browser fixture verification: the actual extension script and stylesheet render at 447x660 beside the selected reference; transparent AI/folder backgrounds, 30-second ring animation, child-folder navigation and folder-save payload were observed. This verifies browser UI and mocked capture dispatch, not native end-to-end saving. Full native pairing/installation checks remain pending.
+
+
+## 0.4.5 AI settings and reference board (2026-09-22)
+
+Concrete user-reported defects authorize this work. Baseline `25b3401f2626130e69ef4bd6fbbac5708116b1ba`; keep PR #2 Draft. 0.4.4 Windows CI run 35688624269 and PR checks 35688624303 succeeded, superseding older pending notes. No merge, release, database migration or Phase 6 work.
+
+- Shared built-in prompt embedded by Vue and Rust, visible/editable with restore and blank fallback; nine presets with official documentation URLs. New presets clear prior service identity and credentials.
+- Test current unsaved configuration with a generated test image and strict metadata JSON validation. No user asset upload or automatic save. Changing destination/protocol requires a newly entered key. Gemini system instructions are separate and thought parts are excluded. Parsing errors omit private payloads.
+- Frameless reference board, theme-aware translucent black/white canvas, floating bottom controls. Esc saves immediately and hides; reopening retains window geometry. Existing storage key preserves images, camera, zoom and pin state. This supersedes the older close-clears-board instruction at the user's request.
+- Extension 0.4.5 retains 0.4.4 pairing and transparent radial UI.
+
+Changed files: AI/board components, Content.vue window reopening, shared helpers/prompt/presets, t_ai_online.rs, dam-api.js, locales, focused regression tests and packaging workflow.
+
+Validation before interruption: PASS pnpm install --frozen-lockfile, pnpm i18n:audit:strict (1339 keys), pnpm exec vite build, npm test in scripts/extension-tests (22 tests), four extension node --check commands, manifest parse, git diff --check. Browser fixture PASS: current draft test, cleared preset key, embedded prompt, alpha 0.46 black/white board with 0px border, Esc hide/reopen and dragged layout restoration. Native bridge and board icons mocked; no external API used.
+
+Local cargo check --locked BLOCKED by dependency linker failure; full cargo fmt --check FAILED on pre-existing formatting. Windows CI must pass locked check, six targeted AI Rust tests and NSIS build before delivery. The environment interrupted before commit; recovered source is revalidated before submission.
+
+Required native checks (still BLOCKED pending Windows/manual execution):
+- [ ] Install 0.4.5; test a real vision model with user-owned key, including unsaved edits.
+- [ ] Verify preset switching does not alter an existing service/key.
+- [ ] Check native board transparency and both themes at 100%/125% scaling.
+- [ ] Move/resize native window and images, pan/zoom, Esc and reopen unchanged.
+- [ ] Restart Lap and verify board/window placement.
+- [ ] Recheck remembered browser pairing and capture.

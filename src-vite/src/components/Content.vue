@@ -2303,12 +2303,18 @@ function isAtAppBoundary(event: PointerEvent) {
 async function createReferenceBoardWindow() {
   const label = 'referenceboard';
   const existingWindow = await WebviewWindow.getByLabel(label);
-  if (existingWindow) return existingWindow;
+  if (existingWindow) {
+    await existingWindow.unminimize();
+    await existingWindow.show();
+    await existingWindow.setFocus();
+    return existingWindow;
+  }
 
   return new Promise<WebviewWindow>((resolve, reject) => {
     const referenceWindow = new WebviewWindow(label, {
       url: '/reference-board',
       title: 'Lap Reference Board',
+      shadow: false,
       width: 1000,
       height: 700,
       minWidth: 520,
@@ -2371,6 +2377,8 @@ async function handleImageDragAtBoundary() {
     const existingWindow = await WebviewWindow.getByLabel('referenceboard');
     if (existingWindow) {
       referenceBoardChoice = 'board';
+      await existingWindow.unminimize();
+      await existingWindow.show();
       await startNativeImageDragOut();
       return;
     }

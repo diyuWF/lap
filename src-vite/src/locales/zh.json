@@ -1042,8 +1042,19 @@
     "processing": "处理中…",
     "save_service": "保存服务",
     "saved": "在线 AI 服务已保存。",
-    "connection_success": "连接成功，模型返回了有效的结构化 JSON（{elapsed} 毫秒）。",
-    "delete_confirm": "删除在线 AI 服务“{name}”？"
+    "connection_success": "测试图请求和分类 JSON 解析成功（{elapsed} 毫秒）。请保存当前配置。",
+    "delete_confirm": "删除在线 AI 服务“{name}”？",
+    "preset": "从预设新增服务",
+    "custom_provider": "自定义接口",
+    "domestic": "国内服务商",
+    "international": "海外服务商",
+    "preset_hint": "选择预设会新建空白服务并填好接口和模型，不会带入其他服务的密钥。模型仍可修改。",
+    "qwen_region_hint": "此预设使用北京地域，密钥需来自同一地域；也可改为控制台提供的业务空间专属地址。",
+    "restore_prompt": "恢复内置提示词",
+    "prompt_hint": "已内置素材分类规则，可直接使用或编辑。清空后会自动使用内置内容。",
+    "test_hint": "测试当前填写的配置和提示词，发送内置测试图（不上传你的素材，可能产生少量 API 费用）；测试成功后请点击保存。",
+    "test_result": "测试图识别结果",
+    "advanced_rules": "输出语言与自动整理规则"
   },
   "dam_features": {
     "common": {
@@ -1202,15 +1213,17 @@
     "empty_hint": "只有真正放入参考板的图片才会加入；拖到 Photoshop 等应用不会被截获。",
     "load_failed": "无法加载这张图片",
     "remove": "从参考板移除",
-    "controls_hint": "拖动空白处平移 · 滚轮缩放 · 拖动图片排列",
+    "controls_hint": "拖动空白处平移 · 滚轮缩放 · 拖动图片排列 · Esc 关闭并记住布局",
     "open_failed": "无法打开参考板",
     "drag_out_failed": "无法开始系统拖拽，请重试",
-    "create_prompt_title": "创建参考板？",
-    "create_prompt_message": "这是你第一次把图片拖出 Lap。是否创建一个置顶参考板？创建后，只有把图片真正拖进参考板才会加入；拖到 Photoshop 等应用仍按系统拖拽处理。",
+    "create_prompt_title": "打开参考板？",
+    "create_prompt_message": "打开置顶参考板并恢复上次的布局。只有实际拖入参考板的图片才会添加，拖到 Photoshop 等应用仍使用系统拖拽。",
     "create_prompt_ok": "创建参考板",
     "create_prompt_cancel": "继续拖到其他应用",
-    "created_hint": "参考板已创建，请重新拖动图片并放入参考板",
-    "external_drag_hint": "请重新拖动图片到 Photoshop 或其他应用"
+    "created_hint": "参考板已打开。拖入图片开始排列，Esc 关闭并记住布局。",
+    "external_drag_hint": "请重新拖动图片到 Photoshop 或其他应用",
+    "move_window": "拖动移动参考板窗口",
+    "save_failed": "布局保存失败，请检查本机存储后再关闭。"
   },
   "settings": {
     "general": {

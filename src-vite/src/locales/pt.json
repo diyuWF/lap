@@ -1410,5 +1410,27 @@
     "reject": "Deny",
     "approve": "Codes match · Allow",
     "failed": "This request expired or could not be approved. Connect again from the extension settings."
+  },
+  "online_ai": {
+    "preset": "Create from a provider preset",
+    "custom_provider": "Custom endpoint",
+    "domestic": "China providers",
+    "international": "International providers",
+    "preset_hint": "Selecting a preset creates a new draft with an endpoint and model. Keys are never copied from another service. You can edit the model.",
+    "qwen_region_hint": "This preset uses Beijing. Use a key from the same region, or enter the workspace endpoint from your console.",
+    "restore_prompt": "Restore built-in prompt",
+    "prompt_hint": "Asset classification rules are included and editable. An empty field uses the built-in prompt.",
+    "test_hint": "Tests the current form and prompt with a built-in image, without uploading your assets. A small API charge may apply. Save after a successful test.",
+    "test_result": "Test image result",
+    "connection_success": "Image request and classification JSON parsed successfully ({elapsed} ms). Save to keep this configuration.",
+    "advanced_rules": "Output language and automatic organization"
+  },
+  "reference_board": {
+    "move_window": "Drag to move the board window",
+    "save_failed": "Could not save the layout. Check local storage before closing.",
+    "controls_hint": "Drag blank space to pan · Scroll to zoom · Drag images to arrange · Esc to close and remember",
+    "create_prompt_title": "Open reference board?",
+    "create_prompt_message": "Open an always-on-top board and restore its previous layout. Only images dropped onto it are added; Photoshop and other apps keep normal system drag behavior.",
+    "created_hint": "Reference board opened. Drop images to arrange; Esc closes and remembers the layout."
   }
 }
