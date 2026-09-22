@@ -422,3 +422,11 @@ The concrete repeated-Token defect reported by the user authorizes focused work 
 Validation: `pnpm install --frozen-lockfile`, strict i18n audit, Vite build and 16 extension regression tests passed locally before packaging. Full `cargo fmt --check` reports pre-existing formatting differences in untouched modules; edited Rust files pass targeted rustfmt. Local `cargo check --locked` is BLOCKED by native dependency linker errors (target-lexicon), so Windows CI is the authoritative compile gate. Browser/native visual and real end-to-end pairing still require manual validation. Added Rust pairing security and filename regression tests are pending execution in a native-capable environment.
 
 The chat validation workflow now packages version 0.4.3 instead of silently rewriting it to 0.4.1. No database migration, release or merge is included.
+
+## 0.4.4 synchronized candidate (2026-09-22)
+
+User-selected visual reference replaces the old dark AI disk, white folder buttons, and global gauge. The AI artwork now floats transparently and grows to the available central space. Each folder/action has a generated transparent lilac ring, slow 30-second rotation, fixed outlined text, and brighter target/focus state. Nodes use a wider responsive ellipse with explicit viewport/AI/neighbor clearance; crowded levels retain More. Folder covers are no longer fetched for these transparent controls, reducing redundant work. Reduced-motion mode stops animation and resizing recalculates positions.
+
+The Windows 0.4.3 build found a cross-platform test-runner defect: Node 20 on Windows does not expand `*.test.mjs`. The test command now explicitly names all three suites. Local 16-test suite passes; rebuilt Windows installer pending CI. Pairing/backend changes from 4174a94 are retained without changing database schema.
+
+Browser fixture verification: the actual extension script and stylesheet render at 447x660 beside the selected reference; transparent AI/folder backgrounds, 30-second ring animation, child-folder navigation and folder-save payload were observed. This verifies browser UI and mocked capture dispatch, not native end-to-end saving. Full native pairing/installation checks remain pending.

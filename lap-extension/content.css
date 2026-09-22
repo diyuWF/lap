@@ -30,9 +30,9 @@
   inset: 0;
   z-index: 2147483646;
   display: block;
-  background: rgba(12, 10, 18, 0.54);
-  backdrop-filter: blur(18px) brightness(0.6) saturate(0.68);
-  -webkit-backdrop-filter: blur(18px) brightness(0.6) saturate(0.68);
+  background: rgba(12, 10, 18, 0.24);
+  backdrop-filter: blur(18px) brightness(0.8) saturate(0.8);
+  -webkit-backdrop-filter: blur(18px) brightness(0.8) saturate(0.8);
   pointer-events: none;
   transition:
     background 220ms ease,
@@ -41,9 +41,9 @@
 
 .lap-capture-overlay.is-radial-open,
 .lap-capture-overlay.is-panel-open {
-  background: rgba(12, 10, 18, 0.58);
-  backdrop-filter: blur(20px) brightness(0.58) saturate(0.66);
-  -webkit-backdrop-filter: blur(20px) brightness(0.58) saturate(0.66);
+  background: rgba(12, 10, 18, 0.28);
+  backdrop-filter: blur(20px) brightness(0.78) saturate(0.8);
+  -webkit-backdrop-filter: blur(20px) brightness(0.78) saturate(0.8);
 }
 
 .lap-capture-overlay.is-panel-open {
@@ -59,86 +59,47 @@
   top: 50%;
   left: 50%;
   z-index: 3;
-  width: min(840px, calc(100vw - 32px), calc(100vh - 32px));
-  aspect-ratio: 1;
+  width: calc(100vw - 48px);
+  height: calc(100vh - 48px);
   border: 0;
-  border-radius: 50%;
   background: transparent;
-  box-shadow: none;
   pointer-events: none;
   transform: translate(-50%, -50%);
   animation: lapRadialStageIn 300ms cubic-bezier(0.18, 0.9, 0.22, 1) both;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-.lap-capture-radial-gauge {
-  position: absolute;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-  opacity: 0.9;
-  pointer-events: none;
-  filter:
-    hue-rotate(225deg)
-    saturate(1.55)
-    brightness(1.06)
-    drop-shadow(0 22px 42px rgba(0, 0, 0, 0.2));
-  object-fit: contain;
-  animation: lapRadialGaugeIn 420ms cubic-bezier(0.18, 0.9, 0.22, 1) both;
 }
 
 .lap-capture-radial-center {
   position: absolute;
   top: 50%;
   left: 50%;
-  display: flex;
-  width: clamp(142px, 18vmin, 164px);
-  height: clamp(142px, 18vmin, 164px);
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0;
+  display: grid;
+  width: var(--lap-ai-size, 260px);
+  height: var(--lap-ai-size, 260px);
   padding: 0;
-  border: 1px solid rgba(158, 104, 255, 0.4);
+  border: 0;
   border-radius: 50%;
   appearance: none;
-  background:
-    radial-gradient(circle at 50% 42%, rgba(74, 39, 128, 0.22), transparent 56%),
-    rgba(18, 17, 23, 0.82);
-  box-shadow:
-    0 0 0 10px rgba(116, 65, 238, 0.055),
-    0 0 42px rgba(117, 49, 255, 0.16),
-    0 24px 58px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  color: #f5f1ff;
+  background: transparent;
+  box-shadow: none;
+  color: #fff;
   cursor: copy;
-  font: inherit;
+  place-items: center;
   pointer-events: auto;
-  text-align: center;
   transform: translate(-50%, -50%);
-  transition:
-    border-color 120ms ease,
-    box-shadow 120ms ease,
-    transform 140ms ease;
+  transition: filter 180ms ease, transform 180ms ease;
   animation: lapRadialCenterIn 320ms cubic-bezier(0.18, 0.9, 0.22, 1) 40ms both;
-  backdrop-filter: blur(16px) saturate(0.74);
-  -webkit-backdrop-filter: blur(16px) saturate(0.74);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
-
 .lap-capture-ai-visual {
   position: relative;
   display: grid;
-  width: 112px;
-  height: 112px;
-  flex: none;
-  margin-top: 0;
+  width: 100%;
+  height: 100%;
   place-items: center;
   pointer-events: none;
-  animation: lapAiDrift 5.8s ease-in-out infinite;
+  animation: lapAiDrift 7s ease-in-out infinite;
 }
-
 .lap-capture-ai-orbit,
 .lap-capture-ai-wordmark {
   position: absolute;
@@ -146,74 +107,52 @@
   object-fit: contain;
   pointer-events: none;
 }
-
 .lap-capture-ai-orbit {
-  inset: -9px;
-  width: 130px;
-  height: 130px;
-  opacity: 0.72;
-  filter: saturate(1.08) drop-shadow(0 0 9px rgba(128, 65, 255, 0.28));
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.96;
+  filter: saturate(1.12) drop-shadow(0 0 12px rgba(143, 61, 255, 0.44));
 }
-
-.lap-capture-ai-orbit.is-forward {
-  animation: lapAiOrbitForward 13s linear infinite;
-}
-
+.lap-capture-ai-orbit.is-forward { animation: lapAiOrbitForward 20s linear infinite; }
 .lap-capture-ai-orbit.is-reverse {
-  inset: 3px;
-  width: 106px;
-  height: 106px;
-  opacity: 0.34;
-  transform: rotate(142deg) scaleX(-1);
-  animation: lapAiOrbitReverse 9s linear infinite;
+  inset: 7%;
+  width: 86%;
+  height: 86%;
+  opacity: 0.5;
+  animation: lapAiOrbitReverse 27s linear infinite;
 }
-
 .lap-capture-ai-wordmark {
   top: 50%;
   left: 50%;
-  width: 72px;
-  height: 72px;
-  filter: drop-shadow(0 0 11px rgba(147, 70, 255, 0.38));
+  width: 64%;
+  height: 64%;
+  filter: drop-shadow(0 0 12px rgba(185, 102, 255, 0.6));
   transform: translate(-50%, -50%);
 }
-
-.lap-capture-radial-center.is-loading {
-  cursor: wait;
-  opacity: 0.72;
-}
-
+.lap-capture-radial-center.is-loading { cursor: wait; opacity: 0.65; }
 .lap-capture-radial-center:hover,
 .lap-capture-radial-center.is-target {
-  border-color: rgba(173, 113, 255, 0.96);
-  box-shadow:
-    0 0 0 8px rgba(127, 66, 236, 0.13),
-    0 0 54px rgba(117, 49, 255, 0.28),
-    0 28px 62px rgba(0, 0, 0, 0.5);
-  transform: translate(-50%, -50%) scale(1.045);
+  background: transparent;
+  filter: brightness(1.2);
+  transform: translate(-50%, -50%) scale(1.035);
 }
-
-.lap-capture-radial-items {
-  position: absolute;
-  inset: 0;
-}
-
+.lap-capture-radial-items { position: absolute; inset: 0; }
 .lap-capture-radial-item {
   position: absolute;
   top: 50%;
   left: 50%;
   display: block;
-  width: var(--lap-radial-size, clamp(54px, 9vmin, 78px));
-  height: var(--lap-radial-size, clamp(54px, 9vmin, 78px));
+  width: var(--lap-radial-size, 120px);
+  height: var(--lap-radial-size, 120px);
   padding: 0;
-  overflow: hidden;
-  border: 1px solid rgba(239, 235, 255, 0.86);
+  overflow: visible;
+  border: 0;
   border-radius: 50%;
   appearance: none;
-  background: rgba(244, 241, 252, 0.95);
-  box-shadow:
-    0 13px 30px rgba(0, 0, 0, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.72);
-  color: #26222e;
+  background: transparent;
+  box-shadow: none;
+  color: #fff;
   cursor: copy;
   font: inherit;
   pointer-events: auto;
@@ -221,162 +160,71 @@
   transform: translate(-50%, -50%) translate(var(--lap-radial-x), var(--lap-radial-y));
   animation: lapRadialItemIn 320ms cubic-bezier(0.18, 0.9, 0.22, 1) both;
   animation-delay: calc(55ms + var(--lap-radial-order, 0) * 28ms);
-  transition:
-    border-color 120ms ease,
-    background 120ms ease,
-    box-shadow 120ms ease,
-    transform 140ms ease;
-  backdrop-filter: blur(14px) saturate(0.78);
-  -webkit-backdrop-filter: blur(14px) saturate(0.78);
+  transition: filter 180ms ease, transform 180ms ease;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
-
+.lap-capture-folder-ring {
+  position: absolute;
+  inset: -14%;
+  width: 128%;
+  height: 128%;
+  max-width: none;
+  object-fit: contain;
+  pointer-events: none;
+  animation: lapFolderRingTurn 30s linear infinite;
+  animation-delay: calc(var(--lap-radial-order, 0) * -3s);
+}
 .lap-capture-radial-item strong {
   position: absolute;
-  right: 7px;
-  bottom: 9px;
-  left: 7px;
+  right: 12%;
+  bottom: 23%;
+  left: 12%;
   z-index: 2;
   display: block;
   overflow: hidden;
-  color: #2c2833;
-  font-size: 10px;
-  font-weight: 720;
-  line-height: 1.2;
-  text-shadow: none;
+  color: #fff;
+  font-size: clamp(10px, calc(var(--lap-radial-size, 120px) * 0.12), 16px);
+  font-weight: 650;
+  line-height: 1.3;
+  -webkit-text-stroke: 0.25px rgba(233, 219, 255, 0.9);
+  paint-order: stroke fill;
+  text-shadow: 0 0 7px #b875ff, 0 1px 3px #26113c;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.lap-capture-radial-visual {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  overflow: hidden;
-  border-radius: 50%;
-  place-items: center;
-}
-
-.lap-capture-radial-cover {
-  display: block;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  transition: opacity 180ms ease;
-}
-
-.lap-capture-radial-item.has-cover .lap-capture-radial-cover {
-  opacity: 1;
-}
-
-.lap-capture-radial-item.has-cover::after {
-  position: absolute;
-  inset: 56% 0 0;
-  z-index: 1;
-  border-radius: 0 0 50% 50%;
-  background: rgba(5, 5, 7, 0.64);
-  content: '';
   pointer-events: none;
 }
-
-.lap-capture-radial-item.has-cover strong {
-  color: #fff;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+.lap-capture-radial-visual {
+  position: absolute;
+  inset: 14% 0 40%;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
 }
-
+.lap-capture-radial-cover { display: none; }
 .lap-capture-radial-folder-icon,
 .lap-capture-radial-action-icon {
   display: block;
-  width: min(29px, calc(var(--lap-radial-size, 78px) * 0.38));
-  height: min(29px, calc(var(--lap-radial-size, 78px) * 0.38));
-  margin-bottom: min(10px, calc(var(--lap-radial-size, 78px) * 0.13));
-  filter: none;
-  opacity: 0.72;
+  width: 31%;
+  height: auto;
+  opacity: 1;
+  filter: invert(1) drop-shadow(0 0 4px #b47dff) drop-shadow(0 0 1px #fff);
 }
-
-.lap-capture-radial-item.is-create {
-  border-color: rgba(171, 132, 255, 0.9);
-  background: rgba(82, 45, 164, 0.97);
-  box-shadow:
-    0 0 0 4px rgba(126, 77, 240, 0.12),
-    0 17px 38px rgba(0, 0, 0, 0.34),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-}
-
-.lap-capture-radial-item.is-current-folder {
-  border-color: rgba(188, 158, 255, 0.94);
-  background: rgba(220, 208, 255, 0.97);
-  box-shadow:
-    0 0 0 4px rgba(124, 78, 236, 0.13),
-    0 16px 36px rgba(0, 0, 0, 0.28);
-}
-
-.lap-capture-radial-item.is-current-folder strong {
-  color: #2f2540;
-}
-
-.lap-capture-radial-item.has-children {
-  border-color: rgba(170, 132, 255, 0.92);
-  box-shadow:
-    0 0 0 3px rgba(123, 76, 235, 0.12),
-    0 13px 30px rgba(0, 0, 0, 0.22);
-}
-
-.lap-capture-radial-item.is-back {
-  border-color: rgba(239, 235, 255, 0.36);
-  background: rgba(31, 28, 39, 0.92);
-  box-shadow:
-    0 13px 30px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.09);
-}
-
-.lap-capture-radial-item.is-back strong {
-  color: #f0ecfa;
-}
-
-.lap-capture-radial-item.is-back .lap-capture-radial-action-icon {
-  filter: invert(1);
-  opacity: 0.82;
-}
-
-.lap-capture-radial-item.is-create strong {
-  color: #f3edff;
-}
-
-.lap-capture-radial-item.is-create .lap-capture-radial-action-icon {
-  filter: invert(1);
-  opacity: 0.9;
-}
-
-.lap-capture-radial-item.is-more strong {
-  color: #2c2833;
-}
-
 .lap-capture-radial-item:hover,
 .lap-capture-radial-item.is-target {
   z-index: 2;
-  border-color: rgba(192, 163, 255, 0.98);
-  background: rgba(250, 248, 255, 0.99);
-  box-shadow:
-    0 0 0 5px rgba(128, 79, 240, 0.14),
-    0 20px 44px rgba(0, 0, 0, 0.48);
-  transform: translate(-50%, -50%) translate(var(--lap-radial-x), var(--lap-radial-y)) scale(1.065);
+  background: transparent;
+  filter: brightness(1.25);
+  transform: translate(-50%, -50%) translate(var(--lap-radial-x), var(--lap-radial-y)) scale(1.035);
 }
-
-.lap-capture-radial-item.is-create:hover,
-.lap-capture-radial-item.is-create.is-target {
-  background: rgba(100, 55, 198, 0.99);
-}
-
-.lap-capture-radial-item.is-back:hover,
-.lap-capture-radial-item.is-back.is-target {
-  background: rgba(41, 36, 51, 0.99);
-}
-
+.lap-capture-radial-item:hover .lap-capture-folder-ring,
+.lap-capture-radial-item.is-target .lap-capture-folder-ring { animation-play-state: paused; }
 .lap-capture-radial-center:focus-visible,
 .lap-capture-radial-item:focus-visible {
-  outline: 2px solid rgba(200, 179, 255, 0.98);
-  outline-offset: 4px;
+  outline: 2px solid #e8d4ff;
+  outline-offset: 6px;
 }
+@keyframes lapFolderRingTurn { to { transform: rotate(360deg); } }
 
 @keyframes lapIntentRailIn {
   from {
@@ -971,7 +819,7 @@
 @media (prefers-reduced-motion: reduce) {
   .lap-capture-overlay *,
   .lap-capture-drag-ghost {
-    animation-duration: 0.01ms !important;
+    animation: none !important;
     transition-duration: 0.01ms !important;
   }
 }

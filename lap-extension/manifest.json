@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Lap 素材采集器",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "拖动网页图片直接保存到 Lap 目录，或交给已配置的 AI 分类；工具栏可批量采集当前页面图片。",
   "permissions": [
     "activeTab",
@@ -49,7 +49,8 @@
         "folder.svg",
         "more.svg",
         "plus.svg",
-        "radial-gauge.png"
+        "radial-gauge.png",
+        "folder-ring.png"
       ],
       "matches": [
         "http://*/*",

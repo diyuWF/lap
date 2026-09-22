@@ -153,7 +153,8 @@ test('AI classification remains visible and silently queues an inbox item', asyn
   assert.equal(center.querySelectorAll('.lap-capture-ai-orbit').length, 2);
   assert.equal(center.querySelector('.lap-capture-ai-label'), null);
   assert.equal(center.getAttribute('aria-label'), 'AI 分类');
-  assert.match(contentStyles, /hue-rotate\(225deg\)/);
+  assert.ok(window.document.querySelector('.lap-capture-folder-ring'));
+  assert.equal(window.document.querySelector('.lap-capture-radial-gauge'), null);
   assert.doesNotMatch(contentStyles, /rgba\(111, 74, 44/);
 
   center.click();
@@ -230,7 +231,7 @@ test('drag-preview overlap opens only the covered folder direct children', async
   window.close();
 });
 
-test('radial actions stay completely inside the inner orbit without intersecting', async () => {
+test('spread radial actions stay inside the viewport without intersecting each other or AI', async () => {
   const crowdedFolders = Array.from({ length: 12 }, (_, index) => ({
     id: 100 + index,
     name: `目录 ${index + 1}`,
@@ -239,16 +240,16 @@ test('radial actions stay completely inside the inner orbit without intersecting
   for (const viewport of [{ width: 1200, height: 900 }, { width: 360, height: 640 }]) {
     const { window } = await createContentHarness({ ...viewport, folderFixtures: crowdedFolders });
     const buttons = [...window.document.querySelectorAll('.lap-capture-radial-item')];
-    const stageSize = Math.min(840, window.innerWidth - 32, window.innerHeight - 32);
-    const innerOrbitRadius = 270 * Math.max(0.3, Math.min(1, stageSize / 840));
-
+    const center = window.document.querySelector('.lap-capture-radial');
+    const aiRadius = parseFloat(center.style.getPropertyValue('--lap-ai-size')) / 2;
     for (const button of buttons) {
-      const centerRadius = Math.hypot(Number(button.dataset.radialX), Number(button.dataset.radialY));
-      const itemRadius = Number(button.dataset.radialHitRadius);
-      assert.ok(
-        centerRadius + itemRadius <= innerOrbitRadius - 7,
-        `${button.textContent.trim()} should have a visible gap from the orbit stroke`,
-      );
+      const x = Number(button.dataset.radialX);
+      const y = Number(button.dataset.radialY);
+      const radius = Number(button.dataset.radialHitRadius);
+      assert.ok(Math.abs(x) + radius + 20 <= viewport.width / 2);
+      assert.ok(Math.abs(y) + radius + 20 <= viewport.height / 2);
+      assert.ok(Math.hypot(x, y) - radius - aiRadius >= 23.9, 'AI and folder glow must remain separated');
+      assert.ok(button.querySelector('.lap-capture-folder-ring'), 'each action gets its own rotating ring');
     }
 
     for (let leftIndex = 0; leftIndex < buttons.length; leftIndex += 1) {
@@ -261,7 +262,7 @@ test('radial actions stay completely inside the inner orbit without intersecting
         );
         const minimumGap = Number(left.dataset.radialHitRadius)
           + Number(right.dataset.radialHitRadius)
-          + 7;
+          + 23.9;
         assert.ok(distance >= minimumGap, 'radial actions should not overlap each other');
       }
     }

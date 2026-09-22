@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test *.test.mjs"
+    "test": "node --test extension.test.mjs connection.test.mjs background.test.mjs"
   },
   "devDependencies": {
     "happy-dom": "20.11.2"

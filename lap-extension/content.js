@@ -7,13 +7,11 @@
   const RADIAL_DWELL_MISS_GRACE_MS = 140;
   const RADIAL_HIT_SLOP_PX = 16;
   const RADIAL_DRAG_FOOTPRINT_SLOP_PX = 10;
-  const folderCoverViews = new WeakMap();
 
   let overlay = null;
   let mode = 'idle';
   let currentAsset = null;
   let folders = [];
-  let folderCoverUrls = new Map();
   let recentFolderPaths = [];
   let expanded = new Set();
   let hoverTimer = null;
@@ -323,7 +321,6 @@
     currentAsset = null;
     selectedFolder = null;
     folders = [];
-    folderCoverUrls = new Map();
     recentFolderPaths = [];
     expanded = new Set();
     thresholdReached = false;
@@ -411,10 +408,8 @@
     const extensionIconUrl = chrome.runtime.getURL('icon.png');
     const aiWordmarkUrl = chrome.runtime.getURL('ai-wordmark.png');
     const aiOrbitUrl = chrome.runtime.getURL('ai-orbit.png');
-    const radialGaugeUrl = chrome.runtime.getURL('radial-gauge.png');
     overlay.innerHTML = `
       <div class="lap-capture-radial" role="menu" aria-label="保存到文件夹">
-        <img class="lap-capture-radial-gauge" src="${escapeHtml(radialGaugeUrl)}" alt="" />
         <button class="lap-capture-radial-center" type="button" role="menuitem" aria-label="AI 分类">
           <span class="lap-capture-ai-visual" aria-hidden="true">
             <img class="lap-capture-ai-orbit is-forward" src="${escapeHtml(aiOrbitUrl)}" alt="" />
@@ -591,49 +586,41 @@
     };
   }
 
+  function radialLayout(total) {
+    const shortest = Math.min(window.innerWidth, window.innerHeight);
+    const itemSize = Math.max(52, Math.min(132, shortest * (total <= 3 ? 0.26 : 0.18)));
+    const radiusX = Math.max(60, Math.min(480, window.innerWidth / 2 - itemSize / 2 - 24));
+    const radiusY = Math.max(60, Math.min(350, window.innerHeight / 2 - itemSize / 2 - 24));
+    const positions = Array.from({ length: Math.max(1, total) }, (_, index) => {
+      const angle = (total === 1 ? 90 : -90) + 360 * index / Math.max(1, total);
+      const radians = angle * Math.PI / 180;
+      return { x: Math.cos(radians) * radiusX, y: Math.sin(radians) * radiusY, angle, itemSize };
+    });
+    const clearance = Math.min(...positions.map(p => Math.hypot(p.x, p.y))) - itemSize / 2 - 24;
+    const centerSize = Math.max(80, Math.min(320, shortest * 0.62, clearance * 2));
+    return { positions, itemSize, centerSize };
+  }
+
   function radialControlCapacity() {
-    const stageSize = Math.min(840, window.innerWidth - 32, window.innerHeight - 32);
-    const scale = Math.max(0.3, Math.min(1, stageSize / 840));
-    const innerOrbitRadius = 270 * scale;
-    const orbitGap = Math.max(8, 18 * scale);
-    const minimumItemSize = 42;
-    const radius = innerOrbitRadius - minimumItemSize / 2 - orbitGap;
-    const minimumChord = minimumItemSize + 7;
-    const ratio = Math.min(1, minimumChord / Math.max(1, 2 * radius));
-    const capacity = Math.floor(Math.PI / Math.asin(ratio));
-    return Math.max(4, Math.min(10, capacity));
+    for (let total = 8; total >= 4; total -= 1) {
+      const { positions, itemSize, centerSize } = radialLayout(total);
+      const separated = positions.every((p, i) => positions.every((q, j) => i === j || Math.hypot(p.x - q.x, p.y - q.y) >= itemSize + 24));
+      if (separated && centerSize >= 110) return total;
+    }
+    return 4;
   }
 
   function radialOrbitPosition(index, total) {
-    const stageSize = Math.min(840, window.innerWidth - 32, window.innerHeight - 32);
-    const scale = Math.max(0.3, Math.min(1, stageSize / 840));
-    const innerOrbitRadius = 270 * scale;
-    const requestedSize = Math.max(
-      42,
-      Math.min(78, Math.min(window.innerWidth, window.innerHeight) * 0.09),
-    );
-    const orbitGap = Math.max(8, 18 * scale);
-    const initialRadius = innerOrbitRadius - requestedSize / 2 - orbitGap;
-    const availableChord = total > 1
-      ? 2 * initialRadius * Math.sin(Math.PI / total)
-      : requestedSize;
-    const itemSize = Math.max(
-      42,
-      Math.min(requestedSize, availableChord - Math.max(8, 11 * scale)),
-    );
-    const radius = innerOrbitRadius - itemSize / 2 - orbitGap;
-    const startAngle = total === 1 ? 90 : -90;
-    const angle = startAngle + (360 / Math.max(1, total)) * index;
-    const radians = (angle * Math.PI) / 180;
-    return {
-      x: Math.cos(radians) * radius,
-      y: Math.sin(radians) * radius,
-      angle,
-      itemSize,
-    };
+    return radialLayout(total).positions[index];
   }
 
   function applyRadialPosition(button, index, total) {
+    const ring = document.createElement('img');
+    ring.className = 'lap-capture-folder-ring';
+    ring.src = chrome.runtime.getURL('folder-ring.png');
+    ring.alt = '';
+    ring.setAttribute('aria-hidden', 'true');
+    button.prepend(ring);
     const position = radialOrbitPosition(index, total);
     button.style.setProperty('--lap-radial-x', `${position.x}px`);
     button.style.setProperty('--lap-radial-y', `${position.y}px`);
@@ -642,56 +629,6 @@
     button.dataset.radialX = String(position.x);
     button.dataset.radialY = String(position.y);
     button.dataset.radialHitRadius = String(position.itemSize / 2);
-  }
-
-  function applyRadialFolderCover(button, folder) {
-    const cover = button.querySelector('.lap-capture-radial-cover');
-    const icon = button.querySelector('.lap-capture-radial-folder-icon');
-    const dataUrl = folderCoverUrls.get(Number(folder.id));
-    if (!cover || !icon || !dataUrl) return;
-    let view = folderCoverViews.get(cover);
-    if (!view) {
-      const shadow = cover.attachShadow({ mode: 'closed' });
-      const style = document.createElement('style');
-      style.textContent =
-        ':host{display:block;width:100%;height:100%}img{display:block;width:100%;height:100%;object-fit:cover;object-position:center}';
-      const image = document.createElement('img');
-      image.alt = '';
-      shadow.append(style, image);
-      view = { image };
-      folderCoverViews.set(cover, view);
-    }
-    view.image.onload = () => {
-      icon.hidden = true;
-      button.classList.add('has-cover');
-    };
-    view.image.onerror = () => {
-      icon.hidden = false;
-      button.classList.remove('has-cover');
-    };
-    view.image.src = dataUrl;
-    if (view.image.complete && view.image.naturalWidth > 0) view.image.onload();
-  }
-
-  async function hydrateRadialFolderCovers(candidates, session) {
-    const folderIds = candidates
-      .map((folder) => Number(folder.id))
-      .filter((value) => Number.isInteger(value) && value > 0 && !folderCoverUrls.has(value));
-    if (!folderIds.length) return;
-    try {
-      const response = await sendMessage({ type: 'lap:get-folder-covers', folderIds });
-      if (session !== captureSession || !response?.ok || !overlay) return;
-      for (const cover of response.covers || []) {
-        const folderId = Number(cover.folderId);
-        if (!Number.isInteger(folderId) || !cover.dataUrl) continue;
-        folderCoverUrls.set(folderId, cover.dataUrl);
-        const folder = candidates.find((item) => Number(item.id) === folderId);
-        const button = overlay.querySelector(`.lap-capture-radial-item[data-folder-id="${folderId}"]`);
-        if (folder && button) applyRadialFolderCover(button, folder);
-      }
-    } catch {
-      // Covers are optional visual metadata; empty folders keep the folder icon.
-    }
   }
 
   function showRadialLevel(parentKey) {
@@ -722,7 +659,6 @@
         <img class="lap-capture-radial-folder-icon" src="${escapeHtml(chrome.runtime.getURL('folder.svg'))}" alt="" />
       </span>
       <strong>${escapeHtml(saveDirectly ? `保存到 ${folder.name}` : folder.name)}</strong>`;
-    applyRadialFolderCover(button, folder);
 
     applyRadialPosition(button, index, total);
 
@@ -806,7 +742,7 @@
       + (showCreate ? 1 : 0)
       + (showMore ? 1 : 0);
     const hasAiTarget = true;
-    const session = captureSession;
+    radial.style.setProperty('--lap-ai-size', `${radialLayout(total).centerSize}px`);
 
     overlay.classList.add('is-radial-open');
     radial.hidden = false;
@@ -889,10 +825,6 @@
       items.appendChild(createRadialFolder(folder, nextIndex, total));
       nextIndex += 1;
     });
-    void hydrateRadialFolderCovers(
-      showCurrentFolder ? [level.parent, ...candidates] : candidates,
-      session,
-    );
 
     if (showCreate) {
       const createFolder = document.createElement('button');
@@ -1344,6 +1276,10 @@
     },
     true,
   );
+
+  window.addEventListener('resize', () => {
+    if (mode === 'radial') showRadialMenu();
+  });
 
   document.addEventListener(
     'keydown',

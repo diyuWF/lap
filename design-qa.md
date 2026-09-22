@@ -279,3 +279,25 @@
     and exercised in the user's real Chromium environment.
 
 final result: blocked
+
+
+## Latest scoped QA — 0.4.4 browser capture (2026-09-22)
+
+Source visual truth: user attachment `00dd5c42-858e-4d1a-bf9c-3fbc8943d3a3.png` (1032x1524). Implementation evidence delivered as `Lap-0.4.4-Visual-Comparison.jpg` and `Lap-0.4.4-Multiple-Folders.jpg`.
+
+Viewport: 1363x936 browser; the comparison displays source and actual extension in adjacent 447x660 frames. Source is proportionally downsampled; fixture CSS viewport is 447x660 at device scale 1. State: root folder plus Create, AI center, with generated folder ring and original transparent AI artwork. Background content differs intentionally because the screenshot references only the extension overlay, not the underlying web page. The requested wider spacing is intentional.
+
+Comparison history: first rendered comparison showed the inherited overlay dimming the background too much (P2). Reduced backdrop dimming without reintroducing any button fill. Re-captured at the same frame and state; transparency and lighter background confirmed. No remaining actionable P0/P1/P2 overlay findings.
+
+Required surfaces:
+- Typography: Chinese system sans, readable white outlined/glowing text; fixed labels do not rotate. Full-frame 447px comparison makes all labels legible, so no extra crop was needed.
+- Spacing: larger AI; independent rings distributed over a responsive ellipse; desktop crowded fixture shows eight non-overlapping entries, including More; geometry regression also covers 360x640.
+- Colors: white/lilac rings, violet AI; computed button backgrounds are transparent and AI shadow is none.
+- Assets: alpha-transparent generated raster ring and original AI assets; existing Tabler folder/action SVG assets; no opaque disk or cover art.
+- Content: AI graphic retains its accessible label without adding visible explanatory text; folder, child-folder, Create, More and Back labels remain functional.
+
+Primary interactions tested in the browser fixture: open menu, enter lap资产, display direct children, click 材质 and verify the dispatched folder path, reopen. CSS inspection confirms ring-only 30s animation with stationary parent. Console inspection found no Lap errors; an unrelated browser metadata extension reported an error.
+
+Checklist: extension UI comparison and mocked dispatch PASS; local 16 regression tests PASS. Native desktop pairing, real extension installation and save to a real library still require the new Windows package and are outside this scoped visual pass. Desktop validation remains pending.
+
+final result: passed

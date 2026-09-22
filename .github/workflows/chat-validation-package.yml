@@ -69,14 +69,14 @@ jobs:
         run: |
           $tauriPath = 'src-tauri\tauri.conf.json'
           $tauri = Get-Content $tauriPath -Raw | ConvertFrom-Json
-          $tauri.version = '0.4.3'
+          $tauri.version = '0.4.4'
           $tauri.bundle.createUpdaterArtifacts = $false
           $tauri.bundle.targets = @('nsis')
           $tauri | ConvertTo-Json -Depth 100 | Set-Content $tauriPath -Encoding utf8
 
           $manifestPath = 'lap-extension\manifest.json'
           $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
-          $manifest.version = '0.4.3'
+          $manifest.version = '0.4.4'
           $manifest | ConvertTo-Json -Depth 100 | Set-Content $manifestPath -Encoding utf8
 
       - name: Validate all browser extension resources
@@ -167,8 +167,8 @@ jobs:
             $installers = Get-ChildItem 'src-tauri\target\release\bundle\nsis\*.exe' -ErrorAction SilentlyContinue
           }
           if (-not $installers) { throw 'NSIS installer not found.' }
-          Copy-Item $installers[0].FullName 'chat-delivery\Lap-0.4.3-chat-validation-x64-setup.exe'
-          Compress-Archive -Path 'lap-extension\*' -DestinationPath 'chat-delivery\Lap-Browser-Extension-0.4.3.zip' -Force
+          Copy-Item $installers[0].FullName 'chat-delivery\Lap-0.4.4-chat-validation-x64-setup.exe'
+          Compress-Archive -Path 'lap-extension\*' -DestinationPath 'chat-delivery\Lap-Browser-Extension-0.4.4.zip' -Force
           Get-ChildItem chat-delivery -File | ForEach-Object {
             $hash = Get-FileHash $_.FullName -Algorithm SHA256
             "{0}  {1}" -f $hash.Hash.ToLowerInvariant(), $_.Name
@@ -178,7 +178,7 @@ jobs:
       - name: Upload package for chat delivery
         uses: actions/upload-artifact@v4
         with:
-          name: Lap-0.4.3-Chat-Delivery-${{ github.run_number }}
+          name: Lap-0.4.4-Chat-Delivery-${{ github.run_number }}
           path: chat-delivery/*
           if-no-files-found: error
           retention-days: 30
