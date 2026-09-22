@@ -1318,7 +1318,7 @@
         "修改日期（升序）",
         "修改日期（降序）"
       ],
-      "category_sort": "分类",
+      "category_sort": "标签分类",
       "category_sort_hint": "标签、地点、人物和相机",
       "category_sort_options": [
         "名称（A 到 Z）",

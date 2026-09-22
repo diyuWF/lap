@@ -523,3 +523,17 @@ Required native checks (still BLOCKED pending Windows/manual execution):
 - [ ] Move/resize native window and images, pan/zoom, Esc and reopen unchanged.
 - [ ] Restart Lap and verify board/window placement.
 - [ ] Recheck remembered browser pairing and capture.
+
+## 0.4.6 design-assets edition (2026-09-22)
+
+User selected the focused designer workflow: folders, search, tags, previews, web capture, online AI, and reference boards remain. People/face recognition, shooting calendar, map, and camera classification entry points are retired. Existing library records and media are preserved. PR #2 remains Draft.
+
+Browser inspection against actual production CSS/HTML: PASS light desktop settings and AI service modal; PASS browser options and popup; PASS purple radial overlay; PASS creation dialog on a host page whose generic `main` is a two-column grid. That host-style test exposed a real narrowed-form defect and the candidate now explicitly sets `.lap-capture-main { display: block; }`. Browser fixture uses a mocked service and sample images; it does not prove native saving.
+
+Frontend: PASS strict Chinese key audit (1339 keys) and Vite build. Extension: PASS 22 interaction tests, JS syntax checks, JSON manifest parse, and diff whitespace check. Windows installer and native runtime: pending fresh 0.4.6 CI. Native manual checks after delivery:
+
+- [ ] Upgrade a desktop with old face/calendar/people selection and confirm folders appear without losing existing assets.
+- [ ] Confirm only folders, AI classification, search, and tags are offered; About command opens About.
+- [ ] Open settings/AI modal and browser popup/options on both light and dark themes at 100% and 125% scaling.
+- [ ] Test real webpage drag overlay, create-folder dialog, remembered pairing, AI inbox and capture end-to-end.
+- [ ] Reopen frameless reference board after moving it and pressing Esc; check position/theme transparency and persisted content.

@@ -68,6 +68,17 @@ The PR is intentionally kept Draft until manual validation is complete.
 
 ## Current validation candidate
 
+0.4.6 design-assets candidate on `feat/phase4-ai-preview-pipeline`:
+
+- The desktop home navigation now contains folders, AI classification, search, and tags; persisted calendar, people, map, camera, location, and legacy library selections safely return to folders. An existing face-indexing preference is disabled at startup without deleting metadata or media. The About command opens the actual About tab.
+- Desktop light mode defaults to the reference-inspired warm-gray canvas, white panels, ink controls, consistent 20px cards and aligned fields. Dark mode remains available. Browser popup, options, and in-page folder dialog share these proportions while preserving the transparent purple radial interaction.
+- The in-page folder dialog now explicitly sets its content layout so host-site `main` styles cannot shrink its form. Browser popup thumbnails have usable first-row height and a separately scrollable grid.
+- Extension manifest, settings version, and Windows packaging workflow target 0.4.6. No schema migration or deletion of pre-existing assets. This candidate still needs Windows CI and real-machine manual checks; keep PR #2 Draft.
+
+The last **fully built** baseline is commit `9753af68d5da30daa9475da29eef060f78d40da5` (0.4.5): Chat Validation Package #31 and PR Build 35772812553 passed. Artifact `Lap-0.4.5-Chat-Delivery-31` was downloaded, archive integrity verified, and its installer SHA-256 matched `SHA256SUMS.txt`. The 0.4.6 candidate supersedes it only after its own Windows pipeline succeeds.
+
+## Historical 0.4.1 validation candidate
+
 Latest packaged candidate commit:
 
 `4eefde94d81ddbe7a745bf82b4c672e15ed5cafb`

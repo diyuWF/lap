@@ -155,17 +155,7 @@
             </div>
             <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
               <div class="flex flex-col gap-0.5 text-sm leading-5">
-                <div>{{ $t('settings.library.calendar_sort') }}</div>
-                <div class="text-xs text-base-content/30">{{ $t('settings.library.calendar_sort_hint') }}</div>
-              </div>
-              <select class="select select-bordered select-sm min-w-40" v-model="config.settings.calendarSort">
-                <option v-for="option in calendarSortOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-              </select>
-            </div>
-            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
-              <div class="flex flex-col gap-0.5 text-sm leading-5">
                 <div>{{ $t('settings.library.category_sort') }}</div>
-                <div class="text-xs text-base-content/30">{{ $t('settings.library.category_sort_hint') }}</div>
               </div>
               <select class="select select-bordered select-sm min-w-40" v-model="config.settings.categorySort">
                 <option v-for="option in categorySortOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
@@ -400,38 +390,6 @@
             </div>
           </div>
 
-          <!-- face recognition -->
-          <div class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">
-            <div class="flex items-center gap-2 text-base-content/30">
-              <span class="font-bold uppercase text-[10px] tracking-widest">{{ $t('settings.face_recognition.title') }}</span>
-            </div>
-            <div class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
-              <div class="flex flex-col gap-0.5 text-sm leading-5">
-                <div class="flex items-center">
-                  <div>{{ $t('settings.face_recognition.enable') }}</div>
-                  <span class="ml-2 px-1.5 h-5 inline-flex items-center rounded-box text-[10px] font-semibold tracking-[0.08em] text-warning border border-warning/30 bg-warning/10 cursor-default">
-                    BETA
-                  </span>
-                </div>
-                <div class="text-xs text-base-content/30">{{ $t('settings.face_recognition.beta_hint') }}</div>
-              </div>
-              <input type="checkbox" class="toggle toggle-primary toggle-sm" v-model="config.settings.face.enabled" />
-            </div>
-            <div v-if="config.settings.face.enabled" class="flex items-center justify-between px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">
-              <div class="flex flex-col gap-0.5 text-sm leading-5">
-                <div class="flex items-center">
-                  <div>{{ $t('settings.face_recognition.similarity') }}</div>
-                  <span class="ml-2 px-1.5 h-5 inline-flex items-center rounded-box text-[10px] font-semibold tracking-[0.08em] text-warning border border-warning/30 bg-warning/10 cursor-default">
-                    BETA
-                  </span>
-                </div>
-                <div class="text-xs text-base-content/30">{{ $t('settings.face_recognition.cluster_threshold_hint') }}</div>
-              </div>
-                <select class="select select-bordered select-sm min-w-32" v-model="config.settings.face.clusterThresholdIndex" :disabled="!config.settings.face.enabled">
-                  <option v-for="(option, index) in faceClusterOptions" :key="index" :value="option.value">{{ option.label }}</option>
-              </select>
-            </div>
-          </div>
         </div>
 
         <!-- Shortcuts Tab -->
@@ -941,17 +899,6 @@ const folderSortOptions = computed(() => {
   return result;
 });
 
-const calendarSortOptions = computed(() => {
-  const options = localeMsg.value.settings.library.calendar_sort_options || [];
-  const result = [];
-
-  for (let i = 0; i < options.length; i++) {
-    result.push({ label: options[i], value: i });
-  }
-
-  return result;
-});
-
 const categorySortOptions = computed(() => {
   const options = localeMsg.value.settings.library.category_sort_options || [];
   const result = [];
@@ -1129,14 +1076,6 @@ const syncImageSearchModelStatus = async () => {
     await setImageSearchModel(0);
   }
 };
-
-// Define the face cluster threshold options
-const faceClusterOptions = computed(() => {
-  const options = localeMsg.value.settings.face_recognition?.cluster_threshold_options || 
-    ['Very High', 'High', 'Medium', 'Low'];
-  // Map index as value since v-model is clusterThresholdIndex
-  return options.map((label: string, i: number) => ({ label, value: i }));
-});
 
 type ShortcutDisplayItem = {
   actionId: ShortcutActionId;
@@ -1599,14 +1538,6 @@ watch(() => config.settings.imageSearch.thresholdIndex, (newValue) => {
 });
 watch(() => config.settings.imageSearch.limit, (newValue) => {
   emit('settings-imageSearchLimit-changed', newValue);
-});
-
-// face settings
-watch(() => config.settings.face.enabled, (newValue) => {
-  emit('settings-faceEnabled-changed', newValue);
-});
-watch(() => config.settings.face.clusterThresholdIndex, (newValue) => {
-  emit('settings-faceClusterThresholdIndex-changed', newValue);
 });
 
 // Handle keyboard shortcuts

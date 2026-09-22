@@ -30,6 +30,9 @@ const pinia = createPinia()
 pinia.use(piniaPersistedState)
 app.use(pinia) // Use Pinia
 const config = useConfigStore() // Use the config store
+// Previous installs may have face indexing enabled in persisted settings.
+// The design-assets edition keeps the data intact but disables this retired workflow.
+if (config.settings.face?.enabled) config.setFaceEnabled(false)
 const listen = isTauriRuntime ? tauriListen : async () => () => {}
 
 const localeMessages = {
@@ -185,9 +188,6 @@ listen('settings-imageSearchLimit-changed', (event) => {
 })
 listen('settings-faceClusterThresholdIndex-changed', (event) => {
   config.setFaceClusterThresholdIndex(event.payload)
-})
-listen('settings-faceEnabled-changed', (event) => {
-  config.setFaceEnabled(event.payload)
 })
 listen('libraries-changed', () => {
   config.notifyLibrariesChanged()

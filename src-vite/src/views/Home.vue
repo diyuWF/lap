@@ -158,7 +158,6 @@
           showDesktopTitleBar ? 'rounded-tl-box' : '',
         ]"
       >
-        <!-- <MapHeatmapView v-if="config.main.sidebarIndex === SIDEBAR.MAP" /> -->
         <AiInboxWorkbench
           v-if="config.main.sidebarIndex === SIDEBAR.SMART_ALBUM"
           ref="aiInboxWorkbenchRef"
@@ -210,9 +209,6 @@ import AiInboxWorkbench from '@/components/AiInboxWorkbench.vue';
 import AiReviewQueue from '@/components/AiReviewQueue.vue';
 import ImageSearch from '@/components/ImageSearch.vue';
 import Tag from '@/components/Tag.vue';
-import Calendar from '@/components/Calendar.vue';
-import Person from '@/components/Person.vue';
-// import MapHeatmapView from '@/components/MapHeatmapView.vue';
 
 import TitleBar from '@/components/TitleBar.vue';
 import TButton from '@/components/TButton.vue';
@@ -224,12 +220,10 @@ import iconLogo from '@/assets/images/icon.png';
 
 import {
   IconTag,
-  IconPerson,
   IconSearch,
   IconSettings,
   IconDot,
   IconArrowDown,
-  IconCalendarDay,
   IconFolders,
   IconSparkles
 } from '@/common/icons';
@@ -365,16 +359,16 @@ const buttons = computed(() =>  [
   { index: SIDEBAR.ALBUM, icon: IconFolders, component: AlbumList, text: localeMsg.value.sidebar.album, props: { selectionSource: 'album' } },
   { index: SIDEBAR.SMART_ALBUM, icon: IconSparkles, component: AiClassificationList, text: localeMsg.value.album.smart_album_list },
   { index: SIDEBAR.SEARCH, icon: IconSearch, component: ImageSearch, text: localeMsg.value.sidebar.search },
-  { index: SIDEBAR.CALENDAR, icon: IconCalendarDay, component: Calendar, text: localeMsg.value.sidebar.calendar },
   { index: SIDEBAR.TAG, icon: IconTag, component: Tag, text: localeMsg.value.sidebar.tag },
-  { index: SIDEBAR.PERSON, icon: IconPerson, component: Person, text: localeMsg.value.sidebar.people, hidden: !config.settings.face.enabled },
-  // { icon: IconMapDefault, component: null, text: localeMsg.value.sidebar.map },
 ]);
 
 const removedSidebarIndices = new Set<number>([
   SIDEBAR.LIBRARY,
   SIDEBAR.LOCATION,
   SIDEBAR.CAMERA,
+  SIDEBAR.MAP,
+  SIDEBAR.CALENDAR,
+  SIDEBAR.PERSON,
 ]);
 
 const activeSidebarButton = computed(() =>
@@ -417,12 +411,6 @@ watch(
   },
   { immediate: true },
 );
-
-watch(() => config.settings.face.enabled, (enabled) => {
-  if (!enabled && config.main.sidebarIndex === SIDEBAR.PERSON) {
-    config.main.sidebarIndex = SIDEBAR.ALBUM;
-  }
-});
 
 watch(() => config.settings.showCollections, (showCollections) => {
   if (!showCollections && libConfig.activePane === 'collection') {
@@ -474,7 +462,7 @@ onMounted(async () => {
     void clickSettings();
   });
   unlistenOpenAbout = await listen('app-open-about', () => {
-    void clickSettings(5);
+    void clickSettings(7);
   });
 
   appConfig.value = await getAppConfig();
@@ -641,12 +629,6 @@ const onManageLibrariesUpdated = async () => {
 function clickSidebar(index: number) {
   activateMainPanel();
   if (libraryEmpty.value && index !== SIDEBAR.ALBUM) return;
-  if (index === SIDEBAR.MAP) {
-    // map view has no filter panel - give it the full content area
-    showPanel.value = false;
-    config.main.sidebarIndex = index;
-    return;
-  }
   if (config.main.sidebarIndex === index) {
     showPanel.value = !showPanel.value;
   } else {
