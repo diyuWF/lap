@@ -538,6 +538,16 @@ Frontend: PASS strict Chinese key audit (1339 keys) and Vite build. Extension: P
 - [ ] Test real webpage drag overlay, create-folder dialog, remembered pairing, AI inbox and capture end-to-end.
 - [ ] Reopen frameless reference board after moving it and pressing Esc; check position/theme transparency and persisted content.
 
+## 0.4.8 direct classification and calmer surfaces (2026-09-23)
+
+User reported two related defects: sidebar one-click classification only generated a pending plan instead of filing assets, and plan destinations could not be edited. The 0.4.8 implementation separates direct organization from explicit plan generation and reduces repeated card borders in desktop and extension UI. Automated checks and Windows package status are recorded in the handoff after CI. Live provider, filesystem move, and visual testing remain pending.
+
+- [ ] Capture two images into AI Classification; click sidebar “一键 AI 分类” once. Neither image prompts for approval; both move into existing AI-selected folders and leave the pending inbox. “AI 分类方案” remains empty for these assets.
+- [ ] Simulate a provider error and a missing folder: failed assets remain in the inbox and can be retried; already organized assets are not moved twice.
+- [ ] Capture another image and in “待整理素材” click “生成分类方案”. The plan appears in “AI 分类方案”; changing its target folder persists after Refresh and after restarting Lap. Apply the plan and confirm the file moves to the selected folder.
+- [ ] Test invalid/deleted folders and a stale plan. The app shows a concise error and does not move or lose the original file.
+- [ ] At 100% and 125% scale, compare desktop home, AI workbench, service settings, extension popup, options, and folder picker against the warm-white reference in light and dark modes: cards have no repetitive outlines, text aligns, active and keyboard focus states stay visible.
+
 ## 0.4.7 board prompting and silent dialogs (2026-09-23)
 
 User reported a native defect in 0.4.6: closing the reference board hides the window, and the next boundary drag auto-opens it without asking. The drag handler treated any existing window handle as visible. It now checks the window's actual visibility and resets the external-drag preference on board-close. Native desktop confirmation APIs and JavaScript confirm calls were replaced by a compact, silent Lap prompt; rename dialogs follow the same card style. AI folder-plan and board questions are shorter. No library data or board layout was deleted.

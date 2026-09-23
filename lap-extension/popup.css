@@ -48,7 +48,7 @@ h2 { font-size: 14px; line-height: 1.35; }
 .text-button { padding: 6px 5px; color: var(--lap-muted); font-size: 12px; }
 .text-button:hover { color: var(--lap-ink); }
 .status-card, .controls, .asset-section {
-  border: 1px solid var(--lap-border);
+  border: 0;
   border-radius: 18px;
   background: var(--lap-card);
 }
@@ -88,7 +88,7 @@ input[type="checkbox"] { accent-color: var(--lap-accent); }
 .asset-card.selected .check { background: var(--lap-accent); color: #fff; }
 .asset-card .dimensions { position: absolute; bottom: 4px; left: 4px; padding: 2px 5px; border-radius: 5px; background: #202129c7; color: #fff; font-size: 9px; }
 .asset-card:disabled { opacity: .6; }
-.empty-state { padding: 18px 10px; border: 1px dashed var(--lap-border); border-radius: 12px; color: var(--lap-ink); text-align: center; font-size: 12px; }
+.empty-state { padding: 18px 10px; border-radius: 12px; background: var(--lap-sheet); color: var(--lap-ink); text-align: center; font-size: 12px; }
 .empty-state p { margin-top: 6px; color: var(--lap-muted); font-size: 11px; line-height: 1.5; }
 footer { position: sticky; bottom: -18px; z-index: 2; display: grid; flex: none; gap: 7px; margin: auto -18px -18px; padding: 10px 18px 16px; border-top: 1px solid var(--lap-border); background: var(--lap-sheet); }
 .progress-text { min-height: 17px; color: var(--lap-muted); font-size: 11px; line-height: 1.4; }

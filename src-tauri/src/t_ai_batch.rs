@@ -76,6 +76,13 @@ pub struct ExecuteAiFolderPlansInput {
     pub suggestion_ids: Vec<i64>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateAiFolderPlanInput {
+    pub suggestion_id: i64,
+    pub target_folder_id: i64,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AiFolderPlanExecution {
@@ -380,12 +387,156 @@ pub async fn analyze_files_with_online_ai(
     })
 }
 
+// The sidebar action moves each asset immediately. Only the explicit
+// "Generate plans" action above persists a reviewable folder suggestion.
+#[tauri::command]
+pub async fn organize_files_with_online_ai(
+    input: OnlineAiBatchInput,
+) -> Result<OnlineAiBatchResult, String> {
+    let provider_id = input.provider_id.trim().to_string();
+    if provider_id.is_empty() {
+        return Err("未指定在线 AI 服务".to_string());
+    }
+    let file_ids = normalize_file_ids(input.file_ids)?;
+    let folders = organization_folder_options(
+        input.organization_mode.as_deref().unwrap_or("library"),
+        input.root_folder_id,
+    )?;
+    let total = file_ids.len();
+    let mut results = Vec::new();
+    let mut failures = Vec::new();
+    for file_id in file_ids {
+        let organized = async {
+            let mut proposed = t_ai_online::propose_file_organization(
+                file_id,
+                provider_id.clone(),
+                folders.clone(),
+            )
+            .await?;
+            let target_id = proposed
+                .analysis
+                .target_folder_id
+                .ok_or_else(|| "AI 没有返回目标文件夹".to_string())?;
+            // Recheck after the network request; the chosen folder may have
+            // been deleted or this asset may already have been organized.
+            if !folders.iter().any(|folder| folder.folder_id == target_id) {
+                return Err("目标文件夹已不在整理范围内".to_string());
+            }
+            move_organized_file(file_id, target_id)?;
+            proposed.workflow_updated = true;
+            Ok::<OnlineAiAnalysisResult, String>(proposed)
+        }
+        .await;
+        match organized {
+            Ok(result) => results.push(result),
+            Err(error) => {
+                failures.push(OnlineAiBatchFailure { file_id, error });
+                if !input.continue_on_error {
+                    break;
+                }
+            }
+        }
+    }
+    let succeeded = results.len();
+    let failed = failures.len();
+    Ok(OnlineAiBatchResult {
+        total,
+        completed: succeeded + failed,
+        succeeded,
+        failed,
+        results,
+        failures,
+    })
+}
+
+fn move_organized_file(file_id: i64, target_folder_id: i64) -> Result<(), String> {
+    let valid_target = t_dam::list_folders()?
+        .into_iter()
+        .any(|folder| folder.id == target_folder_id && !is_inbox_folder(&folder));
+    if !valid_target {
+        return Err("目标文件夹已不存在或不可用".to_string());
+    }
+    let target = AFolder::get_by_id(target_folder_id)?
+        .ok_or_else(|| "目标文件夹已不存在".to_string())?;
+    let target_id = target.id.ok_or_else(|| "目标文件夹缺少 ID".to_string())?;
+    let file = AFile::get_file_info(file_id)?
+        .ok_or_else(|| "待整理素材已不存在".to_string())?;
+    let current_path = file.file_path.ok_or_else(|| "待整理素材路径不可用".to_string())?;
+    let conn = t_sqlite::open_conn()?;
+    let still_in_inbox: bool = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM dam_file_workflow WHERE file_id = ?1 AND status = 'inbox')",
+            params![file_id],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    if !still_in_inbox {
+        return Err("素材已离开待整理区，请刷新后重试".to_string());
+    }
+    if file.folder_id != target_id {
+        t_cmds::move_file(file_id, &current_path, target_id, &target.path, "keep_both")?;
+    }
+    t_dam::set_workflow_status(file_id, "reviewed")?;
+    conn.execute(
+        "UPDATE dam_ai_suggestions SET status = 'rejected', reviewed_at = ?1
+         WHERE file_id = ?2 AND kind = 'folder' AND status IN ('pending', 'accepted')",
+        params![Utc::now().timestamp_millis(), file_id],
+    )
+    .map_err(|error| format!("素材已整理，但历史方案未能关闭：{}", error))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn update_ai_folder_suggestion_target(
+    input: UpdateAiFolderPlanInput,
+) -> Result<AiFolderSuggestionValue, String> {
+    t_dam::ensure_schema()?;
+    if input.suggestion_id <= 0 || input.target_folder_id <= 0 {
+        return Err("分类方案或目标目录无效".to_string());
+    }
+    let all = t_dam::list_folders()?;
+    let target = all
+        .iter()
+        .find(|folder| folder.id == input.target_folder_id && !is_inbox_folder(folder))
+        .ok_or_else(|| "目标文件夹已不存在或不可用".to_string())?;
+    let conn = t_sqlite::open_conn()?;
+    let current: String = conn
+        .query_row(
+            "SELECT suggestion.value FROM dam_ai_suggestions suggestion
+             JOIN afiles file ON file.id = suggestion.file_id
+             WHERE suggestion.id = ?1 AND suggestion.kind = 'folder'
+               AND suggestion.status IN ('pending', 'accepted')",
+            params![input.suggestion_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "分类方案已失效，请刷新后重试".to_string())?;
+    let mut value: AiFolderSuggestionValue =
+        serde_json::from_str(&current).map_err(|_| "分类方案格式无效".to_string())?;
+    value.folder_id = target.id;
+    value.display_path = folder_display_path(target, &all);
+    let serialized = serde_json::to_string(&value).map_err(|error| error.to_string())?;
+    let changed = conn
+        .execute(
+            "UPDATE dam_ai_suggestions SET value = ?1
+             WHERE id = ?2 AND kind = 'folder' AND status IN ('pending', 'accepted')",
+            params![serialized, input.suggestion_id],
+        )
+        .map_err(|error| error.to_string())?;
+    if changed == 0 {
+        return Err("分类方案已失效，请刷新后重试".to_string());
+    }
+    Ok(value)
+}
+
 #[tauri::command]
 pub fn list_ai_folder_suggestions(limit: Option<i64>) -> Result<Vec<AiFolderPlanRow>, String> {
     t_dam::ensure_schema()?;
     let limit = limit.unwrap_or(200).clamp(1, 1000);
     let available_folder_ids = t_dam::list_folders()?
         .into_iter()
+        .filter(|folder| !is_inbox_folder(folder))
         .map(|folder| folder.id)
         .collect::<HashSet<_>>();
     let conn = t_sqlite::open_conn()?;
@@ -471,6 +622,12 @@ fn execute_one_folder_plan(suggestion_id: i64) -> Result<AiFolderPlanExecution, 
     }
     let plan: AiFolderSuggestionValue =
         serde_json::from_str(&suggestion.1).map_err(|_| "AI 文件夹方案格式无效".to_string())?;
+    let valid_target = t_dam::list_folders()?
+        .into_iter()
+        .any(|folder| folder.id == plan.folder_id && !is_inbox_folder(&folder));
+    if !valid_target {
+        return Err("目标文件夹已不存在或不可用".to_string());
+    }
     let target = AFolder::get_by_id(plan.folder_id)?
         .ok_or_else(|| "AI 建议的目标文件夹已不存在".to_string())?;
     let target_id = target

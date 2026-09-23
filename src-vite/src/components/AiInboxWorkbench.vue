@@ -7,10 +7,10 @@
   >
     <section
       :class="props.embedded
-        ? 'flex h-full min-h-0 w-full flex-col overflow-hidden rounded-box border border-base-content/10 bg-base-200 shadow-lg'
-        : 'flex h-[91vh] w-[1180px] max-w-[97vw] flex-col overflow-hidden rounded-box border border-base-content/10 bg-base-200 shadow-2xl'"
+        ? 'flex h-full min-h-0 w-full flex-col overflow-hidden rounded-box bg-base-100'
+        : 'flex h-[91vh] w-[1180px] max-w-[97vw] flex-col overflow-hidden rounded-box bg-base-100 shadow-2xl'"
     >
-      <header class="flex items-start justify-between border-b border-base-content/10 px-5 py-4">
+      <header class="flex items-start justify-between px-6 pb-4 pt-6">
         <div>
           <h2 class="font-semibold">{{ $t('dam_features.inbox.title') }}</h2>
           <p class="mt-1 text-xs text-base-content/45">{{ $t('dam_features.inbox.subtitle') }}</p>
@@ -30,14 +30,14 @@
 
       <section
         v-show="!props.embedded || showEmbeddedSettings"
-        class="grid max-h-[48vh] grid-cols-1 gap-3 overflow-y-auto border-b border-base-content/10 bg-base-300/20 px-5 py-4 xl:grid-cols-[minmax(360px,1.4fr)_minmax(250px,1fr)_minmax(250px,1fr)]"
+        class="grid max-h-[48vh] grid-cols-1 gap-3 overflow-y-auto px-6 py-4 xl:grid-cols-[minmax(360px,1.4fr)_minmax(250px,1fr)_minmax(250px,1fr)]"
       >
-        <div class="rounded-box border border-base-content/10 bg-base-100/45 p-3">
+        <div class="rounded-box bg-base-200/70 p-4">
           <div class="mb-2 text-xs font-semibold text-base-content/65">{{ $t('dam_features.inbox.organization_scope') }}</div>
           <div class="grid grid-cols-2 gap-2">
             <button
-              class="rounded-box border px-3 py-2 text-left transition"
-              :class="organizationMode === 'within_folder' ? 'border-primary bg-primary/10 text-primary' : 'border-base-content/10 bg-base-200/55'"
+              class="rounded-box px-3 py-2 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              :class="organizationMode === 'within_folder' ? 'bg-base-100 text-base-content shadow-sm' : 'bg-base-100/40 text-base-content/65 hover:bg-base-100/70'"
               type="button"
               :disabled="running || executing"
               @click="organizationMode = 'within_folder'"
@@ -46,8 +46,8 @@
               <span class="mt-0.5 block text-[11px] leading-4 text-base-content/45">{{ $t('dam_features.inbox.scope_folder_hint') }}</span>
             </button>
             <button
-              class="rounded-box border px-3 py-2 text-left transition"
-              :class="organizationMode === 'library' ? 'border-primary bg-primary/10 text-primary' : 'border-base-content/10 bg-base-200/55'"
+              class="rounded-box px-3 py-2 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              :class="organizationMode === 'library' ? 'bg-base-100 text-base-content shadow-sm' : 'bg-base-100/40 text-base-content/65 hover:bg-base-100/70'"
               type="button"
               :disabled="running || executing"
               @click="organizationMode = 'library'"
@@ -65,7 +65,7 @@
           </label>
         </div>
 
-        <div class="rounded-box border border-base-content/10 bg-base-100/45 p-3">
+        <div class="rounded-box bg-base-200/70 p-4">
           <label class="form-control gap-1">
             <span class="text-xs font-semibold text-base-content/65">{{ $t('dam_features.inbox.service') }}</span>
             <select v-model="providerId" class="select select-bordered select-sm" :disabled="!providers.length || running || executing">
@@ -83,14 +83,14 @@
           </label>
         </div>
 
-        <div class="rounded-box border border-primary/20 bg-primary/5 p-3 text-xs leading-5 text-base-content/60">
+        <div class="rounded-box bg-base-200/70 p-4 text-xs leading-5 text-base-content/60">
           <strong class="block text-sm text-base-content/75">{{ $t('dam_features.inbox.safety_title') }}</strong>
           <p class="mt-1">{{ $t('dam_features.inbox.safety_description') }}</p>
           <p class="mt-2 text-base-content/45">{{ $t('dam_features.inbox.folder_count', { count: folderOptions.length }) }}</p>
         </div>
       </section>
 
-      <nav class="flex items-center justify-between border-b border-base-content/10 px-5">
+      <nav class="flex items-center justify-between px-6">
         <div class="flex gap-1">
           <button class="border-b-2 px-3 py-3 text-sm" :class="activeTab === 'candidates' ? 'border-primary text-primary' : 'border-transparent text-base-content/45'" type="button" @click="activeTab = 'candidates'">
             {{ $t('dam_features.inbox.candidate_tab', { count: candidates.length }) }}
@@ -102,7 +102,7 @@
         <button class="btn btn-ghost btn-xs" type="button" :disabled="loading || running || executing" @click="refreshAll">{{ $t('dam_features.inbox.refresh') }}</button>
       </nav>
 
-      <div v-if="activeTab === 'candidates'" class="flex items-center justify-between border-b border-base-content/10 px-5 py-2.5">
+      <div v-if="activeTab === 'candidates'" class="flex items-center justify-between px-6 py-2.5">
         <div class="flex items-center gap-4">
           <label class="flex items-center gap-2 text-sm">
             <input v-model="selectAll" class="checkbox checkbox-sm" type="checkbox" :disabled="!candidates.length || running" @change="toggleAll" />
@@ -118,7 +118,7 @@
         </button>
       </div>
 
-      <div v-else class="flex items-center justify-between border-b border-base-content/10 px-5 py-2.5">
+      <div v-else class="flex items-center justify-between px-6 py-2.5">
         <label class="flex items-center gap-2 text-sm">
           <input v-model="selectAllPlans" class="checkbox checkbox-sm" type="checkbox" :disabled="!actionablePlans.length || executing" @change="toggleAllPlans" />
           {{ $t('dam_features.inbox.selected_plan_count', { selected: selectedPlanIds.size, total: actionablePlans.length }) }}
@@ -128,13 +128,13 @@
         </button>
       </div>
 
-      <main class="min-h-0 flex-1 overflow-y-auto p-4">
+      <main class="min-h-0 flex-1 overflow-y-auto px-6 py-3">
         <div v-if="loading" class="flex h-full items-center justify-center">
           <span class="loading loading-spinner loading-md"></span>
         </div>
 
         <template v-else-if="activeTab === 'candidates'">
-          <div v-if="!providers.length" class="mb-3 rounded-box border border-warning/25 bg-warning/10 p-3 text-sm leading-6">
+          <div v-if="!providers.length" class="mb-3 rounded-box bg-warning/10 p-4 text-sm leading-6">
             {{ $t('dam_features.inbox.no_provider') }}
           </div>
           <div v-if="!candidates.length" class="flex h-full flex-col items-center justify-center gap-2 text-base-content/45">
@@ -145,10 +145,10 @@
             <article
               v-for="item in candidates"
               :key="item.fileId"
-              class="grid grid-cols-[32px_56px_minmax(0,1fr)_80px_100px] items-center gap-3 rounded-box border border-base-content/10 bg-base-300/25 px-3 py-2"
+              class="grid grid-cols-[32px_56px_minmax(0,1fr)_80px_100px] items-center gap-3 rounded-box bg-base-200/70 px-4 py-3"
             >
               <input class="checkbox checkbox-sm" type="checkbox" :checked="selectedIds.has(item.fileId)" :disabled="running" @change="toggleItem(item.fileId)" />
-              <div class="grid h-14 w-14 place-items-center overflow-hidden rounded-box border border-base-content/10 bg-base-100/35 text-base-content/25">
+              <div class="grid h-14 w-14 place-items-center overflow-hidden rounded-box bg-base-100 text-base-content/25">
                 <img
                   v-if="candidateThumbSrc(item)"
                   :src="candidateThumbSrc(item)"
@@ -179,8 +179,8 @@
             <article
               v-for="plan in plans"
               :key="plan.suggestionId"
-              class="grid grid-cols-[32px_minmax(190px,1.2fr)_minmax(190px,1fr)_90px_minmax(180px,1.2fr)] items-center gap-3 rounded-box border px-3 py-3"
-              :class="plan.targetAvailable ? 'border-base-content/10 bg-base-300/25' : 'border-error/25 bg-error/5'"
+              class="grid grid-cols-[32px_minmax(190px,1.2fr)_minmax(190px,1fr)_90px_minmax(180px,1.2fr)] items-center gap-3 rounded-box px-4 py-3"
+              :class="plan.targetAvailable ? 'bg-base-200/70' : 'bg-error/10'"
             >
               <input
                 class="checkbox checkbox-sm"
@@ -195,7 +195,16 @@
               </div>
               <div class="min-w-0">
                 <div class="text-[11px] text-base-content/40">{{ $t('dam_features.inbox.target_folder') }}</div>
-                <div class="truncate text-sm font-medium text-primary" :title="plan.targetFolderPath">{{ plan.targetFolderPath }}</div>
+                <select
+                  class="select select-bordered select-sm mt-1 w-full bg-base-100/60 text-sm"
+                  :value="plan.targetAvailable ? plan.targetFolderId : ''"
+                  :aria-label="$t('dam_features.inbox.edit_target', { name: plan.fileName })"
+                  :disabled="running || executing || editingPlanId === plan.suggestionId"
+                  @change="changePlanTarget(plan, $event)"
+                >
+                  <option value="" disabled>{{ $t('dam_features.inbox.choose_target') }}</option>
+                  <option v-for="folder in folderOptions" :key="folder.id" :value="folder.id">{{ folder.label }}</option>
+                </select>
                 <div v-if="!plan.targetAvailable" class="text-[11px] text-error">{{ $t('dam_features.inbox.target_missing') }}</div>
               </div>
               <div class="text-xs tabular-nums text-base-content/55">{{ confidenceLabel(plan.confidence) }}</div>
@@ -205,10 +214,10 @@
         </template>
       </main>
 
-      <footer class="border-t border-base-content/10 px-5 py-3">
+      <footer class="px-6 py-4">
         <div v-if="running" class="flex items-center gap-3 text-sm text-base-content/55">
           <span class="loading loading-spinner loading-sm"></span>
-          {{ $t('dam_features.inbox.sequential_hint') }}
+          {{ $t(batchMode === 'one-click' ? 'dam_features.inbox.one_click_running' : 'dam_features.inbox.sequential_hint') }}
         </div>
         <div v-else-if="executing" class="flex items-center gap-3 text-sm text-base-content/55">
           <span class="loading loading-spinner loading-sm"></span>
@@ -225,11 +234,14 @@
             {{ $t('dam_features.inbox.succeeded') }} <strong class="text-success">{{ batchResult.succeeded }}</strong>
             {{ $t('dam_features.inbox.failed') }} <strong :class="batchResult.failed ? 'text-error' : 'text-base-content/55'">{{ batchResult.failed }}</strong>
           </span>
-          <button class="btn btn-ghost btn-xs" type="button" @click="$emit('open-review')">{{ $t('dam_features.inbox.open_review') }}</button>
+          <button v-if="batchMode === 'plans'" class="btn btn-ghost btn-xs" type="button" @click="$emit('open-review')">{{ $t('dam_features.inbox.open_review') }}</button>
+          <button v-if="batchResult.failed" class="btn btn-ghost btn-xs" type="button" @click="showFailures = !showFailures">
+            {{ showFailures ? $t('dam_features.inbox.hide_failures') : $t('dam_features.inbox.show_failures') }}
+          </button>
         </div>
         <div v-else class="text-xs text-base-content/40">{{ $t('dam_features.inbox.limit_hint') }}</div>
 
-        <div v-if="showFailures && failureRows.length" class="mt-3 max-h-28 overflow-y-auto rounded-box border border-error/20 bg-error/5 p-3 text-xs">
+        <div v-if="showFailures && failureRows.length" class="mt-3 max-h-28 overflow-y-auto rounded-box bg-error/10 p-3 text-xs">
           <div v-for="failure in failureRows" :key="failure.fileId || failure.suggestionId" class="mb-1 last:mb-0">
             {{ failure.fileId ? $t('dam_features.common.file_id', { id: failure.fileId }) : $t('dam_features.inbox.plan_id', { id: failure.suggestionId }) }}: {{ failure.error }}
           </div>
@@ -249,6 +261,8 @@ import {
   listDamFolders,
   listOnlineAiBatchCandidates,
   listOnlineAiProviders,
+  organizeFilesWithOnlineAi,
+  updateAiFolderSuggestionTarget,
 } from '@/common/dam-api';
 import { getFileThumbById } from '@/common/api';
 import { config } from '@/common/config';
@@ -269,7 +283,7 @@ const props = defineProps({
     default: false,
   },
 });
-const emit = defineEmits(['close', 'open-review', 'queue-updated']);
+const emit = defineEmits(['close', 'open-review', 'queue-updated', 'one-click-running']);
 const { t } = useI18n();
 const toast = useToast();
 const providers = ref<any[]>([]);
@@ -286,11 +300,13 @@ const forceAutoApply = ref(false);
 const loading = ref(false);
 const running = ref(false);
 const executing = ref(false);
+const editingPlanId = ref<number | null>(null);
 const selectedIds = ref(new Set<number>());
 const selectedPlanIds = ref(new Set<number>());
 const selectAll = ref(false);
 const selectAllPlans = ref(false);
 const batchResult = ref<any>(null);
+const batchMode = ref<'plans' | 'one-click'>('plans');
 const executionResult = ref<any>(null);
 const showFailures = ref(false);
 const activeTab = ref<'candidates' | 'plans'>('candidates');
@@ -455,6 +471,7 @@ function toggleAllPlans() {
 async function runBatch() {
   if (!canAnalyze.value) return;
   running.value = true;
+  batchMode.value = 'plans';
   batchResult.value = null;
   executionResult.value = null;
   showFailures.value = false;
@@ -482,21 +499,66 @@ async function runBatch() {
 }
 
 async function runAllCandidates() {
-  if (loading.value) return;
-  if (!candidates.value.length) {
-    await loadCandidates();
+  if (running.value || executing.value) return;
+  running.value = true;
+  batchMode.value = 'one-click';
+  emit('one-click-running', true);
+  batchResult.value = null;
+  executionResult.value = null;
+  showFailures.value = false;
+  try {
+    await loadProviders();
+    if (!providerId.value) {
+      toast.warning(t('dam_features.inbox.no_provider'));
+      return;
+    }
+    // The sidebar always processes the actual pending inbox, regardless of
+    // the manual plan tab's selection and "include analyzed" filter.
+    const pending = await listOnlineAiBatchCandidates('inbox', 200, false);
+    if (!pending.length) {
+      toast.warning(t('dam_features.inbox.empty'));
+      return;
+    }
+    batchResult.value = await organizeFilesWithOnlineAi({
+      fileIds: pending.map((item: any) => item.fileId),
+      providerId: providerId.value,
+      continueOnError: true,
+      organizationMode: 'library',
+    });
+    if (batchResult.value.failed) {
+      toast.warning(t('dam_features.inbox.one_click_failures', {
+        succeeded: batchResult.value.succeeded,
+        failed: batchResult.value.failed,
+      }));
+    } else {
+      toast.success(t('dam_features.inbox.one_click_success', { count: batchResult.value.succeeded }));
+    }
+    await Promise.all([loadCandidates(), loadPlans()]);
+    activeTab.value = 'candidates';
+  } catch (error) {
+    toast.error(String(error));
+  } finally {
+    running.value = false;
+    emit('one-click-running', false);
   }
-  if (!candidates.value.length) {
-    toast.warning(t('dam_features.inbox.empty'));
-    return;
+}
+
+async function changePlanTarget(plan: any, event: Event) {
+  const select = event.target as HTMLSelectElement;
+  const targetFolderId = Number(select.value);
+  if (!targetFolderId || targetFolderId === plan.targetFolderId || editingPlanId.value !== null) return;
+  editingPlanId.value = plan.suggestionId;
+  try {
+    const updated = await updateAiFolderSuggestionTarget(plan.suggestionId, targetFolderId);
+    plan.targetFolderId = updated.folderId;
+    plan.targetFolderPath = updated.displayPath;
+    plan.targetAvailable = true;
+  } catch (error) {
+    select.value = plan.targetAvailable ? String(plan.targetFolderId) : '';
+    toast.error(String(error));
+  } finally {
+    editingPlanId.value = null;
   }
-  if (!providerId.value) {
-    toast.warning(t('dam_features.inbox.no_provider'));
-    return;
-  }
-  selectedIds.value = new Set(candidates.value.map((item) => Number(item.fileId)));
-  selectAll.value = true;
-  await runBatch();
 }
 
 async function executePlans() {

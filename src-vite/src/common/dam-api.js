@@ -88,8 +88,18 @@ export async function analyzeFilesWithOnlineAi(input) {
   return invoke('analyze_files_with_online_ai', { input });
 }
 
+export async function organizeFilesWithOnlineAi(input) {
+  return invoke('organize_files_with_online_ai', { input });
+}
+
 export async function listAiFolderSuggestions(limit = 200) {
   return invoke('list_ai_folder_suggestions', { limit });
+}
+
+export async function updateAiFolderSuggestionTarget(suggestionId, targetFolderId) {
+  return invoke('update_ai_folder_suggestion_target', {
+    input: { suggestionId, targetFolderId },
+  });
 }
 
 export async function executeAiFolderSuggestions(suggestionIds) {

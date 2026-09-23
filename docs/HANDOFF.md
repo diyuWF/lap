@@ -68,7 +68,12 @@ The PR is intentionally kept Draft until manual validation is complete.
 
 ## Current validation candidate
 
-0.4.7 reference-board confirmation candidate on `feat/phase4-ai-preview-pipeline`:
+0.4.8 automatic classification and borderless UI candidate on `feat/phase4-ai-preview-pipeline`:
+
+- The sidebar one-click action analyzes each pending item and immediately moves it to an existing AI-selected folder without showing a confirmation or leaving a manual plan. If analysis or move fails, the item stays in the inbox for retry. The workbench's explicit Generate plans action still creates pending plans; each destination can now be edited to another existing, non-inbox folder and revalidated by the backend before moving.
+- Desktop AI workbench, provider settings, global settings surfaces, and extension popup, options, and folder picker remove repetitive card outlines. Light/dark contrast, focus rings, and the purple radial capture control remain. Desktop and browser packaging target 0.4.8. Real Windows move, folder edits, and visual comparison still need manual validation. PR #2 remains Draft.
+
+0.4.7 reference-board confirmation baseline on `feat/phase4-ai-preview-pipeline`:
 
 - Closing the board hides it to preserve window geometry. The next drag now checks actual visibility and asks again; it cannot automatically reveal the hidden board. An open board continues to accept native file drags. Declining once lets the next drag go to another app, then later drags ask again.
 - Native confirmation prompts throughout the desktop have been replaced by a silent, accessible, light/dark themed Lap card. The board and AI folder-plan copy is short; the file rename dialog shares the warm card proportions. No system confirmation sound is requested.
@@ -81,7 +86,7 @@ The PR is intentionally kept Draft until manual validation is complete.
 - The in-page folder dialog now explicitly sets its content layout so host-site `main` styles cannot shrink its form. Browser popup thumbnails have usable first-row height and a separately scrollable grid.
 - Extension manifest, settings version, and Windows packaging workflow targeted 0.4.6. No schema migration or deletion of pre-existing assets.
 
-The last **fully built** baseline is commit `b3047b1b107213b8618006ee4c2da1c37840726a` (0.4.6): Chat Validation Package #32 and PR Build #87 passed. Artifact `Lap-0.4.6-Chat-Delivery-32` was downloaded; outer archive and its installer/extension SHA-256 matched the CI manifest. The 0.4.7 candidate supersedes it only after its own Windows pipeline succeeds.
+The last **fully built** baseline is commit `c7bfaa7745c5122985f8d02247a4a6d9faff9845` (0.4.7): Chat Validation Package #33 and PR Build #88 passed. The 0.4.8 candidate supersedes it only after its own Windows pipeline succeeds; local Windows behavior still needs direct testing.
 
 ## Historical 0.4.1 validation candidate
 

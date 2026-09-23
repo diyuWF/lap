@@ -116,7 +116,7 @@
                 :key="libraryVersion"
                 :is="activeSidebarButton.component"
                 :titlebar="activeSidebarButton.text"
-                v-bind="activeSidebarButton.props || {}"
+                v-bind="activeSidebarButton.index === SIDEBAR.SMART_ALBUM ? { busy: aiClassificationRunning } : (activeSidebarButton.props || {})"
                 @run-ai-classification="runAiClassification"
                 @refresh-ai-classification="refreshAiClassification"
               />
@@ -165,6 +165,7 @@
           embedded
           @open-review="showAiReviewQueue = true"
           @queue-updated="handleAiQueueUpdated"
+          @one-click-running="aiClassificationRunning = $event"
         />
         <Content v-else ref="contentRef" :key="libraryVersion" :titlebar="activeSidebarButton.text" :libraryEmpty="libraryEmpty"/>
       </div>
@@ -256,6 +257,7 @@ const uiStore = useUIStore();
 const panelRef = ref<any>(null);
 const contentRef = ref<any>(null);
 const aiInboxWorkbenchRef = ref<any>(null);
+const aiClassificationRunning = ref(false);
 const leftPanelRootRef = ref<HTMLElement | null>(null);
 const showPanel = ref(true);
 const LEFT_PANEL_ANIMATION_MS = 200;

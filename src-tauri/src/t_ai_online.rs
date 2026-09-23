@@ -965,6 +965,15 @@ fn parse_analysis(
     Ok(normalize_analysis(analysis, provider))
 }
 
+fn without_folder_choice(mut analysis: OnlineAiAnalysis) -> OnlineAiAnalysis {
+    // A generic metadata request has no validated folder candidate list.
+    // Folder plans are only created through the explicit inbox plan action.
+    analysis.target_folder_id = None;
+    analysis.target_folder_path = None;
+    analysis.organization_reason.clear();
+    analysis
+}
+
 fn save_suggestions(
     file_id: i64,
     provider: &StoredOnlineAiProvider,
@@ -1087,7 +1096,7 @@ pub async fn analyze_file_with_online_ai(
     let image = load_image_payload(file_id)?;
     let prompt = analysis_prompt(&provider);
     let raw = call_provider(&provider, Some(&image), &prompt).await?;
-    let analysis = parse_analysis(&raw, &provider)?;
+    let analysis = without_folder_choice(parse_analysis(&raw, &provider)?);
     let should_apply = force_auto_apply.unwrap_or(provider.auto_apply_tags)
         && analysis.confidence >= provider.min_confidence
         && !analysis.tags.is_empty();
@@ -1123,6 +1132,32 @@ pub async fn analyze_file_for_organization(
     folders: Vec<OnlineAiFolderOption>,
     force_auto_apply: Option<bool>,
 ) -> Result<OnlineAiAnalysisResult, String> {
+    let mut proposed = propose_file_organization(file_id, provider_id, folders).await?;
+    let provider = find_provider(&proposed.provider_id)?;
+    let analysis = &proposed.analysis;
+    let should_apply = force_auto_apply.unwrap_or(provider.auto_apply_tags)
+        && analysis.confidence >= provider.min_confidence
+        && !analysis.tags.is_empty();
+    let applied_tag_ids = if should_apply {
+        t_dam::apply_tags(file_id, &analysis.tags)?
+    } else {
+        Vec::new()
+    };
+    let folder_suggestion_id = save_suggestions(file_id, &provider, analysis, should_apply)?;
+
+    proposed.applied_tag_ids = applied_tag_ids;
+    proposed.tags_applied = should_apply;
+    proposed.folder_suggestion_id = folder_suggestion_id;
+    Ok(proposed)
+}
+
+// One-click classification asks for a target without saving a visible plan.
+// Callers move the file before marking the result as complete.
+pub(crate) async fn propose_file_organization(
+    file_id: i64,
+    provider_id: String,
+    folders: Vec<OnlineAiFolderOption>,
+) -> Result<OnlineAiAnalysisResult, String> {
     if folders.is_empty() {
         return Err("没有可供 AI 选择的目标文件夹".to_string());
     }
@@ -1139,33 +1174,38 @@ pub async fn analyze_file_for_organization(
         .find(|folder| folder.folder_id == target_folder_id)
         .ok_or_else(|| "AI 返回了候选范围外的文件夹，请重试".to_string())?;
     analysis.target_folder_path = Some(target.display_path.clone());
-
-    let should_apply = force_auto_apply.unwrap_or(provider.auto_apply_tags)
-        && analysis.confidence >= provider.min_confidence
-        && !analysis.tags.is_empty();
-    let applied_tag_ids = if should_apply {
-        t_dam::apply_tags(file_id, &analysis.tags)?
-    } else {
-        Vec::new()
-    };
-    let folder_suggestion_id = save_suggestions(file_id, &provider, &analysis, should_apply)?;
-
     Ok(OnlineAiAnalysisResult {
         provider_id: provider.id,
         provider_name: provider.name,
         model: provider.model,
         file_id,
         analysis,
-        applied_tag_ids,
-        tags_applied: should_apply,
+        applied_tag_ids: Vec::new(),
+        tags_applied: false,
         workflow_updated: false,
-        folder_suggestion_id,
+        folder_suggestion_id: None,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn generic_metadata_analysis_cannot_create_a_folder_plan() {
+        let analysis = OnlineAiAnalysis {
+            title: "Reference".into(),
+            target_folder_id: Some(12),
+            target_folder_path: Some("Local/Inbox".into()),
+            organization_reason: "untrusted folder".into(),
+            ..Default::default()
+        };
+        let normalized = without_folder_choice(analysis);
+        assert_eq!(normalized.title, "Reference");
+        assert!(normalized.target_folder_id.is_none());
+        assert!(normalized.target_folder_path.is_none());
+        assert!(normalized.organization_reason.is_empty());
+    }
 
     fn input() -> OnlineAiProviderInput {
         serde_json::from_value(json!({

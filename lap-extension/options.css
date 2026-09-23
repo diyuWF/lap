@@ -32,7 +32,7 @@ aside { display: grid; align-content: start; gap: 4px; padding-top: 4px; }
 .nav-link:not(:first-child):hover { background: var(--lap-card); color: var(--lap-text); }
 .side-note { margin: 15px 0 0; padding: 14px; border-top: 1px solid var(--lap-border); color: var(--lap-muted); font-size: 11px; line-height: 1.65; }
 .settings-main { display: grid; gap: 13px; min-width: 0; }
-.card { min-width: 0; padding: clamp(18px, 2.8vw, 26px); border: 1px solid var(--lap-border); border-radius: 20px; background: var(--lap-card); scroll-margin-top: 24px; }
+.card { min-width: 0; padding: clamp(18px, 2.8vw, 26px); border: 0; border-radius: 20px; background: var(--lap-card); scroll-margin-top: 24px; }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .section-description { margin: 11px 0 16px; }
 .badge { flex: none; padding: 6px 10px; border-radius: 999px; background: #e2e4e7; color: #585c64; font-size: 11px; }
@@ -65,7 +65,7 @@ small { color: var(--lap-muted); font-size: 11px; font-weight: 400; line-height:
 .check-row small { display: block; margin-top: 4px; }
 .actions { display: flex; justify-content: flex-end; margin-top: 18px; padding-top: 17px; border-top: 1px solid var(--lap-border); }
 footer { margin-top: 22px; color: var(--lap-muted); font-size: 11px; text-align: right; }
-.pairing-panel:not([hidden]) { display: grid; justify-items: center; gap: 10px; margin-top: 17px; padding: 22px; border: 1px solid #d5c9ef; border-radius: 14px; background: #f4f0fc; color: #5b5269; font-size: 12px; }
+.pairing-panel:not([hidden]) { display: grid; justify-items: center; gap: 10px; margin-top: 17px; padding: 22px; border: 0; border-radius: 14px; background: #f4f0fc; color: #5b5269; font-size: 12px; }
 .pairing-panel strong { color: #56358a; font: 650 34px/1.3 ui-monospace, monospace; letter-spacing: .17em; }
 button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--lap-accent); outline-offset: 2px; }
 @media (max-width: 700px) {

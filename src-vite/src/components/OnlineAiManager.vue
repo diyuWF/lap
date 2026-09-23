@@ -1,7 +1,7 @@
 <template>
   <div class="online-ai-manager fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4" @mousedown.self="!busy && $emit('close')">
-    <section class="flex h-[88vh] w-[980px] max-w-[96vw] overflow-hidden rounded-box border border-base-content/10 bg-base-200 shadow-2xl">
-      <aside class="provider-sidebar w-56 shrink-0 border-r border-base-content/10 bg-base-300/60 p-3">
+    <section class="flex h-[88vh] w-[980px] max-w-[96vw] overflow-hidden rounded-box bg-base-100 shadow-2xl">
+      <aside class="provider-sidebar w-56 shrink-0 bg-base-200/80 p-4">
         <div class="mb-3 flex items-start justify-between gap-2">
           <div>
             <h2 class="font-semibold">{{ $t('online_ai.title') }}</h2>
@@ -26,7 +26,7 @@
         <div v-if="!providers.length && !loading" class="mt-8 text-center text-xs text-base-content/40">{{ $t('online_ai.empty') }}</div>
       </aside>
 
-      <main class="min-w-0 flex-1 overflow-y-auto p-5">
+      <main class="min-w-0 flex-1 overflow-y-auto p-6">
         <div class="mb-5">
           <h3 class="text-lg font-semibold">{{ form.id ? $t('online_ai.edit_service') : $t('online_ai.add_service') }}</h3>
           <p class="text-xs text-base-content/45">{{ $t('online_ai.description') }}</p>
@@ -34,7 +34,7 @@
 
         <form ref="formElement" @submit.prevent="save">
           <fieldset :disabled="busy || loading" class="provider-fields grid grid-cols-2 gap-4">
-          <div class="col-span-2 rounded-box border border-primary/20 bg-primary/5 p-3">
+          <div class="col-span-2 rounded-box bg-base-200/70 p-4">
             <label class="form-control gap-1">
               <span class="text-xs text-base-content/70">{{ $t('online_ai.preset') }}</span>
               <select v-model="presetId" class="select select-bordered select-sm w-full" @change="applyPreset">
@@ -77,7 +77,7 @@
             <input v-model="form.apiKey" autocomplete="new-password" class="input input-bordered input-sm font-mono" type="password" :placeholder="form.hasApiKey ? $t('online_ai.keep_api_key') : $t('online_ai.enter_api_key')" />
           </label>
 
-          <details class="col-span-2 rounded-box border border-base-content/10 p-3">
+          <details class="col-span-2 rounded-box bg-base-200/70 p-4">
             <summary class="cursor-pointer text-sm">{{ $t('online_ai.advanced_rules') }}</summary>
             <div class="mt-3 grid grid-cols-2 gap-4">
           <label class="form-control gap-1">
@@ -105,7 +105,7 @@
             </span>
           </label>
 
-          <div class="col-span-2 grid grid-cols-2 gap-3 rounded-box border border-base-content/10 bg-base-300/30 p-3">
+          <div class="col-span-2 grid grid-cols-2 gap-3 rounded-box bg-base-100/75 p-3">
             <label class="flex items-center gap-2 text-sm">
               <input v-model="form.autoApplyTags" class="toggle toggle-primary toggle-sm" type="checkbox" />
               {{ $t('online_ai.auto_apply_tags') }}
@@ -133,7 +133,7 @@
             {{ message }}
           </div>
 
-          <div v-if="testAnalysis" class="col-span-2 rounded-box border border-base-content/10 p-3 text-sm">
+          <div v-if="testAnalysis" class="col-span-2 rounded-box bg-base-200/70 p-4 text-sm">
             <strong>{{ $t('online_ai.test_result') }}</strong>
             <p class="mt-1">{{ testAnalysis.title }}</p>
             <p class="text-base-content/65">{{ testAnalysis.description }}</p>
