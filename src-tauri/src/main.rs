@@ -14,9 +14,12 @@ use tauri::Manager;
 use tauri_plugin_aptabase::EventTracker;
 
 mod t_ai;
+mod t_ai_batch;
 mod t_ai_online;
 mod t_ai_png;
+mod t_ai_review;
 mod t_apple_sidecar;
+mod t_capture_pairing;
 mod t_capture_server;
 mod t_cluster;
 mod t_cmds;
@@ -37,6 +40,7 @@ mod t_libraw;
 mod t_menu;
 mod t_migration;
 mod t_pasteboard;
+mod t_preview;
 mod t_protocol;
 mod t_sqlite;
 mod t_storage;
@@ -69,6 +73,7 @@ async fn main() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_drag::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(t_video::VideoManager::default())
@@ -112,7 +117,7 @@ async fn main() {
             if let Err(e) = t_dam::ensure_schema() {
                 eprintln!("Failed to initialize DAM schema: {}", e);
             }
-            t_capture_server::init_capture_server();
+            t_capture_server::init_capture_server(app.handle().clone());
 
             #[cfg(target_os = "linux")]
             t_http::init_video_http_server();
@@ -337,6 +342,8 @@ async fn main() {
             t_dam_cmds::dam_set_workflow_status,
             t_dam_cmds::dam_apply_tags,
             t_dam_cmds::get_capture_server_info,
+            t_capture_pairing::get_capture_pairing,
+            t_capture_pairing::decide_capture_pairing,
             // taxonomy
             t_taxonomy::taxonomy_get_snapshot,
             t_taxonomy::taxonomy_save_group,
@@ -368,6 +375,18 @@ async fn main() {
             t_ai_online::delete_online_ai_provider,
             t_ai_online::test_online_ai_provider,
             t_ai_online::analyze_file_with_online_ai,
+            t_ai_batch::list_online_ai_batch_candidates,
+            t_ai_batch::analyze_files_with_online_ai,
+            t_ai_batch::organize_files_with_online_ai,
+            t_ai_batch::list_ai_folder_suggestions,
+            t_ai_batch::update_ai_folder_suggestion_target,
+            t_ai_batch::execute_ai_folder_suggestions,
+            // AI suggestion review
+            t_ai_review::list_ai_suggestions,
+            t_ai_review::review_ai_suggestion,
+            t_ai_review::clear_reviewed_ai_suggestions,
+            // preview
+            t_preview::get_preview_descriptor,
             // person (face recognition)
             t_cmds::index_faces,
             t_cmds::cancel_face_index,

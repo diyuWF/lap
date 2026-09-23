@@ -1,0 +1,11 @@
+[
+  {"id":"deepseek","group":"domestic","name":"DeepSeek","kind":"openai_compatible","baseUrl":"https://api.deepseek.com","model":"deepseek-flash","docsUrl":"https://api-docs.deepseek.com/"},
+  {"id":"qwen","group":"domestic","name":"阿里云百炼 · 北京","kind":"openai_compatible","baseUrl":"https://dashscope.aliyuncs.com/compatible-mode/v1","model":"qwen3.5-flash","docsUrl":"https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-chat-completions"},
+  {"id":"kimi","group":"domestic","name":"Kimi · 月之暗面","kind":"openai_compatible","baseUrl":"https://api.moonshot.cn/v1","model":"kimi-k3","docsUrl":"https://platform.kimi.com/docs/api/chat"},
+  {"id":"zhipu","group":"domestic","name":"智谱 GLM","kind":"openai_compatible","baseUrl":"https://open.bigmodel.cn/api/paas/v4","model":"glm-4.6v-flash","docsUrl":"https://docs.bigmodel.cn/cn/guide/models/free/glm-4.6v-flash"},
+  {"id":"siliconflow","group":"domestic","name":"硅基流动 SiliconFlow","kind":"openai_compatible","baseUrl":"https://api.siliconflow.cn/v1","model":"Pro/moonshotai/Kimi-K2.6","docsUrl":"https://docs.siliconflow.cn/docs/userguide/capabilities/vision"},
+  {"id":"openai","group":"international","name":"OpenAI","kind":"openai_compatible","baseUrl":"https://api.openai.com/v1","model":"gpt-4.1-mini","docsUrl":"https://developers.openai.com/api/docs/models/gpt-4.1-mini"},
+  {"id":"gemini","group":"international","name":"Google Gemini","kind":"gemini","baseUrl":"https://generativelanguage.googleapis.com/v1beta","model":"gemini-2.5-flash","docsUrl":"https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash"},
+  {"id":"anthropic","group":"international","name":"Anthropic Claude","kind":"anthropic","baseUrl":"https://api.anthropic.com/v1","model":"claude-sonnet-4-6","docsUrl":"https://platform.claude.com/docs/en/models/sonnet-4-6/overview"},
+  {"id":"openrouter","group":"international","name":"OpenRouter","kind":"openai_compatible","baseUrl":"https://openrouter.ai/api/v1","model":"openai/gpt-4.1-mini","docsUrl":"https://openrouter.ai/docs/quickstart"}
+]

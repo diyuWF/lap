@@ -6,8 +6,260 @@
   logs: false;
 }
 
+/*
+ * Lap signature themes
+ *
+ * The default day/night pair is intentionally compact and neutral so artwork
+ * remains the visual focus. Purple and amber are reserved for action feedback
+ * and low-intensity ambient light, matching the selected reference direction.
+ */
+[data-theme="lap-light"] {
+  color-scheme: light;
+  --color-base-100: #ffffff;
+  --color-base-200: #f2f3f5;
+  --color-base-300: #dcdde0;
+  --color-base-content: #25272b;
+  --color-primary: #25272b;
+  --color-primary-content: #ffffff;
+  --color-secondary: #d66d37;
+  --color-secondary-content: #ffffff;
+  --color-accent: #a542cb;
+  --color-accent-content: #ffffff;
+  --color-neutral: #2a2830;
+  --color-neutral-content: #f9f8fa;
+  --color-info: #377ed6;
+  --color-info-content: #ffffff;
+  --color-success: #258b65;
+  --color-success-content: #ffffff;
+  --color-warning: #b66a16;
+  --color-warning-content: #ffffff;
+  --color-error: #d04b58;
+  --color-error-content: #ffffff;
+  --radius-selector: 0.75rem;
+  --radius-field: 0.75rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+[data-theme="lap-dark"] {
+  color-scheme: dark;
+  --color-base-100: #303135;
+  --color-base-200: #222327;
+  --color-base-300: #17181b;
+  --color-base-content: #f4f2f6;
+  --color-primary: #e7e6e9;
+  --color-primary-content: #222327;
+  --color-secondary: #f09a57;
+  --color-secondary-content: #1c120b;
+  --color-accent: #d65ad8;
+  --color-accent-content: #1f1020;
+  --color-neutral: #111113;
+  --color-neutral-content: #f4f2f6;
+  --color-info: #66a7e9;
+  --color-info-content: #0c1822;
+  --color-success: #59ba91;
+  --color-success-content: #081810;
+  --color-warning: #e4a74a;
+  --color-warning-content: #1d1306;
+  --color-error: #ee727f;
+  --color-error-content: #210b0e;
+  --radius-selector: 0.75rem;
+  --radius-field: 0.75rem;
+  --radius-box: 1.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+[data-lap-appearance="light"] {
+  --lap-canvas: #dcdde0;
+  --lap-surface: #fff;
+  --lap-surface-raised: #fff;
+  --lap-surface-soft: #f2f3f5;
+  --lap-border: #e7e8ea;
+  --lap-border-strong: #d6d7da;
+  --lap-shadow: 0 14px 38px rgba(35, 38, 43, 0.055);
+  --lap-shadow-soft: 0 7px 22px rgba(35, 38, 43, 0.025);
+  --lap-primary-glow: transparent;
+  --lap-warm-glow: transparent;
+}
+
+[data-lap-appearance="dark"] {
+  --lap-canvas: #151517;
+  --lap-surface: #222327;
+  --lap-surface-raised: #303135;
+  --lap-surface-soft: #303135;
+  --lap-border: rgba(255, 255, 255, 0.075);
+  --lap-border-strong: rgba(255, 255, 255, 0.13);
+  --lap-shadow: 0 16px 44px rgba(0, 0, 0, 0.19);
+  --lap-shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.13);
+  --lap-primary-glow: transparent;
+  --lap-warm-glow: transparent;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  height: 100%;
+  background: var(--lap-canvas, var(--color-base-300));
+}
+
 html, body {
   overscroll-behavior: none;
+}
+
+body {
+  margin: 0;
+  color: var(--color-base-content);
+  font-family: "Segoe UI Variable", "SF Pro Text", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.lap-app-shell {
+  background-color: var(--lap-canvas, var(--color-base-300));
+}
+
+.lap-titlebar {
+  position: relative;
+  z-index: 40;
+  background-color: var(--lap-surface-raised, var(--color-base-200));
+  border-bottom: 1px solid var(--lap-border, transparent);
+  box-shadow: none;
+}
+
+.lap-glass-panel,
+.lap-popover,
+.modal-box {
+  background-color: var(--lap-surface, var(--color-base-200));
+  border: 0;
+  box-shadow: var(--lap-shadow);
+}
+
+.lap-sidebar-shell {
+  box-shadow: var(--lap-shadow-soft);
+}
+
+.lap-main-stage {
+  margin: 0.375rem 0.375rem 0.375rem 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-box);
+  background-color: var(--lap-surface-raised);
+  box-shadow: var(--lap-shadow-soft);
+}
+
+.lap-content-root {
+  background-color: var(--color-base-200);
+}
+
+.lap-content-toolbar {
+  background-color: var(--lap-surface-raised);
+  border-bottom: 1px solid var(--lap-border, transparent);
+  box-shadow: none;
+}
+
+.lap-settings-sidebar,
+.lap-settings-card,
+[data-lap-appearance] .rounded-box.border-base-content\/5.shadow-sm {
+  background-color: var(--lap-surface-soft, var(--color-base-200));
+  border: 0;
+  box-shadow: none;
+}
+
+.lap-settings-card,
+[data-lap-appearance] .rounded-box.border-base-content\/5.shadow-sm {
+  padding: 1rem;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.lap-settings-card:hover,
+[data-lap-appearance] .rounded-box.border-base-content\/5.shadow-sm:hover {
+  background-color: color-mix(in srgb, var(--lap-surface-soft) 80%, var(--lap-surface-raised));
+}
+
+.lap-settings-content {
+  background-color: transparent;
+}
+
+.lap-settings-content > div > * + * { margin-top: 0.75rem; }
+.lap-settings-content .rounded-box > .flex.items-center.justify-between { min-height: 2.75rem; gap: 0.875rem; }
+.lap-settings-content .rounded-box > .flex.items-center.justify-between > :first-child { min-width: 0; }
+.lap-settings-content .rounded-box > .flex.items-center.justify-between > :last-child { flex-shrink: 0; }
+.lap-settings-content .text-base-content\/30 { color: color-mix(in srgb, var(--color-base-content) 58%, transparent); }
+.lap-settings-sidebar { gap: 0.25rem; }
+.lap-settings-sidebar > div { min-height: 2.5rem; }
+.lap-settings-sidebar > div.bg-base-100.text-primary {
+  background: var(--color-primary);
+  color: var(--color-primary-content);
+}
+
+/* Cards and sidebar labels share one alignment grid across the library and AI panes. */
+.lap-app-shell .sidebar-panel-header { padding-inline: 0.875rem; }
+.lap-app-shell .sidebar-item { margin-inline: 0.375rem; padding-inline: 0.625rem; }
+
+.lap-icon-button,
+.lap-field-button,
+[data-lap-appearance] .btn:not(.btn-primary, .btn-error, .btn-warning, .btn-success) {
+  border-color: var(--lap-border);
+  background-color: var(--lap-surface-soft);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+}
+
+.lap-icon-button:hover,
+.lap-field-button:hover,
+[data-lap-appearance] .btn:not(.btn-primary, .btn-error, .btn-warning, .btn-success):hover {
+  border-color: var(--lap-border-strong);
+  background-color: color-mix(in srgb, var(--color-base-100) 56%, transparent);
+}
+
+[data-lap-appearance] .btn-primary {
+  border-color: var(--color-primary);
+  box-shadow: none;
+}
+
+[data-lap-appearance] :is(.input, .select, .textarea) {
+  border-color: var(--lap-border-strong);
+  background-color: color-mix(in srgb, var(--lap-surface-raised) 82%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 5%, transparent);
+}
+
+[data-lap-appearance] :is(.input, .select, .textarea):focus,
+[data-lap-appearance] :is(.input, .select, .textarea):focus-within {
+  border-color: color-mix(in srgb, var(--color-primary) 68%, white 8%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 14%, transparent);
+}
+
+[data-lap-appearance] .menu,
+[data-lap-appearance] [role="menu"] {
+  border-color: var(--lap-border);
+  background-color: var(--lap-surface-raised);
+  box-shadow: var(--lap-shadow);
+  backdrop-filter: blur(22px) saturate(116%);
+}
+
+[data-lap-appearance] .toggle {
+  border-color: var(--lap-border-strong);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, black 16%, transparent);
+}
+
+[data-lap-appearance] ::selection {
+  color: var(--color-primary-content);
+  background-color: var(--color-primary);
 }
 
 .no-scrollbar::-webkit-scrollbar {

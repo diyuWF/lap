@@ -1,0 +1,33 @@
+name: Phase 4-5 source snapshot
+
+on:
+  push:
+    branches:
+      - feat/phase4-ai-preview-pipeline
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package editable sources
+        shell: bash
+        run: |
+          tar -czf /tmp/lap-phase45-source.tar.gz \
+            .github \
+            src-vite/package.json \
+            src-vite/pnpm-lock.yaml \
+            src-vite/src \
+            src-tauri/Cargo.toml \
+            src-tauri/Cargo.lock \
+            src-tauri/tauri.conf.json \
+            src-tauri/src
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lap-phase45-source-${{ github.run_number }}
+          path: /tmp/lap-phase45-source.tar.gz
+          retention-days: 1

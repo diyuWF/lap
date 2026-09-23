@@ -20,7 +20,9 @@ export default defineConfig(({ mode }) => ({
     svgLoader()
   ],
   server: {
-    port: 3580
+    host: '0.0.0.0',
+    port: 3580,
+    allowedHosts: ['terminal.local'],
   },
   resolve: {
     alias: {

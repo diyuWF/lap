@@ -7,7 +7,7 @@
       @mouseleave="hideTooltip"
     >
       <div
-        class="btn btn-ghost btn-square rounded-box border-0 focus:outline-none shadow-none! flex flex-col text-base-content/70 hover:text-base-content"
+        class="lap-icon-button btn btn-ghost btn-square rounded-box border focus:outline-none shadow-none! flex flex-col text-base-content/70 hover:text-base-content"
         :class="[
           buttonClasses,
           {

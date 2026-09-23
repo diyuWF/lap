@@ -147,6 +147,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
+import { confirmAction } from '@/common/confirmAction';
 import {
   deleteTaxonomyGroup,
   getTaxonomySnapshot,
@@ -274,7 +275,12 @@ async function saveGroup() {
 
 async function removeCurrentGroup() {
   if (!activeGroup.value) return;
-  if (!confirm(`删除分组“${activeGroup.value.name}”？其中标签将变为未分组。`)) return;
+  if (!await confirmAction('分组下的标签会保留。', {
+    title: `删除“${activeGroup.value.name}”？`,
+    variant: 'danger',
+    okLabel: '删除分组',
+    cancelLabel: '取消',
+  })) return;
   await deleteTaxonomyGroup(activeGroup.value.id, null);
   selectedGroupId.value = null;
   selectedTag.value = null;

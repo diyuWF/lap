@@ -1,0 +1,11 @@
+{
+  "name": "lap-extension-interaction-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test extension.test.mjs connection.test.mjs background.test.mjs desktop-settings.test.mjs"
+  },
+  "devDependencies": {
+    "happy-dom": "20.11.2"
+  }
+}

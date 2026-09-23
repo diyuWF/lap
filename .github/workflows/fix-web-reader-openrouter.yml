@@ -1,0 +1,515 @@
+name: Fix web reader and OpenRouter
+
+on:
+  push:
+    branches:
+      - feat/phase4-ai-preview-pipeline
+    paths:
+      - .github/workflows/fix-web-reader-openrouter.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/phase4-ai-preview-pipeline
+          fetch-depth: 0
+
+      - name: Patch source files
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_regex(path, pattern, replacement, flags=re.S):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              next_text, count = re.subn(pattern, replacement, text, count=1, flags=flags)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match for {pattern[:80]!r}, found {count}')
+              p.write_text(next_text, encoding='utf-8')
+
+          rust_path = Path('src-tauri/src/t_ai_online.rs')
+          rust = rust_path.read_text(encoding='utf-8')
+
+          endpoint_block = r'''fn endpoint\(base_url: &str, suffix: &str\) -> String \{.*?\n\}\n\nfn apply_extra_headers'''
+          endpoint_replacement = r'''fn endpoint(base_url: &str, suffix: &str) -> String {
+    let base = base_url.trim().trim_end_matches('/');
+    let suffix = suffix.trim().trim_start_matches('/');
+    if base.to_ascii_lowercase().ends_with(&suffix.to_ascii_lowercase()) {
+        base.to_string()
+    } else {
+        format!("{}/{}", base, suffix)
+    }
+}
+
+fn is_openrouter(base_url: &str) -> bool {
+    let value = base_url.trim().to_ascii_lowercase();
+    value.starts_with("https://openrouter.ai") || value.starts_with("http://openrouter.ai")
+}
+
+fn openai_compatible_endpoint(base_url: &str) -> String {
+    if is_openrouter(base_url) {
+        "https://openrouter.ai/api/v1/chat/completions".to_string()
+    } else {
+        endpoint(base_url, "chat/completions")
+    }
+}
+
+fn apply_extra_headers'''
+          rust, count = re.subn(endpoint_block, endpoint_replacement, rust, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f't_ai_online.rs: endpoint block matches={count}')
+
+          send_pattern = r'''async fn send_request\(.*?\n\}\n\nfn extract_openai_text'''
+          send_replacement = r'''async fn send_request(
+    provider: &StoredOnlineAiProvider,
+    url: &str,
+    body: JsonValue,
+    native_headers: &[(&str, String)],
+    use_custom_auth: bool,
+) -> Result<JsonValue, String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(120))
+        .redirect(reqwest::redirect::Policy::limited(5))
+        .build()
+        .map_err(|error| error.to_string())?;
+    let mut request = client
+        .post(url)
+        .header(CONTENT_TYPE, "application/json")
+        .header("Accept", "application/json")
+        .body(serde_json::to_vec(&body).map_err(|error| error.to_string())?);
+
+    if use_custom_auth && !provider.auth_header.trim().is_empty() {
+        let name = HeaderName::from_bytes(provider.auth_header.trim().as_bytes())
+            .map_err(|error| format!("无效的认证 Header：{}", error))?;
+        let value = HeaderValue::from_str(&format!(
+            "{}{}",
+            provider.auth_prefix, provider.api_key
+        ))
+        .map_err(|error| format!("无效的认证值：{}", error))?;
+        request = request.header(name, value);
+    }
+    for (name, value) in native_headers {
+        request = request.header(*name, value);
+    }
+    request = apply_extra_headers(request, provider)?;
+
+    let response = request.send().await.map_err(|error| {
+        format!("AI 服务连接失败：{}；请求地址：{}", error, url)
+    })?;
+    let status = response.status();
+    let content_type = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default()
+        .to_string();
+    let bytes = response.bytes().await.map_err(|error| error.to_string())?;
+    let preview = String::from_utf8_lossy(&bytes)
+        .chars()
+        .take(500)
+        .collect::<String>();
+
+    if !status.is_success() {
+        if let Ok(value) = serde_json::from_slice::<JsonValue>(&bytes) {
+            return Err(format!(
+                "AI 服务请求失败（HTTP {}）：{}；请求地址：{}",
+                status, value, url
+            ));
+        }
+        return Err(format!(
+            "AI 服务请求失败（HTTP {}，响应类型 {}）：服务返回了非 JSON 内容；请求地址：{}；响应摘要：{}",
+            status,
+            if content_type.is_empty() { "未知" } else { &content_type },
+            url,
+            preview
+        ));
+    }
+
+    serde_json::from_slice(&bytes).map_err(|error| {
+        format!(
+            "AI 服务返回内容无法解析（HTTP {}，响应类型 {}）：{}；请求地址：{}；响应摘要：{}",
+            status,
+            if content_type.is_empty() { "未知" } else { &content_type },
+            error,
+            url,
+            preview
+        )
+    })
+}
+
+fn extract_openai_text'''
+          rust, count = re.subn(send_pattern, send_replacement, rust, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f't_ai_online.rs: send_request block matches={count}')
+
+          openai_pattern = r'''OnlineAiProviderKind::OpenaiCompatible => \{.*?\n        \}\n        OnlineAiProviderKind::Gemini'''
+          openai_replacement = r'''OnlineAiProviderKind::OpenaiCompatible => {
+            let url = openai_compatible_endpoint(&provider.base_url);
+            let mut content = vec![json!({ "type": "text", "text": prompt })];
+            if let Some(image) = image {
+                content.push(json!({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": format!("data:{};base64,{}", image.mime, image.base64),
+                        "detail": "auto"
+                    }
+                }));
+            }
+            let body = json!({
+                "model": provider.model,
+                "temperature": 0.1,
+                "messages": [
+                    { "role": "system", "content": provider.system_prompt },
+                    { "role": "user", "content": content }
+                ]
+            });
+            let headers = if is_openrouter(&provider.base_url) {
+                vec![
+                    ("HTTP-Referer", "https://github.com/diyuWF/lap".to_string()),
+                    ("X-OpenRouter-Title", "Lap".to_string()),
+                ]
+            } else {
+                Vec::new()
+            };
+            extract_openai_text(&send_request(provider, &url, body, &headers, true).await?)
+        }
+        OnlineAiProviderKind::Gemini'''
+          rust, count = re.subn(openai_pattern, openai_replacement, rust, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f't_ai_online.rs: OpenAI provider block matches={count}')
+          rust_path.write_text(rust, encoding='utf-8')
+
+          popup_path = Path('lap-extension/popup.js')
+          popup = popup_path.read_text(encoding='utf-8')
+          collector_pattern = r'''function pageCollector\(\) \{.*?\n\}\n\nasync function scanPage\(\) \{.*?\n\}\n\nfunction renderImages'''
+          collector_replacement = r'''function pageCollector() {
+  const MAX_ELEMENTS = 6000;
+  const makeAbsolute = (value) => {
+    try {
+      const url = new URL(String(value || '').trim(), document.baseURI);
+      if (!/^https?:$/i.test(url.protocol)) return '';
+      return url.href;
+    } catch {
+      return '';
+    }
+  };
+
+  const srcsetCandidates = (value) => String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => {
+      const [rawUrl, descriptor = ''] = item.split(/\s+/, 2);
+      const width = descriptor.endsWith('w') ? Number.parseFloat(descriptor) : 0;
+      const density = descriptor.endsWith('x') ? Number.parseFloat(descriptor) : 0;
+      return { url: makeAbsolute(rawUrl), score: width || density * 1000 || 1 };
+    })
+    .filter((item) => item.url);
+
+  const candidates = [];
+  const add = (rawUrl, details = {}) => {
+    const sourceUrl = makeAbsolute(rawUrl);
+    if (!sourceUrl) return;
+    const width = Math.max(0, Number(details.width) || 0);
+    const height = Math.max(0, Number(details.height) || 0);
+    if (width > 0 && height > 0 && width < 64 && height < 64) return;
+    candidates.push({
+      sourceUrl,
+      previewUrl: makeAbsolute(details.previewUrl) || sourceUrl,
+      altText: String(details.altText || '').trim(),
+      width,
+      height,
+      sourceKind: details.sourceKind || 'page',
+    });
+  };
+
+  const lazyAttributes = [
+    'data-src',
+    'data-original',
+    'data-lazy-src',
+    'data-url',
+    'data-image',
+    'data-zoom-image',
+    'data-large',
+    'data-full',
+  ];
+  const lazySrcsetAttributes = ['data-srcset', 'data-lazy-srcset'];
+  let scannedElements = 0;
+
+  const collectRoot = (root) => {
+    if (!root?.querySelectorAll) return;
+
+    for (const image of root.querySelectorAll('img')) {
+      const rect = image.getBoundingClientRect();
+      const width = image.naturalWidth || Math.round(rect.width) || 0;
+      const height = image.naturalHeight || Math.round(rect.height) || 0;
+      const sources = [
+        { url: makeAbsolute(image.currentSrc), score: width || 1 },
+        { url: makeAbsolute(image.src), score: width || 1 },
+        ...srcsetCandidates(image.srcset),
+      ];
+      for (const attribute of lazyAttributes) {
+        const value = image.getAttribute(attribute);
+        if (value) sources.push({ url: makeAbsolute(value), score: 5000 });
+      }
+      for (const attribute of lazySrcsetAttributes) {
+        sources.push(...srcsetCandidates(image.getAttribute(attribute)));
+      }
+      const best = sources
+        .filter((item) => item.url)
+        .sort((left, right) => right.score - left.score)[0];
+      if (best) {
+        add(best.url, {
+          previewUrl: image.currentSrc || image.src || best.url,
+          altText: image.alt || image.getAttribute('aria-label') || '',
+          width,
+          height,
+          sourceKind: 'img',
+        });
+      }
+    }
+
+    for (const source of root.querySelectorAll('picture source, source[type^="image/"]')) {
+      const best = [
+        ...srcsetCandidates(source.srcset),
+        ...srcsetCandidates(source.getAttribute('data-srcset')),
+      ].sort((left, right) => right.score - left.score)[0];
+      if (best) add(best.url, { sourceKind: 'picture' });
+    }
+
+    for (const element of root.querySelectorAll('*')) {
+      if (scannedElements >= MAX_ELEMENTS) break;
+      scannedElements += 1;
+      let background = '';
+      try {
+        background = getComputedStyle(element).backgroundImage || '';
+      } catch {
+        background = '';
+      }
+      const regex = /url\((['"]?)(.*?)\1\)/g;
+      let match;
+      while ((match = regex.exec(background))) {
+        const rect = element.getBoundingClientRect();
+        add(match[2], {
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+          altText: element.getAttribute('aria-label') || element.getAttribute('title') || '',
+          sourceKind: 'background',
+        });
+      }
+      if (element.shadowRoot) collectRoot(element.shadowRoot);
+    }
+  };
+
+  collectRoot(document);
+
+  const meta = (selector, attribute = 'content') => document.querySelector(selector)?.getAttribute(attribute) || '';
+  for (const selector of [
+    'meta[property="og:image"]',
+    'meta[property="og:image:secure_url"]',
+    'meta[name="twitter:image"]',
+    'meta[name="twitter:image:src"]',
+    'link[rel="image_src"]',
+    'link[rel="preload"][as="image"]',
+  ]) {
+    const element = document.querySelector(selector);
+    if (!element) continue;
+    add(element.getAttribute('content') || element.getAttribute('href'), {
+      sourceKind: 'metadata',
+      altText: document.title,
+    });
+  }
+
+  try {
+    for (const entry of performance.getEntriesByType('resource')) {
+      if (entry.initiatorType === 'img' || /\.(?:avif|gif|jpe?g|png|webp)(?:[?#]|$)/i.test(entry.name)) {
+        add(entry.name, { sourceKind: 'resource' });
+      }
+    }
+  } catch {
+    // Resource timing may be restricted by the page.
+  }
+
+  const unique = new Map();
+  for (const item of candidates) {
+    const key = item.sourceUrl.replace(/#.*$/, '');
+    const existing = unique.get(key);
+    if (!existing) {
+      unique.set(key, item);
+      continue;
+    }
+    const currentArea = item.width * item.height;
+    const existingArea = existing.width * existing.height;
+    unique.set(key, {
+      ...existing,
+      ...item,
+      width: currentArea >= existingArea ? item.width : existing.width,
+      height: currentArea >= existingArea ? item.height : existing.height,
+      altText: existing.altText || item.altText,
+      previewUrl: existing.previewUrl || item.previewUrl,
+    });
+  }
+
+  return {
+    images: [...unique.values()]
+      .sort((left, right) => {
+        const areaDifference = right.width * right.height - left.width * left.height;
+        if (areaDifference !== 0) return areaDifference;
+        return left.sourceUrl.localeCompare(right.sourceUrl);
+      })
+      .slice(0, 300),
+    page: {
+      url: location.href,
+      title: document.title,
+      author: meta('meta[name="author"]') || meta('meta[property="article:author"]'),
+      siteName: meta('meta[property="og:site_name"]') || location.hostname,
+    },
+  };
+}
+
+async function scanPage() {
+  elements.progressText.textContent = '正在读取当前页面的图片资源…';
+  state.images = [];
+  state.selected.clear();
+  renderImages();
+  const tab = await getActiveTab();
+  if (!tab?.id || !/^https?:/i.test(tab.url || '')) {
+    elements.progressText.textContent = '当前页面不允许读取。仅支持普通 HTTP/HTTPS 网页。';
+    elements.emptyState.hidden = false;
+    return;
+  }
+  try {
+    let executions;
+    try {
+      executions = await chrome.scripting.executeScript({
+        target: { tabId: tab.id, allFrames: true },
+        func: pageCollector,
+      });
+    } catch {
+      executions = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: pageCollector,
+      });
+    }
+
+    const unique = new Map();
+    let page = {};
+    for (const execution of executions || []) {
+      const result = execution?.result;
+      if (!result) continue;
+      if (execution.frameId === 0 || !page.url) page = result.page || page;
+      for (const image of result.images || []) {
+        const key = String(image.sourceUrl || '').replace(/#.*$/, '');
+        if (!key) continue;
+        const existing = unique.get(key);
+        const area = Number(image.width || 0) * Number(image.height || 0);
+        const existingArea = Number(existing?.width || 0) * Number(existing?.height || 0);
+        if (!existing || area > existingArea) unique.set(key, image);
+      }
+    }
+
+    state.images = [...unique.values()]
+      .sort((left, right) => (right.width * right.height) - (left.width * left.height))
+      .slice(0, MAX_IMAGES)
+      .map((item, index) => ({ ...item, id: index }));
+    state.page = page;
+    state.images.slice(0, 24).forEach((item) => state.selected.add(item.id));
+    elements.progressText.textContent = state.images.length
+      ? `已读取 ${state.images.length} 张图片候选，默认选择前 24 张。`
+      : '当前页面没有发现可采集的图片资源。页面可能尚未滚动加载，或图片由受保护的画布绘制。';
+  } catch (error) {
+    elements.progressText.textContent = `读取失败：${error.message || error}`;
+  }
+  renderImages();
+}
+
+function renderImages'''
+          popup, count = re.subn(collector_pattern, collector_replacement, popup, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f'popup.js: collector block matches={count}')
+          popup_path.write_text(popup, encoding='utf-8')
+
+          manifest_path = Path('lap-extension/manifest.json')
+          manifest = manifest_path.read_text(encoding='utf-8')
+          manifest = manifest.replace('"all_frames": false', '"all_frames": true,\n      "match_about_blank": true')
+          manifest_path.write_text(manifest, encoding='utf-8')
+
+          home_path = Path('src-vite/src/views/Home.vue')
+          home = home_path.read_text(encoding='utf-8')
+          removals = [
+              "import Library from '@/components/Library.vue';\n",
+              "import Location from '@/components/Location.vue';\n",
+              "import Camera from '@/components/Camera.vue';\n",
+              "  IconLocation,\n",
+              "  IconCamera,\n",
+              "  IconStack,\n",
+              "  { index: SIDEBAR.LIBRARY, icon: IconStack, component: Library, text: localeMsg.value.sidebar.library },\n",
+              "  { index: SIDEBAR.LOCATION, icon: IconLocation, component: Location, text: localeMsg.value.sidebar.location },\n",
+              "  { index: SIDEBAR.CAMERA, icon: IconCamera, component: Camera, text: localeMsg.value.sidebar.camera },\n",
+          ]
+          for value in removals:
+              if value in home:
+                  home = home.replace(value, '', 1)
+
+          old_active = '''const activeSidebarButton = computed(() =>
+  buttons.value.find(item => item.index === config.main.sidebarIndex) || buttons.value[SIDEBAR.LIBRARY]
+);'''
+          new_active = '''const removedSidebarIndices = new Set<number>([
+  SIDEBAR.LIBRARY,
+  SIDEBAR.LOCATION,
+  SIDEBAR.CAMERA,
+]);
+
+const activeSidebarButton = computed(() =>
+  buttons.value.find(item => item.index === config.main.sidebarIndex)
+  || buttons.value.find(item => item.index === SIDEBAR.ALBUM)
+  || buttons.value[0]
+);'''
+          if old_active in home:
+              home = home.replace(old_active, new_active, 1)
+
+          visible = '''const visibleButtons = computed(() =>
+  buttons.value
+    .map((item) => ({ ...item, disabled: libraryEmpty.value && item.index !== SIDEBAR.ALBUM }))
+    .filter(item => !item.hidden)
+    .sort((a, b) => a.index - b.index)
+);'''
+          migration = visible + '''
+
+watch(
+  () => config.main.sidebarIndex,
+  (index) => {
+    if (removedSidebarIndices.has(index)) {
+      config.main.sidebarIndex = SIDEBAR.ALBUM;
+    }
+  },
+  { immediate: true },
+);'''
+          if visible in home and 'removedSidebarIndices.has(index)' not in home:
+              home = home.replace(visible, migration, 1)
+          home_path.write_text(home, encoding='utf-8')
+          PY
+
+          node --check lap-extension/background.js
+          node --check lap-extension/content.js
+          node --check lap-extension/options.js
+          node --check lap-extension/popup.js
+          python3 -m json.tool lap-extension/manifest.json >/dev/null
+          git diff --check
+
+      - name: Commit fixes
+        shell: bash
+        run: |
+          rm .github/workflows/fix-web-reader-openrouter.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "fix: improve web image discovery and OpenRouter requests"
+          git push origin HEAD:feat/phase4-ai-preview-pipeline

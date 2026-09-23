@@ -1,15 +1,15 @@
 <template>
-  <div class="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4" @mousedown.self="$emit('close')">
-    <section class="flex h-[78vh] w-[880px] max-w-[96vw] overflow-hidden rounded-box border border-base-content/10 bg-base-200 shadow-2xl">
-      <aside class="w-64 shrink-0 border-r border-base-content/10 bg-base-300/60 p-3">
+  <div class="online-ai-manager fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4" @mousedown.self="!busy && $emit('close')">
+    <section class="flex h-[88vh] w-[980px] max-w-[96vw] overflow-hidden rounded-box bg-base-100 shadow-2xl">
+      <aside class="provider-sidebar w-56 shrink-0 bg-base-200/80 p-4">
         <div class="mb-3 flex items-start justify-between gap-2">
           <div>
-            <h2 class="font-semibold">在线 AI 自动整理</h2>
-            <p class="text-xs text-base-content/45">自带 API 密钥，无厂商锁定</p>
+            <h2 class="font-semibold">{{ $t('online_ai.title') }}</h2>
+            <p class="text-xs text-base-content/45">{{ $t('online_ai.subtitle') }}</p>
           </div>
-          <button class="btn btn-ghost btn-xs" type="button" @click="$emit('close')">关闭</button>
+          <button class="btn btn-ghost btn-xs" type="button" :disabled="busy" @click="$emit('close')">{{ $t('online_ai.close') }}</button>
         </div>
-        <button class="btn btn-primary btn-sm mb-3 w-full" type="button" @click="newProvider">添加 AI 服务</button>
+        <button class="btn btn-primary btn-sm mb-3 w-full" type="button" :disabled="busy || loading" @click="newProvider">{{ $t('online_ai.add_service') }}</button>
         <div class="space-y-1 overflow-y-auto">
           <button
             v-for="provider in providers"
@@ -17,99 +17,137 @@
             type="button"
             class="w-full rounded-box px-3 py-2 text-left"
             :class="selectedId === provider.id ? 'bg-primary text-primary-content' : 'hover:bg-base-100/50'"
-            @click="selectProvider(provider)"
+            :disabled="busy" @click="selectProvider(provider)"
           >
             <span class="block truncate text-sm font-medium">{{ provider.name }}</span>
             <span class="block truncate text-[11px] opacity-60">{{ provider.model }}</span>
           </button>
         </div>
-        <div v-if="!providers.length && !loading" class="mt-8 text-center text-xs text-base-content/40">尚未配置在线 AI 服务</div>
+        <div v-if="!providers.length && !loading" class="mt-8 text-center text-xs text-base-content/40">{{ $t('online_ai.empty') }}</div>
       </aside>
 
-      <main class="min-w-0 flex-1 overflow-y-auto p-5">
+      <main class="min-w-0 flex-1 overflow-y-auto p-6">
         <div class="mb-5">
-          <h3 class="text-lg font-semibold">{{ form.id ? '编辑 AI 服务' : '添加 AI 服务' }}</h3>
-          <p class="text-xs text-base-content/45">支持 OpenAI 兼容接口、Gemini 和 Anthropic。API 密钥仅保存在本机应用数据目录。</p>
+          <h3 class="text-lg font-semibold">{{ form.id ? $t('online_ai.edit_service') : $t('online_ai.add_service') }}</h3>
+          <p class="text-xs text-base-content/45">{{ $t('online_ai.description') }}</p>
         </div>
 
-        <form class="grid grid-cols-2 gap-4" @submit.prevent="save">
+        <form ref="formElement" @submit.prevent="save">
+          <fieldset :disabled="busy || loading" class="provider-fields grid grid-cols-2 gap-4">
+          <div class="col-span-2 rounded-box bg-base-200/70 p-4">
+            <label class="form-control gap-1">
+              <span class="text-xs text-base-content/70">{{ $t('online_ai.preset') }}</span>
+              <select v-model="presetId" class="select select-bordered select-sm w-full" @change="applyPreset">
+                <option value="custom">{{ $t('online_ai.custom_provider') }}</option>
+                <optgroup v-for="group in ['domestic', 'international']" :key="group" :label="$t(`online_ai.${group}`)">
+                  <option v-for="preset in presets.filter(p => p.group === group)" :key="preset.id" :value="preset.id">{{ preset.name }}</option>
+                </optgroup>
+              </select>
+            </label>
+            <p class="mt-2 text-xs text-base-content/60">{{ $t('online_ai.preset_hint') }}</p>
+            <p v-if="presetId === 'qwen'" class="mt-1 text-xs text-base-content/60">{{ $t('online_ai.qwen_region_hint') }}</p>
+          </div>
           <label class="form-control gap-1">
-            <span class="text-xs text-base-content/60">服务名称</span>
-            <input v-model="form.name" class="input input-bordered input-sm" required placeholder="例如 OpenRouter" />
+            <span class="text-xs text-base-content/60">{{ $t('online_ai.service_name') }}</span>
+            <input v-model="form.name" class="input input-bordered input-sm" required :placeholder="$t('online_ai.service_name_placeholder')" />
           </label>
           <label class="form-control gap-1">
-            <span class="text-xs text-base-content/60">接口类型</span>
+            <span class="text-xs text-base-content/60">{{ $t('online_ai.interface_type') }}</span>
             <select v-model="form.kind" class="select select-bordered select-sm">
-              <option value="openai_compatible">OpenAI 兼容</option>
+              <option value="openai_compatible">{{ $t('online_ai.openai_compatible') }}</option>
               <option value="gemini">Google Gemini</option>
               <option value="anthropic">Anthropic</option>
             </select>
           </label>
 
           <label class="form-control col-span-2 gap-1">
-            <span class="text-xs text-base-content/60">API 地址</span>
+            <span class="text-xs text-base-content/60">{{ $t('online_ai.api_address') }}</span>
             <input v-model="form.baseUrl" class="input input-bordered input-sm font-mono" required :placeholder="baseUrlPlaceholder" />
+            <span v-if="isOpenRouter" class="text-[11px] text-base-content/50">
+              {{ $t('online_ai.openrouter_route') }}
+              <span class="font-mono">https://openrouter.ai/api/v1/chat/completions</span>
+            </span>
           </label>
           <label class="form-control gap-1">
-            <span class="text-xs text-base-content/60">模型</span>
-            <input v-model="form.model" class="input input-bordered input-sm font-mono" required placeholder="模型标识" />
+            <span class="text-xs text-base-content/60">{{ $t('online_ai.model') }}</span>
+            <input v-model="form.model" class="input input-bordered input-sm font-mono" required :placeholder="$t('online_ai.model_placeholder')" />
           </label>
           <label class="form-control gap-1">
-            <span class="text-xs text-base-content/60">API 密钥</span>
-            <input v-model="form.apiKey" class="input input-bordered input-sm font-mono" type="password" :placeholder="form.hasApiKey ? '留空则保留现有密钥' : '输入 API 密钥'" />
+            <span class="text-xs text-base-content/60">{{ $t('online_ai.api_key') }}</span>
+            <input v-model="form.apiKey" autocomplete="new-password" class="input input-bordered input-sm font-mono" type="password" :placeholder="form.hasApiKey ? $t('online_ai.keep_api_key') : $t('online_ai.enter_api_key')" />
           </label>
 
+          <details class="col-span-2 rounded-box bg-base-200/70 p-4">
+            <summary class="cursor-pointer text-sm">{{ $t('online_ai.advanced_rules') }}</summary>
+            <div class="mt-3 grid grid-cols-2 gap-4">
           <label class="form-control gap-1">
-            <span class="text-xs text-base-content/60">最低自动应用置信度</span>
+            <span class="text-xs text-base-content/60">{{ $t('online_ai.min_confidence') }}</span>
             <input v-model.number="form.minConfidence" class="range range-primary range-sm" type="range" min="0" max="1" step="0.05" />
             <span class="text-right text-xs text-base-content/45">{{ Math.round(form.minConfidence * 100) }}%</span>
           </label>
           <label class="form-control gap-1">
-            <span class="text-xs text-base-content/60">最大标签数</span>
+            <span class="text-xs text-base-content/60">{{ $t('online_ai.max_tags') }}</span>
             <input v-model.number="form.maxTags" class="input input-bordered input-sm" type="number" min="1" max="50" />
           </label>
 
           <label class="form-control gap-1">
-            <span class="text-xs text-base-content/60">输出语言</span>
+            <span class="text-xs text-base-content/60">{{ $t('online_ai.output_language') }}</span>
             <select v-model="form.language" class="select select-bordered select-sm">
               <option value="zh-CN">简体中文</option>
-              <option value="en">英语</option>
+              <option value="en">English</option>
             </select>
           </label>
           <label class="form-control gap-1">
-            <span class="text-xs text-base-content/60">状态</span>
-            <label class="flex h-8 items-center gap-2">
+            <span class="text-xs text-base-content/60">{{ $t('online_ai.status') }}</span>
+            <span class="flex h-8 items-center gap-2">
               <input v-model="form.enabled" class="toggle toggle-primary toggle-sm" type="checkbox" />
-              <span class="text-sm">启用该服务</span>
-            </label>
+              <span class="text-sm">{{ $t('online_ai.enabled') }}</span>
+            </span>
           </label>
 
-          <div class="col-span-2 grid grid-cols-2 gap-3 rounded-box border border-base-content/10 bg-base-300/30 p-3">
+          <div class="col-span-2 grid grid-cols-2 gap-3 rounded-box bg-base-100/75 p-3">
             <label class="flex items-center gap-2 text-sm">
               <input v-model="form.autoApplyTags" class="toggle toggle-primary toggle-sm" type="checkbox" />
-              达到阈值后自动应用标签
+              {{ $t('online_ai.auto_apply_tags') }}
             </label>
             <label class="flex items-center gap-2 text-sm">
               <input v-model="form.autoMarkReviewed" class="toggle toggle-primary toggle-sm" type="checkbox" />
-              自动应用后标记为已整理
+              {{ $t('online_ai.auto_mark_reviewed') }}
             </label>
           </div>
 
-          <label class="form-control col-span-2 gap-1">
-            <span class="text-xs text-base-content/60">系统提示词</span>
-            <textarea v-model="form.systemPrompt" class="textarea textarea-bordered min-h-28" placeholder="留空使用内置素材分类提示词"></textarea>
-          </label>
+            </div>
+          </details>
 
-          <div v-if="message" class="alert col-span-2 py-2 text-sm" :class="messageType === 'error' ? 'alert-error' : 'alert-success'">{{ message }}</div>
+          <div class="col-span-2 space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <label for="online-ai-system-prompt" class="text-sm font-medium">{{ $t('online_ai.system_prompt') }}</label>
+              <button type="button" class="btn btn-ghost btn-xs" @click="restorePrompt">{{ $t('online_ai.restore_prompt') }}</button>
+            </div>
+            <p class="text-xs text-base-content/60">{{ $t('online_ai.prompt_hint') }}</p>
+            <textarea id="online-ai-system-prompt" v-model="form.systemPrompt" class="textarea textarea-bordered min-h-56 w-full text-sm leading-relaxed" :placeholder="$t('online_ai.system_prompt_placeholder')"></textarea>
+          </div>
+          <p class="col-span-2 text-xs text-base-content/60">{{ $t('online_ai.test_hint') }}</p>
 
+          <div v-if="message" role="status" aria-live="polite" class="alert col-span-2 max-h-40 overflow-y-auto whitespace-pre-wrap break-words py-2 text-sm" :class="messageType === 'error' ? 'alert-error' : 'alert-success'">
+            {{ message }}
+          </div>
+
+          <div v-if="testAnalysis" class="col-span-2 rounded-box bg-base-200/70 p-4 text-sm">
+            <strong>{{ $t('online_ai.test_result') }}</strong>
+            <p class="mt-1">{{ testAnalysis.title }}</p>
+            <p class="text-base-content/65">{{ testAnalysis.description }}</p>
+            <p class="mt-2 break-words text-xs text-primary">{{ testAnalysis.tags.join(' · ') }}</p>
+          </div>
           <div class="col-span-2 flex items-center justify-between pt-2">
-            <button v-if="form.id" class="btn btn-ghost btn-sm text-error" type="button" @click="remove">删除服务</button>
+            <button v-if="form.id" class="btn btn-ghost btn-sm text-error" type="button" @click="remove">{{ $t('online_ai.delete_service') }}</button>
             <span v-else></span>
             <div class="flex gap-2">
-              <button class="btn btn-ghost btn-sm" type="button" :disabled="busy || !form.id" @click="test">测试连接</button>
-              <button class="btn btn-primary btn-sm" type="submit" :disabled="busy">{{ busy ? '处理中…' : '保存服务' }}</button>
+              <button class="btn btn-ghost btn-sm" type="button" :disabled="busy || !canTest" @click="test">{{ $t('online_ai.test_connection') }}</button>
+              <button class="btn btn-primary btn-sm" type="submit" :disabled="busy">{{ busy ? $t('online_ai.processing') : $t('online_ai.save_service') }}</button>
             </div>
           </div>
+          </fieldset>
         </form>
       </main>
     </section>
@@ -117,7 +155,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import {
   deleteOnlineAiProvider,
   listOnlineAiProviders,
@@ -125,41 +164,55 @@ import {
   testOnlineAiProvider,
 } from '@/common/dam-api';
 
-const emit = defineEmits(['close']);
+import builtinPrompt from '@/common/online-ai-system-prompt.txt?raw';
+import presets from '@/common/online-ai-presets.json';
+import { createProviderForm, providerInput } from '@/common/online-ai-form.mjs';
+import { confirmAction } from '@/common/confirmAction';
+
+defineEmits(['close']);
+const { t } = useI18n();
 const providers = ref<any[]>([]);
 const selectedId = ref<string | null>(null);
 const loading = ref(true);
 const busy = ref(false);
 const message = ref('');
 const messageType = ref<'success' | 'error'>('success');
-const form = reactive(defaultForm());
+const presetId = ref('custom');
+const testAnalysis = ref<any>(null);
+const formElement = ref<HTMLFormElement | null>(null);
+const form = reactive(createProviderForm(builtinPrompt));
+const canTest = computed(() => form.name.trim() && form.baseUrl.trim() && form.model.trim()
+  && (form.apiKey.trim() || form.hasApiKey));
 
-function defaultForm() {
-  return {
-    id: null as string | null,
-    name: '',
-    kind: 'openai_compatible',
-    baseUrl: 'https://api.openai.com/v1',
-    model: '',
-    apiKey: '',
-    hasApiKey: false,
-    enabled: true,
-    autoApplyTags: false,
-    autoMarkReviewed: false,
-    minConfidence: 0.75,
-    maxTags: 12,
-    language: 'zh-CN',
-    systemPrompt: '',
-    authHeader: 'Authorization',
-    authPrefix: 'Bearer ',
-    extraHeaders: {},
-  };
+function applyPreset() {
+  const preset = presets.find(p => p.id === presetId.value);
+  Object.assign(form, createProviderForm(builtinPrompt, preset));
+  selectedId.value = null;
+  message.value = '';
+  testAnalysis.value = null;
 }
+
+function restorePrompt() {
+  form.systemPrompt = builtinPrompt.trim();
+}
+
+watch(form, () => {
+  if (!busy.value) { message.value = ''; testAnalysis.value = null; }
+}, { deep: true });
 
 const baseUrlPlaceholder = computed(() => {
   if (form.kind === 'gemini') return 'https://generativelanguage.googleapis.com/v1beta';
   if (form.kind === 'anthropic') return 'https://api.anthropic.com/v1';
   return 'https://api.openai.com/v1';
+});
+
+const isOpenRouter = computed(() => {
+  if (form.kind !== 'openai_compatible') return false;
+  try {
+    return new URL(form.baseUrl).hostname.toLowerCase() === 'openrouter.ai';
+  } catch {
+    return false;
+  }
 });
 
 async function load() {
@@ -170,54 +223,45 @@ async function load() {
       const selected = providers.value.find((provider) => provider.id === selectedId.value);
       if (selected) selectProvider(selected);
     }
+  } catch (error) {
+    messageType.value = 'error';
+    message.value = String(error);
   } finally {
     loading.value = false;
   }
 }
 
 function newProvider() {
-  Object.assign(form, defaultForm());
+  presetId.value = 'custom';
+  Object.assign(form, createProviderForm(builtinPrompt));
   selectedId.value = null;
   message.value = '';
 }
 
 function selectProvider(provider: any) {
+  presetId.value = 'custom';
+  testAnalysis.value = null;
   selectedId.value = provider.id;
   Object.assign(form, {
-    ...defaultForm(),
+    ...createProviderForm(builtinPrompt),
     ...provider,
     apiKey: '',
     hasApiKey: provider.hasApiKey,
+    systemPrompt: provider.systemPrompt?.trim() || builtinPrompt.trim(),
   });
   message.value = '';
 }
 
 async function save() {
+  if (busy.value) return;
   busy.value = true;
   message.value = '';
   try {
-    const saved = await saveOnlineAiProvider({
-      id: form.id,
-      name: form.name,
-      kind: form.kind,
-      baseUrl: form.baseUrl,
-      model: form.model,
-      apiKey: form.apiKey || null,
-      enabled: form.enabled,
-      autoApplyTags: form.autoApplyTags,
-      autoMarkReviewed: form.autoMarkReviewed,
-      minConfidence: form.minConfidence,
-      maxTags: form.maxTags,
-      language: form.language,
-      systemPrompt: form.systemPrompt || null,
-      authHeader: form.kind === 'openai_compatible' ? form.authHeader : '',
-      authPrefix: form.kind === 'openai_compatible' ? form.authPrefix : '',
-      extraHeaders: form.extraHeaders,
-    });
+    const saved = await saveOnlineAiProvider(providerInput(form, builtinPrompt));
     selectedId.value = saved.id;
     await load();
     messageType.value = 'success';
-    message.value = '在线 AI 服务已保存。';
+    message.value = t('online_ai.saved');
   } catch (error: any) {
     messageType.value = 'error';
     message.value = String(error);
@@ -227,13 +271,15 @@ async function save() {
 }
 
 async function test() {
-  if (!form.id) return;
+  if (busy.value || !formElement.value?.reportValidity()) return;
   busy.value = true;
+  testAnalysis.value = null;
   message.value = '';
   try {
-    const result = await testOnlineAiProvider(form.id);
+    const result = await testOnlineAiProvider(null, providerInput(form, builtinPrompt));
     messageType.value = 'success';
-    message.value = `${result.message}（${result.elapsedMs} 毫秒）`;
+    message.value = t('online_ai.connection_success', { elapsed: result.elapsedMs });
+    testAnalysis.value = result.analysis;
   } catch (error: any) {
     messageType.value = 'error';
     message.value = String(error);
@@ -243,11 +289,36 @@ async function test() {
 }
 
 async function remove() {
-  if (!form.id || !confirm(`删除在线 AI 服务“${form.name}”？`)) return;
-  await deleteOnlineAiProvider(form.id);
-  newProvider();
-  await load();
+  if (!form.id || !await confirmAction(t('online_ai.delete_confirm', { name: form.name }), {
+    title: t('online_ai.delete_service'),
+    variant: 'danger',
+    okLabel: t('online_ai.delete_service'),
+    cancelLabel: t('msgbox.cancel'),
+  })) return;
+  busy.value = true;
+  try {
+    await deleteOnlineAiProvider(form.id);
+    newProvider();
+    await load();
+  } catch (error) {
+    messageType.value = 'error';
+    message.value = String(error);
+  } finally { busy.value = false; }
 }
 
 onMounted(load);
 </script>
+
+<style scoped>
+.provider-fields { min-width: 0; }
+.provider-fields .form-control { display: flex; flex-direction: column; min-width: 0; }
+.provider-fields .input, .provider-fields .select { width: 100%; max-width: none; }
+@media (max-width: 720px) {
+  .online-ai-manager > section { flex-direction: column; height: 96vh; }
+  .provider-sidebar { width: 100%; max-height: 160px; overflow: auto; border-right: 0; border-bottom: 1px solid color-mix(in oklab, var(--color-base-content) 10%, transparent); }
+}
+@media (max-width: 460px) {
+  .provider-fields { grid-template-columns: minmax(0, 1fr); }
+  .provider-fields > * { grid-column: 1; }
+}
+</style>

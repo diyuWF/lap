@@ -3,17 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>保存到 Lap</title>
+    <title>Lap 素材采集</title>
+    <link rel="icon" href="icon.png" />
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
     <main class="app-shell">
       <header class="topbar">
-        <div>
-          <p class="eyebrow">LAP CAPTURE</p>
-          <h1>保存当前页面素材</h1>
+        <div class="popup-brand">
+          <img src="icon.png" alt="" />
+          <div>
+            <p class="eyebrow">LAP CAPTURE</p>
+            <h1>素材采集</h1>
+          </div>
         </div>
-        <button id="settingsButton" class="icon-button" type="button" title="扩展设置">设置</button>
+        <button
+          id="settingsButton"
+          class="icon-button"
+          type="button"
+          title="扩展设置"
+        >
+          设置
+        </button>
       </header>
 
       <section id="connectionCard" class="status-card" aria-live="polite">
@@ -31,14 +42,20 @@
         </label>
         <label>
           <span>本次标签</span>
-          <input id="tagsInput" type="text" placeholder="例如 style:minimal, usage:ui" />
+          <input
+            id="tagsInput"
+            type="text"
+            placeholder="例如 style:minimal, usage:ui"
+          />
         </label>
         <div class="toolbar-row">
           <label class="check-row">
             <input id="allowDuplicate" type="checkbox" />
             <span>允许重复来源</span>
           </label>
-          <button id="refreshButton" class="secondary-button" type="button">重新扫描</button>
+          <button id="refreshButton" class="secondary-button" type="button">
+            重新扫描
+          </button>
         </div>
       </section>
 
@@ -49,8 +66,12 @@
             <p id="selectionSummary">尚未扫描</p>
           </div>
           <div class="heading-actions">
-            <button id="selectAllButton" class="text-button" type="button">全选</button>
-            <button id="clearButton" class="text-button" type="button">清空</button>
+            <button id="selectAllButton" class="text-button" type="button">
+              全选
+            </button>
+            <button id="clearButton" class="text-button" type="button">
+              清空
+            </button>
           </div>
         </div>
         <div id="imageGrid" class="image-grid"></div>
@@ -61,8 +82,19 @@
       </section>
 
       <footer>
-        <div id="progressText" class="progress-text"></div>
-        <button id="captureButton" class="primary-button" type="button" disabled>
+        <div
+          id="progressText"
+          class="progress-text"
+          role="status"
+          aria-live="polite"
+        ></div>
+        <p id="jobErrors" class="job-errors" hidden></p>
+        <button
+          id="captureButton"
+          class="primary-button"
+          type="button"
+          disabled
+        >
           保存所选素材
         </button>
       </footer>

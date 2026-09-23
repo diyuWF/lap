@@ -57,6 +57,7 @@ pub struct SupportedFormatExtensions {
     pub image: Vec<String>,
     pub raw: Vec<String>,
     pub video: Vec<String>,
+    pub asset: Vec<String>,
     pub options: Vec<ExtensionOption>,
 }
 
@@ -170,10 +171,15 @@ pub fn get_supported_format_extensions() -> SupportedFormatExtensions {
         .map(|ext| ext.to_string())
         .collect();
     let video: Vec<String> = t_common::VIDEOS.iter().map(|ext| ext.to_string()).collect();
+    let asset: Vec<String> = t_common::PREVIEW_ASSETS
+        .iter()
+        .map(|ext| ext.to_string())
+        .collect();
     let mut options: Vec<ExtensionOption> = image
         .iter()
         .chain(raw.iter())
         .chain(video.iter())
+        .chain(asset.iter())
         .map(|ext| extension_option(ext))
         .collect();
     options.sort_by(|a, b| a.value.cmp(&b.value));
@@ -182,6 +188,7 @@ pub fn get_supported_format_extensions() -> SupportedFormatExtensions {
         image,
         raw,
         video,
+        asset,
         options,
     }
 }

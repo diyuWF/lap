@@ -1,0 +1,218 @@
+name: Pivot Lap to design asset manager phase 1
+
+on:
+  push:
+    branches:
+      - feat/phase4-ai-preview-pipeline
+    paths:
+      - .github/workflows/pivot-design-asset-phase1.yml
+
+permissions:
+  contents: write
+
+jobs:
+  pivot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/phase4-ai-preview-pipeline
+          fetch-depth: 0
+
+      - name: Replace photo-library information architecture
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          import re
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected one occurrence, found {count}')
+              return text.replace(old, new, 1)
+
+          # Main navigation: retain the generic file/library functions and remove family-photo views.
+          home_path = Path('src-vite/src/views/Home.vue')
+          home = home_path.read_text(encoding='utf-8')
+          for line in [
+              "import Calendar from '@/components/Calendar.vue';\n",
+              "import Location from '@/components/Location.vue';\n",
+              "import Person from '@/components/Person.vue';\n",
+              "import Camera from '@/components/Camera.vue';\n",
+              "  IconLocation,\n",
+              "  IconPerson,\n",
+              "  IconCamera,\n",
+              "  IconCalendarDay,\n",
+              "  { index: SIDEBAR.CALENDAR, icon: IconCalendarDay, component: Calendar, text: localeMsg.value.sidebar.calendar },\n",
+              "  { index: SIDEBAR.PERSON, icon: IconPerson, component: Person, text: localeMsg.value.sidebar.people, hidden: !config.settings.face.enabled },\n",
+              "  { index: SIDEBAR.LOCATION, icon: IconLocation, component: Location, text: localeMsg.value.sidebar.location },\n",
+              "  { index: SIDEBAR.CAMERA, icon: IconCamera, component: Camera, text: localeMsg.value.sidebar.camera },\n",
+          ]:
+              if line not in home:
+                  raise SystemExit(f'Home.vue missing expected line: {line!r}')
+              home = home.replace(line, '', 1)
+
+          old_active = '''const activeSidebarButton = computed(() =>
+  buttons.value.find(item => item.index === config.main.sidebarIndex) || buttons.value[SIDEBAR.LIBRARY]
+);'''
+          new_active = '''const legacyPhotoSidebarIndices = new Set<number>([
+  SIDEBAR.CALENDAR,
+  SIDEBAR.PERSON,
+  SIDEBAR.LOCATION,
+  SIDEBAR.CAMERA,
+]);
+
+const activeSidebarButton = computed(() =>
+  buttons.value.find(item => item.index === config.main.sidebarIndex)
+  || buttons.value.find(item => item.index === SIDEBAR.LIBRARY)
+  || buttons.value[0]
+);'''
+          home = replace_once(home, old_active, new_active, 'Home active sidebar')
+
+          visible = '''const visibleButtons = computed(() =>
+  buttons.value
+    .map((item) => ({ ...item, disabled: libraryEmpty.value && item.index !== SIDEBAR.ALBUM }))
+    .filter(item => !item.hidden)
+    .sort((a, b) => a.index - b.index)
+);'''
+          migration = visible + '''
+
+watch(
+  () => config.main.sidebarIndex,
+  (index) => {
+    if (legacyPhotoSidebarIndices.has(index)) {
+      config.main.sidebarIndex = SIDEBAR.LIBRARY;
+    }
+  },
+  { immediate: true },
+);'''
+          home = replace_once(home, visible, migration, 'Home legacy navigation migration')
+          home_path.write_text(home, encoding='utf-8')
+
+          # Library panel: remove the photo-memory-specific "On this day" workflow.
+          library_path = Path('src-vite/src/components/Library.vue')
+          library = library_path.read_text(encoding='utf-8')
+          library = replace_once(
+              library,
+              "import { IconPhotoAll, IconHeartFilled, IconRight, IconBolt, IconStar, IconStarFilled, IconHistory } from '@/common/icons';",
+              "import { IconPhotoAll, IconHeartFilled, IconRight, IconBolt, IconStar, IconStarFilled } from '@/common/icons';",
+              'Library icon import',
+          )
+          library = replace_once(library, 'const todayCount = ref(0);\n', '', 'Library today count')
+          today_item = '''  {
+    id: LIB_ITEM.TODAY,
+    label: localeMsg.value.library.on_this_day,
+    icon: IconHistory,
+    count: todayCount.value,
+  },
+'''
+          library = replace_once(library, today_item, '', 'Library on-this-day item')
+          today_refresh = '''const refreshTodayCount = async () => {
+  const result = await getQueryCountAndSum(buildQueryParams({ startDate: -1, endDate: -1 }));
+  todayCount.value = result ? Number(result[0]) : 0;
+};
+
+'''
+          library = replace_once(library, today_refresh, '', 'Library on-this-day query')
+          today_case = '''      case LIB_ITEM.TODAY:
+        todayCount.value = count;
+        break;
+'''
+          library = replace_once(library, today_case, '', 'Library on-this-day updates')
+          library = replace_once(library, '    refreshTodayCount(),\n', '', 'Library on-this-day mount')
+          library_path.write_text(library, encoding='utf-8')
+
+          # Replace family-photo semantic categories with design-asset categories.
+          smart_path = Path('src-vite/src/common/smartTags.ts')
+          smart = smart_path.read_text(encoding='utf-8')
+          category_pattern = r'export const SMART_TAG_CATEGORIES: SmartTagCategoryDef\[] = \[.*?\n\];'
+          category_replacement = '''export const SMART_TAG_CATEGORIES: SmartTagCategoryDef[] = [
+  { id: 'ui-interface', items: [{ id: 'ui-interface', prompt: 'professional user interface design, application dashboard, website layout, mobile app screen, clean UI components' }] },
+  { id: 'graphic-design', items: [{ id: 'graphic-design', prompt: 'professional graphic design, poster, branding layout, typography composition, editorial or advertising design' }] },
+  { id: 'product-design', items: [{ id: 'product-design', prompt: 'industrial product design reference, consumer electronics, furniture, vehicle, appliance or physical product rendering' }] },
+  { id: '3d-model', items: [{ id: '3d-model', prompt: '3D model render, game asset, hard surface model, environment prop, character or architectural visualization' }] },
+  { id: 'material-texture', items: [{ id: 'material-texture', prompt: 'PBR material, seamless texture, surface detail, fabric, wood, metal, stone or procedural material reference' }] },
+  { id: 'illustration-icon', items: [{ id: 'illustration-icon', prompt: 'digital illustration, icon set, vector artwork, concept art, character design or visual symbol system' }] },
+  { id: 'motion-video', items: [{ id: 'motion-video', prompt: 'motion graphics, animation frame, title sequence, video transition, kinetic typography or visual effects reference' }] },
+  { id: 'photo-reference', items: [{ id: 'photo-reference', prompt: 'professional visual reference photography for lighting, composition, architecture, fashion, object, environment or mood' }] },
+];'''
+          smart, count = re.subn(category_pattern, category_replacement, smart, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f'smartTags.ts category block matches={count}')
+          smart_path.write_text(smart, encoding='utf-8')
+
+          # Chinese product language: replace the photo-album mental model.
+          zh_path = Path('src-vite/src/locales/zh.json')
+          zh = json.loads(zh_path.read_text(encoding='utf-8'))
+          zh['sidebar']['library'] = '素材库'
+          zh['sidebar']['album'] = '素材文件夹'
+          zh['collection']['title'] = '项目集'
+          zh['collection']['add'] = '添加项目集'
+          zh['collection']['default_name'] = '项目集 {index}'
+          zh['collection']['empty_content'] = '项目集为空'
+          zh['collection']['drop_here'] = '将素材拖放到这里'
+          zh['collection']['empty_drop_hint'] = '将素材拖到项目集中以添加。'
+          zh['library']['all_files'] = '全部素材'
+          zh['album']['album_list'] = '素材文件夹'
+          zh['album']['smart_album_list'] = '智能分类'
+          zh['album']['add_smart_album'] = '添加智能分类'
+          zh['album']['edit']['title_add'] = '添加素材文件夹'
+          zh['album']['edit']['title'] = '编辑素材文件夹'
+          zh['album']['edit']['description_placeholder'] = '输入素材文件夹说明'
+          zh['album']['no_albums']['title'] = '还没有素材文件夹'
+          zh['album']['no_albums']['description'] = '添加包含设计参考、模型、文档、图片或视频的文件夹以开始使用'
+          zh['album']['no_smart_albums']['description'] = '通过文件类型、标签、路径和属性规则创建智能分类。'
+          zh['album']['smart_edit']['title_add'] = '添加智能分类'
+          zh['album']['smart_edit']['title_edit'] = '编辑智能分类'
+          zh['welcome']['title'] = '欢迎使用 Lap 素材库'
+          zh['welcome']['description'] = '面向设计与创作工作的本地数字资产管理器。文件始终保存在您自己的磁盘中。'
+          zh['welcome']['add_album_title'] = '添加第一个素材文件夹'
+          zh['welcome']['add_album_description'] = '选择设计项目、参考图、模型、材质、视频或文档所在的文件夹。'
+          zh['welcome']['search_title'] = '按内容与属性查找素材'
+          zh['welcome']['search_description'] = '组合语义搜索、文件名、标签、格式和路径快速定位素材。'
+          zh['welcome']['drag_title'] = '从浏览器与文件管理器采集'
+          zh['welcome']['drag_description'] = '将网页参考和本地文件直接保存到素材文件夹或项目集中。'
+          zh['search']['title'] = '素材搜索'
+          zh['search']['similar_images'] = '相似素材'
+          zh['search']['image_search_placeholder'] = '按内容、标签或文件名搜索素材'
+          zh['search']['semantic_matches'] = '内容匹配'
+          zh['favorite']['files'] = '收藏素材'
+          zh['favorite']['folders'] = '收藏文件夹'
+          zh['rating']['title'] = '星级'
+          zh['rating']['unrated'] = '未分级'
+          zh['rating']['all_rated'] = '全部已分级'
+          zh['rating']['rated'] = '已分级'
+          zh['subject']['title'] = '素材类型'
+          zh['subject']['items'] = {
+              'ui-interface': 'UI 与界面',
+              'graphic-design': '平面与品牌',
+              'product-design': '产品与工业设计',
+              '3d-model': '3D 模型与场景',
+              'material-texture': '材质与纹理',
+              'illustration-icon': '插画与图标',
+              'motion-video': '动效与视频',
+              'photo-reference': '摄影与视觉参考',
+          }
+          zh['search']['index']['discovering'] = '正在扫描素材文件夹... {count}/{total}'
+          zh['search']['index']['description'] = '生成缩略图、预览和搜索索引。大型素材库可能需要几分钟。'
+          zh_path.write_text(json.dumps(zh, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          docs = Path('docs/DESIGN_ASSET_PIVOT.md')
+          docs.write_text('''# Lap 设计素材管理器重构\n\n## 产品定位\n\nLap 不再以家庭照片归档为核心，而是面向设计师、3D 艺术家、视频与动效创作者的本地数字资产管理器。\n\n## 核心对象\n\n- 素材文件夹：映射真实磁盘目录，不复制或锁定用户文件。\n- 项目集：跨文件夹组织当前项目所需素材。\n- 智能分类：通过格式、标签、路径、尺寸、时间和 AI 元数据动态聚合。\n- 标签：采用可组合的 namespace:value 结构。\n- 预览：图片、视频、音频、SVG、PDF、GLB、glTF、OBJ、STL，并继续扩展设计源文件。\n\n## 产品原则\n\n1. 文件类型优先于拍摄时间。\n2. 项目、用途、风格、格式和来源优先于人物、地点、相机。\n3. AI 负责建议和批量整理，所有自动应用均可审核。\n4. 浏览器采集必须保留原始来源、页面标题和采集时间。\n5. 底层保留可逆元数据，不让数据库成为文件的唯一入口。\n\n## 迁移阶段\n\n### Phase 1：信息架构\n- 移除日历、人物、地点、相机入口。\n- 移除“历史上的今天”。\n- 替换家庭照片智能主题。\n- 统一素材库、素材文件夹、项目集、智能分类用语。\n\n### Phase 2：设计资产模型\n- 增加素材类型、用途、项目、来源、许可证、软件和版本字段。\n- 扩展格式分组和缩略图徽章。\n- 删除默认界面中的 EXIF/人脸/GPS 过滤器。\n\n### Phase 3：工作流\n- 收件箱、待整理、已归档、项目中、参考库。\n- 浏览器采集审核与重复检测。\n- AI 批量标签、重命名、分类建议。\n\n### Phase 4：专业预览\n- PSD/AI/AE/Blender/Houdini/UE 等源文件的代理预览与外部打开。\n- 3D 材质、动画与模型信息面板。\n''', encoding='utf-8')
+          PY
+
+          rm .github/workflows/pivot-design-asset-phase1.yml
+          node --check lap-extension/popup.js
+          python3 -m json.tool src-vite/src/locales/zh.json >/dev/null
+          git diff --check
+
+      - name: Commit phase 1 product pivot
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "refactor(product): pivot Lap from photo library to design asset manager"
+          git push origin HEAD:feat/phase4-ai-preview-pipeline

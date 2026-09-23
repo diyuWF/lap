@@ -1,13 +1,14 @@
-import { createApp } from 'vue'
+import { createApp, watch } from 'vue'
 import { createI18n } from 'vue-i18n'
 import { createPinia } from 'pinia'
 import piniaPersistedState from 'pinia-plugin-persistedstate'
-import { listen } from '@tauri-apps/api/event'
+import { listen as tauriListen } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import 'cally'
 import router from '@/common/router'
 import App from '@/App.vue'
 import { useConfigStore } from '@/stores/configStore'
+import { isTauriRuntime } from '@/common/utils'
 import '@/assets/app.css'
 
 // I18n
@@ -29,23 +30,29 @@ const pinia = createPinia()
 pinia.use(piniaPersistedState)
 app.use(pinia) // Use Pinia
 const config = useConfigStore() // Use the config store
+// Previous installs may have face indexing enabled in persisted settings.
+// The design-assets edition keeps the data intact but disables this retired workflow.
+if (config.settings.face?.enabled) config.setFaceEnabled(false)
+const listen = isTauriRuntime ? tauriListen : async () => () => {}
+
+const localeMessages = {
+  en,
+  zh,
+  es,
+  fr,
+  de,
+  ja,
+  ko,
+  ru,
+  pt,
+}
 
 // Create the I18n instance
 const i18n = createI18n({
   legacy: false, // Disable legacy mode
   locale: config.settings.language, // Use language setting from config store
   fallbackLocale: "en",
-  messages: {
-    en,
-    zh,
-    es,
-    fr,
-    de,
-    ja,
-    ko,
-    ru,
-    pt
-  },
+  messages: localeMessages,
 })
 
 // Set up global properties
@@ -59,33 +66,13 @@ app.use(i18n)
 app.mount('#app')
 console.log('App mounted', app)
 
-// Legacy Settings.vue still contains one English helper string. Keep the
-// visible Simplified Chinese interface complete until that large component is
-// split into smaller localized sections.
-function localizeResidualStaticText(root = document) {
-  if (config.settings.language !== 'zh') return
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-  const replacements = new Map([
-    ['Select language', '选择界面语言'],
-  ])
-  let node = walker.nextNode()
-  while (node) {
-    const replacement = replacements.get(node.nodeValue?.trim())
-    if (replacement) node.nodeValue = node.nodeValue.replace(node.nodeValue.trim(), replacement)
-    node = walker.nextNode()
-  }
-}
-
-localizeResidualStaticText()
-const localizationObserver = new MutationObserver((mutations) => {
-  for (const mutation of mutations) {
-    for (const node of mutation.addedNodes) {
-      if (node.nodeType === Node.TEXT_NODE) localizeResidualStaticText(node.parentNode || document)
-      else if (node.nodeType === Node.ELEMENT_NODE) localizeResidualStaticText(node)
-    }
-  }
-})
-localizationObserver.observe(document.body, { childList: true, subtree: true })
+watch(
+  () => config.settings.language,
+  (language) => {
+    i18n.global.locale.value = Object.hasOwn(localeMessages, language) ? language : 'en'
+  },
+  { immediate: true },
+)
 
 // Listen for events
 listen('settings-appearance-changed', (event) => {
@@ -114,7 +101,6 @@ listen('settings-externalVideoAppName-changed', (event) => {
 })
 listen('settings-language-changed', (event) => {
   config.setLanguage(event.payload)
-  localizeResidualStaticText()
 })
 listen('settings-showToolTip-changed', (event) => {
   config.setShowToolTip(event.payload)
@@ -202,9 +188,6 @@ listen('settings-imageSearchLimit-changed', (event) => {
 })
 listen('settings-faceClusterThresholdIndex-changed', (event) => {
   config.setFaceClusterThresholdIndex(event.payload)
-})
-listen('settings-faceEnabled-changed', (event) => {
-  config.setFaceEnabled(event.payload)
 })
 listen('libraries-changed', () => {
   config.notifyLibrariesChanged()

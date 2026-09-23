@@ -1,0 +1,203 @@
+name: Phase 4-5 integration batch
+
+on:
+  push:
+    branches:
+      - feat/phase4-ai-preview-pipeline
+    paths:
+      - .github/workflows/phase45-integration-batch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/phase4-ai-preview-pipeline
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Integrate backend, viewer and AI interfaces
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one occurrence, found {count}: {old[:120]!r}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          # Register new Rust modules and commands.
+          replace_once(
+              'src-tauri/src/main.rs',
+              'mod t_ai_online;\nmod t_ai_png;',
+              'mod t_ai_online;\nmod t_ai_png;\nmod t_ai_review;'
+          )
+          replace_once(
+              'src-tauri/src/main.rs',
+              'mod t_protocol;\nmod t_sqlite;',
+              'mod t_protocol;\nmod t_preview;\nmod t_sqlite;'
+          )
+          replace_once(
+              'src-tauri/src/main.rs',
+              '            t_ai_online::analyze_file_with_online_ai,\n            // person (face recognition)',
+              '            t_ai_online::analyze_file_with_online_ai,\n            // AI suggestion review\n            t_ai_review::list_ai_suggestions,\n            t_ai_review::review_ai_suggestion,\n            t_ai_review::clear_reviewed_ai_suggestions,\n            // preview\n            t_preview::get_preview_descriptor,\n            // person (face recognition)'
+          )
+
+          # Make document, 3D and design assets indexable as file_type 4.
+          replace_once(
+              'src-tauri/src/t_common.rs',
+              '// RAW support\n',
+              '''// Previewable documents, 3D files and common design-project assets.\n// These are indexed as file_type 4. Interactive support depends on the preview provider.\npub const PREVIEW_ASSETS: &[&str] = &[\n    "svg", "pdf", "glb", "gltf", "obj", "stl",\n    "ai", "eps", "psb", "blend", "fbx", "usd", "usda", "usdc", "usdz",\n    "abc", "3ds", "dae", "c4d", "dwg", "dxf", "aep", "aepx", "prproj",\n];\n\n// RAW support\n'''
+          )
+          replace_once(
+              'src-tauri/src/t_utils.rs',
+              '''    if contains_ext(t_common::RAW_IMGS) {\n        return Some(3);\n    }\n\n    None\n}''',
+              '''    if contains_ext(t_common::RAW_IMGS) {\n        return Some(3);\n    }\n\n    if contains_ext(t_common::PREVIEW_ASSETS) {\n        return Some(4);\n    }\n\n    None\n}'''
+          )
+
+          # Expose asset extensions to smart filters without changing existing fields.
+          replace_once(
+              'src-tauri/src/t_cmds.rs',
+              '''pub struct SupportedFormatExtensions {\n    pub image: Vec<String>,\n    pub raw: Vec<String>,\n    pub video: Vec<String>,\n    pub options: Vec<ExtensionOption>,\n}''',
+              '''pub struct SupportedFormatExtensions {\n    pub image: Vec<String>,\n    pub raw: Vec<String>,\n    pub video: Vec<String>,\n    pub asset: Vec<String>,\n    pub options: Vec<ExtensionOption>,\n}'''
+          )
+          replace_once(
+              'src-tauri/src/t_cmds.rs',
+              '''    let video: Vec<String> = t_common::VIDEOS.iter().map(|ext| ext.to_string()).collect();\n    let mut options: Vec<ExtensionOption> = image\n        .iter()\n        .chain(raw.iter())\n        .chain(video.iter())\n        .map(|ext| extension_option(ext))\n        .collect();''',
+              '''    let video: Vec<String> = t_common::VIDEOS.iter().map(|ext| ext.to_string()).collect();\n    let asset: Vec<String> = t_common::PREVIEW_ASSETS\n        .iter()\n        .map(|ext| ext.to_string())\n        .collect();\n    let mut options: Vec<ExtensionOption> = image\n        .iter()\n        .chain(raw.iter())\n        .chain(video.iter())\n        .chain(asset.iter())\n        .map(|ext| extension_option(ext))\n        .collect();'''
+          )
+          replace_once(
+              'src-tauri/src/t_cmds.rs',
+              '''    SupportedFormatExtensions {\n        image,\n        raw,\n        video,\n        options,\n    }''',
+              '''    SupportedFormatExtensions {\n        image,\n        raw,\n        video,\n        asset,\n        options,\n    }'''
+          )
+
+          # Fix AI review queue path construction: file_path is an output-only field, not a DB column.
+          replace_once(
+              'src-tauri/src/t_ai_review.rs',
+              'use serde::Serialize;\n',
+              'use serde::Serialize;\nuse std::path::Path;\n'
+          )
+          replace_once(
+              'src-tauri/src/t_ai_review.rs',
+              '''            "SELECT s.id, s.file_id, COALESCE(f.name, ''), f.file_path,\n                    s.kind, s.value, s.confidence, s.provider, s.model,\n                    s.status, s.created_at, s.reviewed_at\n             FROM dam_ai_suggestions s\n             LEFT JOIN afiles f ON f.id = s.file_id\n             WHERE (?1 = 'all' OR s.status = ?1)''',
+              '''            "SELECT s.id, s.file_id, COALESCE(f.name, ''), folder.path,\n                    s.kind, s.value, s.confidence, s.provider, s.model,\n                    s.status, s.created_at, s.reviewed_at\n             FROM dam_ai_suggestions s\n             LEFT JOIN afiles f ON f.id = s.file_id\n             LEFT JOIN afolders folder ON folder.id = f.folder_id\n             WHERE (?1 = 'all' OR s.status = ?1)'''
+          )
+          replace_once(
+              'src-tauri/src/t_ai_review.rs',
+              '''        .query_map(params![status, limit], |row| {\n            Ok(AiSuggestionRow {\n                id: row.get(0)?,\n                file_id: row.get(1)?,\n                file_name: row.get(2)?,\n                file_path: row.get(3)?,\n                kind: row.get(4)?,''',
+              '''        .query_map(params![status, limit], |row| {\n            let file_name: String = row.get(2)?;\n            let folder_path: Option<String> = row.get(3)?;\n            let file_path = folder_path.map(|folder| {\n                Path::new(&folder)\n                    .join(&file_name)\n                    .to_string_lossy()\n                    .into_owned()\n            });\n            Ok(AiSuggestionRow {\n                id: row.get(0)?,\n                file_id: row.get(1)?,\n                file_name,\n                file_path,\n                kind: row.get(4)?,'''
+          )
+
+          # Frontend API for the unified preview provider.
+          replace_once(
+              'src-vite/src/common/dam-api.js',
+              '''export async function analyzeFileWithOnlineAi(fileId, providerId, forceAutoApply = null) {\n  return invoke('analyze_file_with_online_ai', {\n    fileId,\n    providerId,\n    forceAutoApply,\n  });\n}\n''',
+              '''export async function analyzeFileWithOnlineAi(fileId, providerId, forceAutoApply = null) {\n  return invoke('analyze_file_with_online_ai', {\n    fileId,\n    providerId,\n    forceAutoApply,\n  });\n}\n\nexport async function getPreviewDescriptor(fileId) {\n  return invoke('get_preview_descriptor', { fileId });\n}\n'''
+          )
+
+          # Route special assets through PreviewPanel while preserving the existing image/video viewer.
+          replace_once(
+              'src-vite/src/components/MediaViewer.vue',
+              '''      <div\n        v-if="isLivePhoto"''',
+              '''      <PreviewPanel\n        v-if="usePreviewPanel"\n        class="absolute inset-0 z-20"\n        :file="file"\n      />\n\n      <div\n        v-if="!usePreviewPanel && isLivePhoto"'''
+          )
+          replace_once(
+              'src-vite/src/components/MediaViewer.vue',
+              'v-if="file?.file_type === 1 || file?.file_type === 3"',
+              'v-if="!usePreviewPanel && (file?.file_type === 1 || file?.file_type === 3)"'
+          )
+          replace_once(
+              'src-vite/src/components/MediaViewer.vue',
+              'v-if="isLivePhoto"\n        class="absolute left-4 bottom-4',
+              'v-if="!usePreviewPanel && isLivePhoto"\n        class="absolute left-4 bottom-4'
+          )
+          replace_once(
+              'src-vite/src/components/MediaViewer.vue',
+              '<Video v-if="file?.file_type === 2"',
+              '<Video v-if="!usePreviewPanel && file?.file_type === 2"'
+          )
+          replace_once(
+              'src-vite/src/components/MediaViewer.vue',
+              "import Image from '@/components/Image.vue';\n",
+              "import Image from '@/components/Image.vue';\nimport PreviewPanel from '@/components/PreviewPanel.vue';\n"
+          )
+          replace_once(
+              'src-vite/src/components/MediaViewer.vue',
+              '''const isLivePhotoPlaying = ref(false);\nconst isLivePhoto = computed(() => props.file?.media_subtype === 'live_photo' && !!props.file?.live_photo_video_path);''',
+              '''const PREVIEW_PANEL_EXTENSIONS = new Set([\n  'svg', 'pdf', 'glb', 'gltf', 'obj', 'stl',\n  'ai', 'eps', 'psb', 'blend', 'fbx', 'usd', 'usda', 'usdc', 'usdz',\n  'abc', '3ds', 'dae', 'c4d', 'dwg', 'dxf', 'aep', 'aepx', 'prproj',\n]);\nconst currentExtension = computed(() => {\n  const path = String(props.file?.file_path || props.file?.name || '');\n  const name = path.split(/[\\\\/]/).pop() || '';\n  return name.includes('.') ? name.split('.').pop()?.toLowerCase() || '' : '';\n});\nconst usePreviewPanel = computed(() => PREVIEW_PANEL_EXTENSIONS.has(currentExtension.value));\nconst isLivePhotoPlaying = ref(false);\nconst isLivePhoto = computed(() => props.file?.media_subtype === 'live_photo' && !!props.file?.live_photo_video_path);'''
+          )
+
+          # Settings entry points for provider configuration and suggestion review.
+          replace_once(
+              'src-vite/src/views/Settings.vue',
+              '''                <div v-if="config.settings.language !== 'en'" class="text-xs text-base-content/30">Select language</div>''',
+              '''                <div class="text-xs text-base-content/30">选择应用界面所使用的语言</div>'''
+          )
+          replace_once(
+              'src-vite/src/views/Settings.vue',
+              '''          <!-- diagnostics -->\n          <div class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">''',
+              '''          <!-- online AI -->\n          <div class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">\n            <div class="flex items-center gap-2 text-base-content/30">\n              <span class="font-bold uppercase text-[10px] tracking-widest">AI 自动整理</span>\n            </div>\n            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">\n              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">\n                <div>在线 AI 服务</div>\n                <div class="text-xs text-base-content/30">配置 OpenAI 兼容、Gemini 或 Anthropic 视觉模型</div>\n              </div>\n              <button class="btn btn-sm btn-ghost rounded-box bg-base-100 border border-base-content/30" @click="showOnlineAiManager = true">管理服务</button>\n            </div>\n            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">\n              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">\n                <div>AI 建议审核</div>\n                <div class="text-xs text-base-content/30">接受或拒绝自动生成的标签、标题、描述和颜色建议</div>\n              </div>\n              <button class="btn btn-sm btn-ghost rounded-box bg-base-100 border border-base-content/30" @click="showAiReviewQueue = true">打开队列</button>\n            </div>\n          </div>\n\n          <!-- diagnostics -->\n          <div class="rounded-box p-2 space-y-2 bg-base-300/30 border border-base-content/5 shadow-sm">'''
+          )
+          replace_once(
+              'src-vite/src/views/Settings.vue',
+              '''    <MessageBox\n      v-if="showChangeDbStorageDialog"''',
+              '''    <OnlineAiManager v-if="showOnlineAiManager" @close="showOnlineAiManager = false" />\n    <AiReviewQueue v-if="showAiReviewQueue" @close="showAiReviewQueue = false" />\n\n    <MessageBox\n      v-if="showChangeDbStorageDialog"'''
+          )
+          replace_once(
+              'src-vite/src/views/Settings.vue',
+              "import RestoreDialog from '@/components/RestoreDialog.vue';\n",
+              "import RestoreDialog from '@/components/RestoreDialog.vue';\nimport OnlineAiManager from '@/components/OnlineAiManager.vue';\nimport AiReviewQueue from '@/components/AiReviewQueue.vue';\n"
+          )
+          replace_once(
+              'src-vite/src/views/Settings.vue',
+              '''const showRestoreDialog = ref(false);\nconst isDownloadingMultilingualModel = ref(false);''',
+              '''const showRestoreDialog = ref(false);\nconst showOnlineAiManager = ref(false);\nconst showAiReviewQueue = ref(false);\nconst isDownloadingMultilingualModel = ref(false);'''
+          )
+          replace_once(
+              'src-vite/src/views/Settings.vue',
+              '''const languages = [\n  { label: 'English', value: 'en' },\n  { label: 'Deutsch', value: 'de' },\n  { label: 'Español', value: 'es' },\n  { label: 'Français', value: 'fr' },\n  { label: 'Português', value: 'pt' },\n  { label: 'Русский', value: 'ru' },\n  { label: '中文', value: 'zh' },\n  { label: '日本語', value: 'ja' },\n  { label: '한국어', value: 'ko' },\n];''',
+              '''const languages = [\n  { label: '英语', value: 'en' },\n  { label: '德语', value: 'de' },\n  { label: '西班牙语', value: 'es' },\n  { label: '法语', value: 'fr' },\n  { label: '葡萄牙语', value: 'pt' },\n  { label: '俄语', value: 'ru' },\n  { label: '简体中文', value: 'zh' },\n  { label: '日语', value: 'ja' },\n  { label: '韩语', value: 'ko' },\n];'''
+          )
+          PY
+
+          pnpm --dir src-vite add three@latest --save-exact
+          git diff --check
+
+      - name: Validate frontend integration
+        shell: bash
+        run: pnpm --dir src-vite build
+
+      - name: Commit integrated feature batch
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            src-tauri/src/main.rs \
+            src-tauri/src/t_common.rs \
+            src-tauri/src/t_utils.rs \
+            src-tauri/src/t_cmds.rs \
+            src-tauri/src/t_ai_review.rs \
+            src-vite/package.json \
+            src-vite/pnpm-lock.yaml \
+            src-vite/src/common/dam-api.js \
+            src-vite/src/components/MediaViewer.vue \
+            src-vite/src/views/Settings.vue
+          git commit -m "feat: integrate preview routing and AI review workflow"
+          git push origin HEAD:feat/phase4-ai-preview-pipeline

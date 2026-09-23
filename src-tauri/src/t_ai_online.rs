@@ -1,7 +1,24 @@
+use crate::t_config;
+use crate::t_dam;
+use crate::t_sqlite::{self, AFile, AThumb};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+use chrono::Utc;
+use reqwest::header::{ACCEPT, CONTENT_TYPE, HeaderName, HeaderValue};
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use serde_json::{Value as JsonValue, json};
+use std::collections::{HashMap, HashSet};
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
+use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+const CONFIG_VERSION: u32 = 1;
+const MAX_IMAGE_BYTES: usize = 20 * 1024 * 1024;
+const DEFAULT_SYSTEM_PROMPT: &str =
+    include_str!("../../src-vite/src/common/online-ai-system-prompt.txt");
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OnlineAiProviderKind {
     OpenaiCompatible,
@@ -17,6 +34,58 @@ impl Default for OnlineAiProviderKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct StoredOnlineAiProvider {
+    id: String,
+    name: String,
+    #[serde(default)]
+    kind: OnlineAiProviderKind,
+    base_url: String,
+    model: String,
+    api_key: String,
+    #[serde(default = "default_auth_header")]
+    auth_header: String,
+    #[serde(default = "default_auth_prefix")]
+    auth_prefix: String,
+    #[serde(default = "default_true")]
+    enabled: bool,
+    #[serde(default)]
+    auto_apply_tags: bool,
+    #[serde(default)]
+    auto_mark_reviewed: bool,
+    #[serde(default = "default_min_confidence")]
+    min_confidence: f64,
+    #[serde(default = "default_max_tags")]
+    max_tags: usize,
+    #[serde(default = "default_language")]
+    language: String,
+    #[serde(default = "default_system_prompt")]
+    system_prompt: String,
+    #[serde(default)]
+    extra_headers: HashMap<String, String>,
+    created_at: i64,
+    updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredOnlineAiConfig {
+    #[serde(default = "default_config_version")]
+    version: u32,
+    #[serde(default)]
+    providers: Vec<StoredOnlineAiProvider>,
+}
+
+impl Default for StoredOnlineAiConfig {
+    fn default() -> Self {
+        Self {
+            version: CONFIG_VERSION,
+            providers: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OnlineAiProviderInput {
     pub id: Option<String>,
     pub name: String,
@@ -25,8 +94,18 @@ pub struct OnlineAiProviderInput {
     pub base_url: String,
     pub model: String,
     pub api_key: Option<String>,
-    #[serde(default)]
+    pub auth_header: Option<String>,
+    pub auth_prefix: Option<String>,
+    #[serde(default = "default_true")]
     pub enabled: bool,
+    #[serde(default)]
+    pub auto_apply_tags: bool,
+    #[serde(default)]
+    pub auto_mark_reviewed: bool,
+    pub min_confidence: Option<f64>,
+    pub max_tags: Option<usize>,
+    pub language: Option<String>,
+    pub system_prompt: Option<String>,
     #[serde(default)]
     pub extra_headers: HashMap<String, String>,
 }
@@ -37,43 +116,1160 @@ pub struct OnlineAiProviderSummary {
     pub id: String,
     pub name: String,
     pub kind: OnlineAiProviderKind,
+    pub base_url: String,
     pub model: String,
-    pub enabled: bool,
     pub has_api_key: bool,
+    pub api_key_preview: String,
+    pub auth_header: String,
+    pub auth_prefix: String,
+    pub enabled: bool,
+    pub auto_apply_tags: bool,
+    pub auto_mark_reviewed: bool,
+    pub min_confidence: f64,
+    pub max_tags: usize,
+    pub language: String,
+    pub system_prompt: String,
+    pub extra_headers: HashMap<String, String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct OnlineAiAnalysis {
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub dominant_colors: Vec<String>,
+    #[serde(default)]
+    pub confidence: f64,
+    #[serde(default)]
+    pub target_folder_id: Option<i64>,
+    #[serde(default)]
+    pub target_folder_path: Option<String>,
+    #[serde(default)]
+    pub organization_reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OnlineAiFolderOption {
+    pub folder_id: i64,
+    pub display_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiFolderSuggestionValue {
+    pub folder_id: i64,
+    pub display_path: String,
+    #[serde(default)]
+    pub reason: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OnlineAiAnalysisResult {
+    pub provider_id: String,
+    pub provider_name: String,
+    pub model: String,
     pub file_id: i64,
-    pub tags: Vec<String>,
+    pub analysis: OnlineAiAnalysis,
+    pub applied_tag_ids: Vec<i64>,
+    pub tags_applied: bool,
+    pub workflow_updated: bool,
+    pub folder_suggestion_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OnlineAiProviderTestResult {
+    pub ok: bool,
+    pub provider_id: String,
+    pub model: String,
+    pub message: String,
+    pub elapsed_ms: i64,
+    pub analysis: OnlineAiAnalysis,
+}
+
+fn default_true() -> bool {
+    true
+}
+fn default_config_version() -> u32 {
+    CONFIG_VERSION
+}
+fn default_auth_header() -> String {
+    "Authorization".to_string()
+}
+fn default_auth_prefix() -> String {
+    "Bearer ".to_string()
+}
+fn default_min_confidence() -> f64 {
+    0.75
+}
+fn default_max_tags() -> usize {
+    12
+}
+fn default_language() -> String {
+    "zh-CN".to_string()
+}
+fn default_system_prompt() -> String {
+    DEFAULT_SYSTEM_PROMPT.to_string()
+}
+
+fn config_path() -> Result<PathBuf, String> {
+    let directory = t_config::get_app_data_dir()?.join("ai");
+    fs::create_dir_all(&directory).map_err(|error| error.to_string())?;
+    Ok(directory.join("online-providers.json"))
+}
+
+fn load_config() -> Result<StoredOnlineAiConfig, String> {
+    let path = config_path()?;
+    if !path.exists() {
+        return Ok(StoredOnlineAiConfig::default());
+    }
+    let data = fs::read(&path).map_err(|error| error.to_string())?;
+    serde_json::from_slice(&data)
+        .map_err(|error| format!("在线 AI 设置文件解析失败：{}", error))
+}
+
+fn save_config(config: &StoredOnlineAiConfig) -> Result<(), String> {
+    let path = config_path()?;
+    let temporary = path.with_extension("json.tmp");
+    let data = serde_json::to_vec_pretty(config).map_err(|error| error.to_string())?;
+    fs::write(&temporary, data).map_err(|error| error.to_string())?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&temporary, fs::Permissions::from_mode(0o600))
+            .map_err(|error| error.to_string())?;
+    }
+
+    if path.exists() {
+        fs::remove_file(&path).map_err(|error| error.to_string())?;
+    }
+    fs::rename(&temporary, &path).map_err(|error| error.to_string())
+}
+
+fn normalize_http_url(value: &str) -> Result<String, String> {
+    let value = value.trim().trim_end_matches('/');
+    if value.starts_with("https://") || value.starts_with("http://") {
+        Ok(value.to_string())
+    } else {
+        Err("API 地址必须以 http:// 或 https:// 开头".to_string())
+    }
+}
+
+fn provider_summary(provider: &StoredOnlineAiProvider) -> OnlineAiProviderSummary {
+    let preview = if provider.api_key.is_empty() {
+        String::new()
+    } else if provider.api_key.chars().count() <= 8 {
+        "********".to_string()
+    } else {
+        let suffix = provider
+            .api_key
+            .chars()
+            .rev()
+            .take(4)
+            .collect::<String>()
+            .chars()
+            .rev()
+            .collect::<String>();
+        format!("********{}", suffix)
+    };
+
+    OnlineAiProviderSummary {
+        id: provider.id.clone(),
+        name: provider.name.clone(),
+        kind: provider.kind.clone(),
+        base_url: provider.base_url.clone(),
+        model: provider.model.clone(),
+        has_api_key: !provider.api_key.is_empty(),
+        api_key_preview: preview,
+        auth_header: provider.auth_header.clone(),
+        auth_prefix: provider.auth_prefix.clone(),
+        enabled: provider.enabled,
+        auto_apply_tags: provider.auto_apply_tags,
+        auto_mark_reviewed: provider.auto_mark_reviewed,
+        min_confidence: provider.min_confidence,
+        max_tags: provider.max_tags,
+        language: provider.language.clone(),
+        system_prompt: provider.system_prompt.clone(),
+        extra_headers: provider.extra_headers.clone(),
+        created_at: provider.created_at,
+        updated_at: provider.updated_at,
+    }
 }
 
 #[tauri::command]
 pub fn list_online_ai_providers() -> Result<Vec<OnlineAiProviderSummary>, String> {
-    Ok(Vec::new())
+    Ok(load_config()?
+        .providers
+        .iter()
+        .map(provider_summary)
+        .collect())
 }
 
 #[tauri::command]
-pub fn save_online_ai_provider(_input: OnlineAiProviderInput) -> Result<OnlineAiProviderSummary, String> {
-    Err("在线 AI 配置模块正在初始化，请稍后启用。".to_string())
+pub fn save_online_ai_provider(
+    mut input: OnlineAiProviderInput,
+) -> Result<OnlineAiProviderSummary, String> {
+    let mut config = load_config()?;
+    let provider_id = input
+        .id
+        .clone()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+    let existing = config
+        .providers
+        .iter()
+        .find(|provider| provider.id == provider_id)
+        .cloned();
+
+    input.id = Some(provider_id.clone());
+    let provider = provider_from_input(input, existing.as_ref())?;
+
+    if let Some(index) = config
+        .providers
+        .iter()
+        .position(|provider| provider.id == provider_id)
+    {
+        config.providers[index] = provider.clone();
+    } else {
+        config.providers.push(provider.clone());
+    }
+    config.version = CONFIG_VERSION;
+    save_config(&config)?;
+    Ok(provider_summary(&provider))
+}
+
+fn provider_from_input(
+    input: OnlineAiProviderInput,
+    existing: Option<&StoredOnlineAiProvider>,
+) -> Result<StoredOnlineAiProvider, String> {
+    let now = Utc::now().timestamp_millis();
+    let provider_id = input.id.clone().filter(|id| !id.trim().is_empty())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+    let base_url = normalize_http_url(&input.base_url)?;
+    // Never reuse a saved credential after changing its destination or protocol.
+    if input.api_key.as_deref().unwrap_or_default().trim().is_empty() {
+        if let Some(previous) = existing {
+            if !previous.api_key.is_empty()
+                && (normalize_http_url(&previous.base_url)? != base_url || previous.kind != input.kind)
+            {
+                return Err("API 地址或接口类型已更改，请重新填写对应服务的 API 密钥".to_string());
+            }
+        }
+    }
+    let supplied_key = input.api_key.unwrap_or_default().trim().to_string();
+    let api_key = if supplied_key.is_empty() {
+        existing
+            .as_ref()
+            .map(|provider| provider.api_key.clone())
+            .unwrap_or_default()
+    } else {
+        supplied_key
+    };
+    let name = input.name.trim();
+    let model = input.model.trim();
+    if name.is_empty() {
+        return Err("服务名称不能为空".to_string());
+    }
+    if model.is_empty() {
+        return Err("模型名称不能为空".to_string());
+    }
+
+    Ok(StoredOnlineAiProvider {
+        id: provider_id.clone(),
+        name: name.to_string(),
+        kind: input.kind,
+        base_url,
+        model: model.to_string(),
+        api_key,
+        auth_header: input
+            .auth_header
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(default_auth_header),
+        auth_prefix: input.auth_prefix.unwrap_or_else(default_auth_prefix),
+        enabled: input.enabled,
+        auto_apply_tags: input.auto_apply_tags,
+        auto_mark_reviewed: input.auto_mark_reviewed,
+        min_confidence: input
+            .min_confidence
+            .unwrap_or_else(default_min_confidence)
+            .clamp(0.0, 1.0),
+        max_tags: input.max_tags.unwrap_or_else(default_max_tags).clamp(1, 50),
+        language: input
+            .language
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(default_language),
+        system_prompt: input
+            .system_prompt
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(default_system_prompt),
+        extra_headers: input.extra_headers,
+        created_at: existing
+            .as_ref()
+            .map(|provider| provider.created_at)
+            .unwrap_or(now),
+        updated_at: now,
+    })
 }
 
 #[tauri::command]
-pub fn delete_online_ai_provider(_provider_id: String) -> Result<bool, String> {
-    Ok(false)
+pub fn delete_online_ai_provider(provider_id: String) -> Result<bool, String> {
+    let mut config = load_config()?;
+    let previous_len = config.providers.len();
+    config.providers.retain(|provider| provider.id != provider_id);
+    let changed = config.providers.len() != previous_len;
+    if changed {
+        save_config(&config)?;
+    }
+    Ok(changed)
+}
+
+fn find_provider(provider_id: &str) -> Result<StoredOnlineAiProvider, String> {
+    let provider = load_config()?
+        .providers
+        .into_iter()
+        .find(|provider| provider.id == provider_id)
+        .ok_or_else(|| "未找到指定的在线 AI 服务".to_string())?;
+    if !provider.enabled {
+        return Err("该在线 AI 服务已停用".to_string());
+    }
+    if provider.api_key.trim().is_empty() {
+        return Err("该在线 AI 服务尚未配置 API 密钥".to_string());
+    }
+    Ok(provider)
+}
+
+struct ImagePayload {
+    mime: String,
+    base64: String,
+}
+
+fn mime_for_path(path: &str) -> Option<&'static str> {
+    match Path::new(path)
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "jpg" | "jpeg" => Some("image/jpeg"),
+        "png" => Some("image/png"),
+        "webp" => Some("image/webp"),
+        "gif" => Some("image/gif"),
+        "avif" => Some("image/avif"),
+        _ => None,
+    }
+}
+
+fn thumbnail_mime(bytes: &[u8]) -> &'static str {
+    if bytes.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
+        "image/png"
+    } else {
+        "image/jpeg"
+    }
+}
+
+fn load_image_payload(file_id: i64) -> Result<ImagePayload, String> {
+    let file = AFile::get_file_info(file_id)?
+        .ok_or_else(|| format!("未找到文件：{}", file_id))?;
+    let file_path = file
+        .file_path
+        .clone()
+        .ok_or_else(|| "文件路径不可用".to_string())?;
+
+    if let Some(mime) = mime_for_path(&file_path) {
+        let bytes = fs::read(&file_path).map_err(|error| error.to_string())?;
+        if bytes.len() <= MAX_IMAGE_BYTES {
+            return Ok(ImagePayload {
+                mime: mime.to_string(),
+                base64: STANDARD.encode(bytes),
+            });
+        }
+    }
+
+    let thumbnail = AThumb::get_or_create_thumb(
+        file_id,
+        &file_path,
+        file.file_type.unwrap_or_default(),
+        file.e_orientation.unwrap_or(1) as i32,
+        1024,
+        false,
+        file.duration.map(|value| value as u64),
+        None,
+    )?
+    .ok_or_else(|| "无法为该文件生成 AI 分析预览图".to_string())?;
+    let bytes = thumbnail
+        .thumb_data
+        .ok_or_else(|| "AI 分析预览图为空".to_string())?;
+    if bytes.len() > MAX_IMAGE_BYTES {
+        return Err("AI 分析预览图超过 20 MB".to_string());
+    }
+    Ok(ImagePayload {
+        mime: thumbnail_mime(&bytes).to_string(),
+        base64: STANDARD.encode(bytes),
+    })
+}
+
+fn analysis_prompt(provider: &StoredOnlineAiProvider) -> String {
+    format!(
+        "使用 {} 输出结果，最多生成 {} 个标签。标签使用 namespace:value 形式，值使用指定语言。只输出严格 JSON：{{\"title\":\"\",\"description\":\"\",\"tags\":[],\"dominantColors\":[],\"confidence\":0.0}}。confidence 范围 0 到 1；没有素材时返回空值和 0，不虚构内容。",
+        provider.language, provider.max_tags
+    )
+}
+
+fn organization_prompt(
+    provider: &StoredOnlineAiProvider,
+    folders: &[OnlineAiFolderOption],
+) -> Result<String, String> {
+    let folder_json = serde_json::to_string(folders).map_err(|error| error.to_string())?;
+    Ok(format!(
+        "使用 {} 分析素材，最多生成 {} 个 namespace:value 标签，并从给定已有文件夹中选择唯一最合适的目标。不得创造文件夹，不得返回列表外的 folderId。只输出严格 JSON：{{\"title\":\"\",\"description\":\"\",\"tags\":[\"namespace:value\"],\"dominantColors\":[\"#RRGGBB\"],\"confidence\":0.0,\"targetFolderId\":0,\"targetFolderPath\":\"必须逐字复制候选 displayPath\",\"organizationReason\":\"一句简短理由\"}}。可选目标文件夹：{}",
+        provider.language, provider.max_tags, folder_json
+    ))
+}
+
+fn endpoint(base_url: &str, suffix: &str) -> String {
+    let base = base_url.trim().trim_end_matches('/');
+    let suffix = suffix.trim().trim_start_matches('/');
+    if base
+        .to_ascii_lowercase()
+        .ends_with(&suffix.to_ascii_lowercase())
+    {
+        base.to_string()
+    } else {
+        format!("{}/{}", base, suffix)
+    }
+}
+
+fn is_openrouter(base_url: &str) -> bool {
+    reqwest::Url::parse(base_url.trim())
+        .ok()
+        .and_then(|url| url.host_str().map(str::to_string))
+        .map(|host| host.eq_ignore_ascii_case("openrouter.ai"))
+        .unwrap_or(false)
+}
+
+fn openai_compatible_endpoint(base_url: &str) -> String {
+    if is_openrouter(base_url) {
+        "https://openrouter.ai/api/v1/chat/completions".to_string()
+    } else {
+        endpoint(base_url, "chat/completions")
+    }
+}
+
+fn apply_extra_headers(
+    mut request: reqwest::RequestBuilder,
+    provider: &StoredOnlineAiProvider,
+) -> Result<reqwest::RequestBuilder, String> {
+    for (name, value) in &provider.extra_headers {
+        let header_name = HeaderName::from_bytes(name.trim().as_bytes())
+            .map_err(|error| format!("无效的 Header {}：{}", name, error))?;
+        let header_value = HeaderValue::from_str(value)
+            .map_err(|error| format!("无效的 Header 值 {}：{}", name, error))?;
+        request = request.header(header_name, header_value);
+    }
+    Ok(request)
+}
+
+fn compact_service_message(value: &str) -> String {
+    value
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(240)
+        .collect()
+}
+
+fn ai_http_error(
+    status: reqwest::StatusCode,
+    value: &JsonValue,
+    provider: &StoredOnlineAiProvider,
+    url: &str,
+) -> String {
+    let metadata = &value["error"]["metadata"];
+    let provider_name = metadata["provider_name"]
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let raw = metadata["raw"]
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let message = value["error"]["message"]
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+
+    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        let upstream_limited = raw
+            .unwrap_or_default()
+            .to_ascii_lowercase()
+            .contains("temporarily rate-limited upstream");
+        if upstream_limited {
+            let upstream = provider_name
+                .map(|name| format!("在 {} 上游", name))
+                .unwrap_or_else(|| "在上游".to_string());
+            return format!(
+                "当前模型 {} {}暂时限流。请稍后重试，或在 OpenRouter 配置自有上游密钥/更换可用模型。",
+                provider.model,
+                upstream
+            );
+        }
+        return format!(
+            "AI 服务请求过于频繁（HTTP 429）。请稍后重试，或检查 {} 的额度与限流设置。",
+            provider.name
+        );
+    }
+
+    if status == reqwest::StatusCode::UNAUTHORIZED
+        || status == reqwest::StatusCode::FORBIDDEN
+    {
+        return format!(
+            "AI 服务认证失败（HTTP {}）。请检查 API 密钥、账户权限和服务商配置。",
+            status.as_u16()
+        );
+    }
+
+    let detail = raw
+        .or(message)
+        .map(compact_service_message)
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "服务商没有返回可读的错误说明".to_string());
+    format!(
+        "AI 服务请求失败（HTTP {}）：{}。请求地址：{}",
+        status.as_u16(),
+        detail,
+        url
+    )
+}
+
+async fn send_request(
+    provider: &StoredOnlineAiProvider,
+    url: &str,
+    body: JsonValue,
+    native_headers: &[(&str, String)],
+    use_custom_auth: bool,
+) -> Result<JsonValue, String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(120))
+        .redirect(reqwest::redirect::Policy::limited(5))
+        .build()
+        .map_err(|error| error.to_string())?;
+    let mut request = client
+        .post(url)
+        .header(CONTENT_TYPE, "application/json")
+        .header(ACCEPT, "application/json")
+        .body(serde_json::to_vec(&body).map_err(|error| error.to_string())?);
+
+    if use_custom_auth && !provider.auth_header.trim().is_empty() {
+        let name = HeaderName::from_bytes(provider.auth_header.trim().as_bytes())
+            .map_err(|error| format!("无效的认证 Header：{}", error))?;
+        let value = HeaderValue::from_str(&format!(
+            "{}{}",
+            provider.auth_prefix, provider.api_key
+        ))
+        .map_err(|error| format!("无效的认证值：{}", error))?;
+        request = request.header(name, value);
+    }
+    for (name, value) in native_headers {
+        request = request.header(*name, value);
+    }
+    request = apply_extra_headers(request, provider)?;
+
+    let response = request
+        .send()
+        .await
+        .map_err(|error| format!("AI 服务连接失败：{}；请求地址：{}", error, url))?;
+    let status = response.status();
+    let content_type = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("未知")
+        .to_string();
+    let bytes = response.bytes().await.map_err(|error| error.to_string())?;
+    let response_start = String::from_utf8_lossy(&bytes)
+        .trim_start()
+        .chars()
+        .take(32)
+        .collect::<String>()
+        .to_ascii_lowercase();
+    let looks_like_html = content_type.to_ascii_lowercase().contains("text/html")
+        || response_start.starts_with("<!doctype html")
+        || response_start.starts_with("<html");
+
+    if looks_like_html {
+        return Err(format!(
+            "AI 服务返回了网页 HTML 而不是 JSON（HTTP {}）。请求地址：{}。请检查 API 地址是否为服务商提供的 API 基础地址。",
+            status, url
+        ));
+    }
+
+    let value: JsonValue = serde_json::from_slice(&bytes).map_err(|error| {
+        let preview = String::from_utf8_lossy(&bytes)
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .chars()
+            .take(240)
+            .collect::<String>();
+        format!(
+            "AI 服务返回内容无法解析（HTTP {}，响应类型 {}）：{}。请求地址：{}。响应摘要：{}",
+            status, content_type, error, url, preview
+        )
+    })?;
+    if !status.is_success() {
+        return Err(ai_http_error(status, &value, provider, url));
+    }
+    Ok(value)
+}
+
+fn extract_openai_text(value: &JsonValue) -> Result<String, String> {
+    let content = &value["choices"][0]["message"]["content"];
+    if let Some(text) = content.as_str() {
+        return Ok(text.to_string());
+    }
+    if let Some(parts) = content.as_array() {
+        let text = parts
+            .iter()
+            .filter_map(|part| part.get("text").and_then(JsonValue::as_str))
+            .collect::<Vec<_>>()
+            .join("\n");
+        if !text.is_empty() {
+            return Ok(text);
+        }
+    }
+    Err("OpenAI 兼容响应中没有文本，请检查模型是否完成输出".to_string())
+}
+
+fn extract_gemini_text(value: &JsonValue) -> Result<String, String> {
+    let text = value["candidates"][0]["content"]["parts"]
+        .as_array()
+        .map(|parts| {
+            parts
+                .iter()
+                .filter(|part| part.get("thought").and_then(JsonValue::as_bool) != Some(true))
+                .filter_map(|part| part.get("text").and_then(JsonValue::as_str))
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_default();
+    if text.is_empty() {
+        Err("Gemini 响应中没有文本，请检查模型可用性或内容限制".to_string())
+    } else {
+        Ok(text)
+    }
+}
+
+fn extract_anthropic_text(value: &JsonValue) -> Result<String, String> {
+    let text = value["content"]
+        .as_array()
+        .map(|parts| {
+            parts
+                .iter()
+                .filter(|part| part.get("type").and_then(JsonValue::as_str) == Some("text"))
+                .filter_map(|part| part.get("text").and_then(JsonValue::as_str))
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_default();
+    if text.is_empty() {
+        Err("Anthropic 响应中没有文本，请检查模型是否完成输出".to_string())
+    } else {
+        Ok(text)
+    }
+}
+
+async fn call_provider(
+    provider: &StoredOnlineAiProvider,
+    image: Option<&ImagePayload>,
+    prompt: &str,
+) -> Result<String, String> {
+    match provider.kind {
+        OnlineAiProviderKind::OpenaiCompatible => {
+            let url = openai_compatible_endpoint(&provider.base_url);
+            let mut content = vec![json!({ "type": "text", "text": prompt })];
+            if let Some(image) = image {
+                content.push(json!({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": format!("data:{};base64,{}", image.mime, image.base64),
+                        "detail": "auto"
+                    }
+                }));
+            }
+            let body = json!({
+                "model": provider.model,
+                "messages": [
+                    { "role": "system", "content": provider.system_prompt },
+                    { "role": "user", "content": content }
+                ]
+            });
+            let headers = if is_openrouter(&provider.base_url) {
+                vec![
+                    ("HTTP-Referer", "https://github.com/diyuWF/lap".to_string()),
+                    ("X-OpenRouter-Title", "Lap".to_string()),
+                ]
+            } else {
+                Vec::new()
+            };
+            extract_openai_text(&send_request(provider, &url, body, &headers, true).await?)
+        }
+        OnlineAiProviderKind::Gemini => {
+            let url = endpoint(
+                &provider.base_url,
+                &format!("models/{}:generateContent", provider.model),
+            );
+            let mut parts = vec![json!({
+                "text": prompt
+            })];
+            if let Some(image) = image {
+                parts.push(json!({
+                    "inline_data": {
+                        "mime_type": image.mime,
+                        "data": image.base64
+                    }
+                }));
+            }
+            let body = json!({
+                "systemInstruction": { "parts": [{ "text": provider.system_prompt }] },
+                "contents": [{ "role": "user", "parts": parts }],
+                "generationConfig": {
+                    "temperature": 0.1,
+                    "responseMimeType": "application/json"
+                }
+            });
+            let headers = vec![("x-goog-api-key", provider.api_key.clone())];
+            extract_gemini_text(&send_request(provider, &url, body, &headers, false).await?)
+        }
+        OnlineAiProviderKind::Anthropic => {
+            let url = endpoint(&provider.base_url, "messages");
+            let mut content = Vec::new();
+            if let Some(image) = image {
+                content.push(json!({
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": image.mime,
+                        "data": image.base64
+                    }
+                }));
+            }
+            content.push(json!({ "type": "text", "text": prompt }));
+            let body = json!({
+                "model": provider.model,
+                "max_tokens": 1400,
+                "temperature": 0.1,
+                "system": provider.system_prompt,
+                "messages": [{ "role": "user", "content": content }]
+            });
+            let headers = vec![
+                ("x-api-key", provider.api_key.clone()),
+                ("anthropic-version", "2023-06-01".to_string()),
+            ];
+            extract_anthropic_text(&send_request(provider, &url, body, &headers, false).await?)
+        }
+    }
+}
+
+fn strip_json_fence(value: &str) -> &str {
+    let trimmed = value.trim();
+    if !trimmed.starts_with("```") {
+        return trimmed;
+    }
+    let without_start = trimmed
+        .strip_prefix("```json")
+        .or_else(|| trimmed.strip_prefix("```JSON"))
+        .or_else(|| trimmed.strip_prefix("```"))
+        .unwrap_or(trimmed)
+        .trim_start();
+    without_start
+        .strip_suffix("```")
+        .unwrap_or(without_start)
+        .trim()
+}
+
+fn normalize_analysis(
+    mut analysis: OnlineAiAnalysis,
+    provider: &StoredOnlineAiProvider,
+) -> OnlineAiAnalysis {
+    let mut seen = HashSet::new();
+    analysis.tags = analysis
+        .tags
+        .into_iter()
+        .map(|tag| tag.trim().trim_matches('#').to_string())
+        .filter(|tag| !tag.is_empty())
+        .filter(|tag| seen.insert(tag.to_lowercase()))
+        .take(provider.max_tags)
+        .collect();
+    analysis.dominant_colors = analysis
+        .dominant_colors
+        .into_iter()
+        .map(|color| color.trim().to_uppercase())
+        .filter(|color| {
+            color.len() == 7
+                && color.starts_with('#')
+                && color
+                    .chars()
+                    .skip(1)
+                    .all(|character| character.is_ascii_hexdigit())
+        })
+        .take(8)
+        .collect();
+    analysis.confidence = analysis.confidence.clamp(0.0, 1.0);
+    analysis.title = analysis.title.trim().chars().take(180).collect();
+    analysis.description = analysis.description.trim().chars().take(1200).collect();
+    analysis.target_folder_path = analysis
+        .target_folder_path
+        .map(|path| path.trim().chars().take(500).collect::<String>())
+        .filter(|path| !path.is_empty());
+    analysis.organization_reason = analysis
+        .organization_reason
+        .trim()
+        .chars()
+        .take(500)
+        .collect();
+    analysis
+}
+
+fn parse_analysis(
+    raw: &str,
+    provider: &StoredOnlineAiProvider,
+) -> Result<OnlineAiAnalysis, String> {
+    let clean = strip_json_fence(raw);
+    let value: JsonValue = serde_json::from_str(clean)
+        .map_err(|_| "AI 返回的内容不是有效 JSON，请恢复内置提示词后重试".to_string())?;
+    let valid = value.get("title").is_some_and(JsonValue::is_string)
+        && value.get("description").is_some_and(JsonValue::is_string)
+        && value.get("tags").and_then(JsonValue::as_array)
+            .is_some_and(|items| items.iter().all(JsonValue::is_string))
+        && value.get("dominantColors").and_then(JsonValue::as_array)
+            .is_some_and(|items| items.iter().all(JsonValue::is_string))
+        && value.get("confidence").and_then(JsonValue::as_f64)
+            .is_some_and(|score| (0.0..=1.0).contains(&score));
+    if !valid {
+        return Err("AI 返回的 JSON 缺少必要字段或类型不正确，请恢复内置提示词后重试".to_string());
+    }
+    let analysis: OnlineAiAnalysis = serde_json::from_value(value)
+        .map_err(|_| "AI 返回的分类字段格式不正确".to_string())?;
+    Ok(normalize_analysis(analysis, provider))
+}
+
+fn without_folder_choice(mut analysis: OnlineAiAnalysis) -> OnlineAiAnalysis {
+    // A generic metadata request has no validated folder candidate list.
+    // Folder plans are only created through the explicit inbox plan action.
+    analysis.target_folder_id = None;
+    analysis.target_folder_path = None;
+    analysis.organization_reason.clear();
+    analysis
+}
+
+fn save_suggestions(
+    file_id: i64,
+    provider: &StoredOnlineAiProvider,
+    analysis: &OnlineAiAnalysis,
+    tags_applied: bool,
+) -> Result<Option<i64>, String> {
+    t_dam::ensure_schema()?;
+    let mut conn = t_sqlite::open_conn()?;
+    let transaction = conn.transaction().map_err(|error| error.to_string())?;
+    transaction
+        .execute(
+            "DELETE FROM dam_ai_suggestions WHERE file_id = ?1 AND provider = ?2 AND model = ?3 AND status = 'pending'",
+            params![file_id, provider.id, provider.model],
+        )
+        .map_err(|error| error.to_string())?;
+    let now = Utc::now().timestamp_millis();
+    if analysis.target_folder_id.is_some() {
+        transaction
+            .execute(
+                "UPDATE dam_ai_suggestions
+                 SET status = 'rejected', reviewed_at = ?2
+                 WHERE file_id = ?1
+                   AND kind = 'folder'
+                   AND status IN ('pending', 'accepted')",
+                params![file_id, now],
+            )
+            .map_err(|error| error.to_string())?;
+    }
+
+    let insert = |kind: &str, value: &str, status: &str| -> Result<Option<i64>, String> {
+        if value.trim().is_empty() {
+            return Ok(None);
+        }
+        transaction
+            .execute(
+                "INSERT INTO dam_ai_suggestions (file_id, kind, value, confidence, provider, model, status, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![file_id, kind, value, analysis.confidence, provider.id, provider.model, status, now],
+            )
+            .map_err(|error| error.to_string())?;
+        Ok(Some(transaction.last_insert_rowid()))
+    };
+
+    let _ = insert("title", &analysis.title, "pending")?;
+    let _ = insert("description", &analysis.description, "pending")?;
+    for tag in &analysis.tags {
+        let _ = insert("tag", tag, if tags_applied { "applied" } else { "pending" })?;
+    }
+    for color in &analysis.dominant_colors {
+        let _ = insert("color", color, "pending")?;
+    }
+    let folder_suggestion_id = match (
+        analysis.target_folder_id,
+        analysis.target_folder_path.as_deref(),
+    ) {
+        (Some(folder_id), Some(display_path)) => {
+            let value = serde_json::to_string(&AiFolderSuggestionValue {
+                folder_id,
+                display_path: display_path.to_string(),
+                reason: analysis.organization_reason.clone(),
+            })
+            .map_err(|error| error.to_string())?;
+            insert("folder", &value, "pending")?
+        }
+        _ => None,
+    };
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(folder_suggestion_id)
 }
 
 #[tauri::command]
-pub async fn test_online_ai_provider(_provider_id: String) -> Result<(), String> {
-    Err("在线 AI 测试接口待接入。".to_string())
+pub async fn test_online_ai_provider(
+    provider_id: Option<String>,
+    input: Option<OnlineAiProviderInput>,
+) -> Result<OnlineAiProviderTestResult, String> {
+    let provider = if let Some(input) = input {
+        let config = load_config()?;
+        let existing = input.id.as_ref().and_then(|id|
+            config.providers.iter().find(|provider| &provider.id == id));
+        provider_from_input(input, existing)?
+    } else {
+        find_provider(&provider_id.ok_or_else(|| "请填写服务配置".to_string())?)?
+    };
+    if provider.api_key.trim().is_empty() {
+        return Err("请填写 API 密钥后再测试".to_string());
+    }
+    let started = Instant::now();
+    // A generated test pattern verifies the actual multimodal request path without user files.
+    let image = image::RgbImage::from_fn(128, 128, |x, y| {
+        if (32..96).contains(&x) && (32..96).contains(&y) {
+            image::Rgb([160u8, 100, 240])
+        } else {
+            image::Rgb([245u8, 245, 245])
+        }
+    });
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::ImageRgb8(image)
+        .write_to(&mut bytes, image::ImageFormat::Png)
+        .map_err(|error| format!("测试图生成失败：{}", error))?;
+    let image = ImagePayload { mime: "image/png".to_string(), base64: STANDARD.encode(bytes.into_inner()) };
+    let prompt = analysis_prompt(&provider);
+    let raw = call_provider(&provider, Some(&image), &prompt).await?;
+    let analysis = parse_analysis(&raw, &provider)?;
+    Ok(OnlineAiProviderTestResult {
+        ok: true,
+        provider_id: provider.id,
+        model: provider.model,
+        message: "测试图请求成功，模型返回了有效的分类 JSON；配置尚未自动保存".to_string(),
+        elapsed_ms: started.elapsed().as_millis() as i64,
+        analysis,
+    })
 }
 
 #[tauri::command]
 pub async fn analyze_file_with_online_ai(
-    _file_id: i64,
-    _provider_id: String,
-    _force_auto_apply: Option<bool>,
+    file_id: i64,
+    provider_id: String,
+    force_auto_apply: Option<bool>,
 ) -> Result<OnlineAiAnalysisResult, String> {
-    Err("在线 AI 分析接口待接入。".to_string())
+    let provider = find_provider(&provider_id)?;
+    let image = load_image_payload(file_id)?;
+    let prompt = analysis_prompt(&provider);
+    let raw = call_provider(&provider, Some(&image), &prompt).await?;
+    let analysis = without_folder_choice(parse_analysis(&raw, &provider)?);
+    let should_apply = force_auto_apply.unwrap_or(provider.auto_apply_tags)
+        && analysis.confidence >= provider.min_confidence
+        && !analysis.tags.is_empty();
+    let applied_tag_ids = if should_apply {
+        t_dam::apply_tags(file_id, &analysis.tags)?
+    } else {
+        Vec::new()
+    };
+    let workflow_updated = if should_apply && provider.auto_mark_reviewed {
+        t_dam::set_workflow_status(file_id, "reviewed")?;
+        true
+    } else {
+        false
+    };
+    let folder_suggestion_id = save_suggestions(file_id, &provider, &analysis, should_apply)?;
+
+    Ok(OnlineAiAnalysisResult {
+        provider_id: provider.id,
+        provider_name: provider.name,
+        model: provider.model,
+        file_id,
+        analysis,
+        applied_tag_ids,
+        tags_applied: should_apply,
+        workflow_updated,
+        folder_suggestion_id,
+    })
+}
+
+pub async fn analyze_file_for_organization(
+    file_id: i64,
+    provider_id: String,
+    folders: Vec<OnlineAiFolderOption>,
+    force_auto_apply: Option<bool>,
+) -> Result<OnlineAiAnalysisResult, String> {
+    let mut proposed = propose_file_organization(file_id, provider_id, folders).await?;
+    let provider = find_provider(&proposed.provider_id)?;
+    let analysis = &proposed.analysis;
+    let should_apply = force_auto_apply.unwrap_or(provider.auto_apply_tags)
+        && analysis.confidence >= provider.min_confidence
+        && !analysis.tags.is_empty();
+    let applied_tag_ids = if should_apply {
+        t_dam::apply_tags(file_id, &analysis.tags)?
+    } else {
+        Vec::new()
+    };
+    let folder_suggestion_id = save_suggestions(file_id, &provider, analysis, should_apply)?;
+
+    proposed.applied_tag_ids = applied_tag_ids;
+    proposed.tags_applied = should_apply;
+    proposed.folder_suggestion_id = folder_suggestion_id;
+    Ok(proposed)
+}
+
+// One-click classification asks for a target without saving a visible plan.
+// Callers move the file before marking the result as complete.
+pub(crate) async fn propose_file_organization(
+    file_id: i64,
+    provider_id: String,
+    folders: Vec<OnlineAiFolderOption>,
+) -> Result<OnlineAiAnalysisResult, String> {
+    if folders.is_empty() {
+        return Err("没有可供 AI 选择的目标文件夹".to_string());
+    }
+    let provider = find_provider(&provider_id)?;
+    let image = load_image_payload(file_id)?;
+    let prompt = organization_prompt(&provider, &folders)?;
+    let raw = call_provider(&provider, Some(&image), &prompt).await?;
+    let mut analysis = parse_analysis(&raw, &provider)?;
+    let target_folder_id = analysis
+        .target_folder_id
+        .ok_or_else(|| "AI 没有返回目标文件夹".to_string())?;
+    let target = folders
+        .iter()
+        .find(|folder| folder.folder_id == target_folder_id)
+        .ok_or_else(|| "AI 返回了候选范围外的文件夹，请重试".to_string())?;
+    analysis.target_folder_path = Some(target.display_path.clone());
+    Ok(OnlineAiAnalysisResult {
+        provider_id: provider.id,
+        provider_name: provider.name,
+        model: provider.model,
+        file_id,
+        analysis,
+        applied_tag_ids: Vec::new(),
+        tags_applied: false,
+        workflow_updated: false,
+        folder_suggestion_id: None,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generic_metadata_analysis_cannot_create_a_folder_plan() {
+        let analysis = OnlineAiAnalysis {
+            title: "Reference".into(),
+            target_folder_id: Some(12),
+            target_folder_path: Some("Local/Inbox".into()),
+            organization_reason: "untrusted folder".into(),
+            ..Default::default()
+        };
+        let normalized = without_folder_choice(analysis);
+        assert_eq!(normalized.title, "Reference");
+        assert!(normalized.target_folder_id.is_none());
+        assert!(normalized.target_folder_path.is_none());
+        assert!(normalized.organization_reason.is_empty());
+    }
+
+    fn input() -> OnlineAiProviderInput {
+        serde_json::from_value(json!({
+            "name": "Test service", "kind": "openai_compatible",
+            "baseUrl": "https://api.deepseek.com", "model": "deepseek-flash",
+            "apiKey": "fixture-key", "systemPrompt": " "
+        })).unwrap()
+    }
+
+    #[test]
+    fn draft_uses_builtin_prompt_and_preserves_custom_edits() {
+        let provider = provider_from_input(input(), None).unwrap();
+        assert_eq!(provider.system_prompt, DEFAULT_SYSTEM_PROMPT);
+        let mut draft = input();
+        draft.system_prompt = Some("custom rules".into());
+        draft.model = "edited-model".into();
+        let provider = provider_from_input(draft, None).unwrap();
+        assert_eq!(provider.system_prompt, "custom rules");
+        assert_eq!(provider.model, "edited-model");
+        assert!(analysis_prompt(&provider).contains("dominantColors"));
+    }
+
+    #[test]
+    fn stored_key_is_reused_only_for_the_same_destination() {
+        let saved = provider_from_input(input(), None).unwrap();
+        let mut draft = input();
+        draft.api_key = None;
+        assert_eq!(provider_from_input(draft.clone(), Some(&saved)).unwrap().api_key, "fixture-key");
+        draft.base_url = "https://api.openai.com/v1".into();
+        assert!(provider_from_input(draft.clone(), Some(&saved)).is_err());
+        draft.api_key = Some("new-service-key".into());
+        assert_eq!(provider_from_input(draft, Some(&saved)).unwrap().api_key, "new-service-key");
+    }
+
+    #[test]
+    fn changing_protocol_also_requires_a_new_key() {
+        let saved = provider_from_input(input(), None).unwrap();
+        let mut draft = input();
+        draft.api_key = None;
+        draft.kind = OnlineAiProviderKind::Gemini;
+        assert!(provider_from_input(draft, Some(&saved)).is_err());
+    }
+
+    #[test]
+    fn empty_or_wrong_json_is_not_a_successful_connection_test() {
+        let provider = provider_from_input(input(), None).unwrap();
+        assert!(parse_analysis("{}", &provider).is_err());
+        assert!(parse_analysis(r#"{"title":"x","description":"","tags":"wrong","dominantColors":[],"confidence":0.9}"#, &provider).is_err());
+        assert!(parse_analysis(r#"{"title":"x","description":"","tags":[],"dominantColors":[],"confidence":2}"#, &provider).is_err());
+        assert!(parse_analysis(r#"{"title":"x","description":"","tags":["subject:test"],"dominantColors":[],"confidence":0.9}"#, &provider).is_ok());
+    }
+
+    #[test]
+    fn parsing_errors_do_not_echo_private_model_output() {
+        let provider = provider_from_input(input(), None).unwrap();
+        assert!(!parse_analysis("private-user-content", &provider).unwrap_err().contains("private-user-content"));
+        assert!(!extract_openai_text(&json!({"private": "secret"})).unwrap_err().contains("secret"));
+    }
+
+    #[test]
+    fn gemini_thinking_parts_are_not_mixed_into_classification_json() {
+        let result = extract_gemini_text(&json!({"candidates": [{"content": {"parts": [
+            {"thought": true, "text": "internal reasoning"}, {"text": "{}"}
+        ]}}]})).unwrap();
+        assert_eq!(result, "{}");
+    }
 }

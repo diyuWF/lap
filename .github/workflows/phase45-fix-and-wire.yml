@@ -1,0 +1,145 @@
+name: Phase 4-5 fix and wire
+
+on:
+  push:
+    branches:
+      - feat/phase4-ai-preview-pipeline
+    paths:
+      - .github/workflows/phase45-fix-and-wire.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/phase4-ai-preview-pipeline
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Wire batch AI and fix localization audit
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one occurrence, found {count}: {old[:160]!r}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          replace_once(
+              'src-vite/src/components/AiInboxWorkbench.vue',
+              '<option value="inbox">Inbox</option>',
+              '<option value="inbox">待整理</option>',
+          )
+
+          replace_once(
+              'src-tauri/src/main.rs',
+              'mod t_ai;\nmod t_ai_online;',
+              'mod t_ai;\nmod t_ai_batch;\nmod t_ai_online;',
+          )
+          replace_once(
+              'src-tauri/src/main.rs',
+              '            t_ai_online::analyze_file_with_online_ai,\n            // AI suggestion review',
+              '            t_ai_online::analyze_file_with_online_ai,\n            t_ai_batch::list_online_ai_batch_candidates,\n            t_ai_batch::analyze_files_with_online_ai,\n            // AI suggestion review',
+          )
+
+          replace_once(
+              'src-vite/src/common/dam-api.js',
+              '''export async function getPreviewDescriptor(fileId) {\n  return invoke('get_preview_descriptor', { fileId });\n}\n''',
+              '''export async function getPreviewDescriptor(fileId) {\n  return invoke('get_preview_descriptor', { fileId });\n}\n\nexport async function listOnlineAiBatchCandidates(\n  workflowStatus = 'inbox',\n  limit = 200,\n  includeAnalyzed = false,\n) {\n  return invoke('list_online_ai_batch_candidates', {\n    workflowStatus,\n    limit,\n    includeAnalyzed,\n  });\n}\n\nexport async function analyzeFilesWithOnlineAi(input) {\n  return invoke('analyze_files_with_online_ai', { input });\n}\n''',
+          )
+
+          replace_once(
+              'src-vite/src/views/Settings.vue',
+              '''            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">\n              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">\n                <div>AI 建议审核</div>\n                <div class="text-xs text-base-content/30">接受或拒绝自动生成的标签、标题、描述和颜色建议</div>\n              </div>\n              <button class="btn btn-sm btn-ghost rounded-box bg-base-100 border border-base-content/30" @click="showAiReviewQueue = true">打开队列</button>\n            </div>''',
+              '''            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">\n              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">\n                <div>AI 建议审核</div>\n                <div class="text-xs text-base-content/30">接受或拒绝自动生成的标签、标题、描述和颜色建议</div>\n              </div>\n              <button class="btn btn-sm btn-ghost rounded-box bg-base-100 border border-base-content/30" @click="showAiReviewQueue = true">打开队列</button>\n            </div>\n            <div class="flex items-center justify-between gap-4 px-1 rounded-box hover:bg-base-100/10 transition-colors duration-200">\n              <div class="min-w-0 flex flex-col gap-0.5 text-sm leading-5">\n                <div>AI 批量整理工作台</div>\n                <div class="text-xs text-base-content/30">批量发现未整理素材并生成结构化建议</div>\n              </div>\n              <button class="btn btn-sm btn-primary rounded-box" @click="showAiInboxWorkbench = true">开始整理</button>\n            </div>''',
+          )
+          replace_once(
+              'src-vite/src/views/Settings.vue',
+              '''    <OnlineAiManager v-if="showOnlineAiManager" @close="showOnlineAiManager = false" />\n    <AiReviewQueue v-if="showAiReviewQueue" @close="showAiReviewQueue = false" />''',
+              '''    <OnlineAiManager v-if="showOnlineAiManager" @close="showOnlineAiManager = false" />\n    <AiReviewQueue v-if="showAiReviewQueue" @close="showAiReviewQueue = false" />\n    <AiInboxWorkbench\n      v-if="showAiInboxWorkbench"\n      @close="showAiInboxWorkbench = false"\n      @open-review="openAiReviewFromInbox"\n    />''',
+          )
+          replace_once(
+              'src-vite/src/views/Settings.vue',
+              "import AiReviewQueue from '@/components/AiReviewQueue.vue';\n",
+              "import AiReviewQueue from '@/components/AiReviewQueue.vue';\nimport AiInboxWorkbench from '@/components/AiInboxWorkbench.vue';\n",
+          )
+          replace_once(
+              'src-vite/src/views/Settings.vue',
+              '''const showOnlineAiManager = ref(false);\nconst showAiReviewQueue = ref(false);''',
+              '''const showOnlineAiManager = ref(false);\nconst showAiReviewQueue = ref(false);\nconst showAiInboxWorkbench = ref(false);''',
+          )
+          replace_once(
+              'src-vite/src/views/Settings.vue',
+              '''const onRestoreDone = () => {\n  showRestoreDialog.value = false;\n  emit('libraries-changed');\n};''',
+              '''const onRestoreDone = () => {\n  showRestoreDialog.value = false;\n  emit('libraries-changed');\n};\n\nconst openAiReviewFromInbox = () => {\n  showAiInboxWorkbench.value = false;\n  showAiReviewQueue.value = true;\n};''',
+          )
+
+          replace_once(
+              'src-vite/src/components/MediaViewer.vue',
+              '''        <template v-if="showExtraIcons">\n          <IconSeparator class="t-icon-size-sm text-base-content/30" />''',
+              '''        <template v-if="showExtraIcons">\n          <IconSeparator class="t-icon-size-sm text-base-content/30" />\n          <TButton\n            v-if="onlineAiEligible"\n            :icon="IconSparkles"\n            :disabled="fileIndex < 0 || isSlideShow || !canInteract"\n            :tooltip="'在线 AI 分析'"\n            @click="showAiAnalyzeDialog = true"\n          />''',
+          )
+          replace_once(
+              'src-vite/src/components/MediaViewer.vue',
+              '''    <ContextMenu\n      ref="backgroundContextMenuRef"''',
+              '''    <AiAnalyzeDialog\n      v-if="showAiAnalyzeDialog"\n      :file="file"\n      @close="showAiAnalyzeDialog = false"\n      @done="showAiAnalyzeDialog = false"\n    />\n\n    <ContextMenu\n      ref="backgroundContextMenuRef"''',
+          )
+          replace_once(
+              'src-vite/src/components/MediaViewer.vue',
+              "import PreviewPanel from '@/components/PreviewPanel.vue';\n",
+              "import PreviewPanel from '@/components/PreviewPanel.vue';\nimport AiAnalyzeDialog from '@/components/AiAnalyzeDialog.vue';\n",
+          )
+          replace_once(
+              'src-vite/src/components/MediaViewer.vue',
+              '''  IconVideoPlay,\n  IconLivePhoto,''',
+              '''  IconVideoPlay,\n  IconLivePhoto,\n  IconSparkles,''',
+          )
+          replace_once(
+              'src-vite/src/components/MediaViewer.vue',
+              '''const usePreviewPanel = computed(() => PREVIEW_PANEL_EXTENSIONS.has(currentExtension.value));\nconst isLivePhotoPlaying = ref(false);''',
+              '''const usePreviewPanel = computed(() => PREVIEW_PANEL_EXTENSIONS.has(currentExtension.value));\nconst onlineAiEligible = computed(() => [1, 2, 3].includes(Number(props.file?.file_type)));\nconst showAiAnalyzeDialog = ref(false);\nconst isLivePhotoPlaying = ref(false);''',
+          )
+          replace_once(
+              'src-vite/src/components/MediaViewer.vue',
+              '''  () => {\n    isLivePhotoPlaying.value = false;\n    livePhotoViewport.value = null;\n  },''',
+              '''  () => {\n    isLivePhotoPlaying.value = false;\n    livePhotoViewport.value = null;\n    showAiAnalyzeDialog.value = false;\n  },''',
+          )
+          PY
+
+          pnpm --dir src-vite install --frozen-lockfile
+          pnpm --dir src-vite build
+          cargo fmt --manifest-path src-tauri/Cargo.toml
+          git diff --check
+
+      - name: Commit integration changes
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            src-tauri/src/main.rs \
+            src-tauri/src/t_ai_batch.rs \
+            src-vite/src/common/dam-api.js \
+            src-vite/src/components/AiInboxWorkbench.vue \
+            src-vite/src/components/MediaViewer.vue \
+            src-vite/src/views/Settings.vue
+          git commit -m "fix: wire AI workbench and pass strict localization audit"
+          git push origin HEAD:feat/phase4-ai-preview-pipeline

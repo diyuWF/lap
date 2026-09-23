@@ -18,6 +18,7 @@ const MAX_REQUEST_BYTES: usize = 2 * 1024 * 1024;
 const MAX_DOWNLOAD_BYTES: u64 = 512 * 1024 * 1024;
 
 static CAPTURE_SERVER_INFO: OnceLock<CaptureServerInfo> = OnceLock::new();
+static CAPTURE_HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -38,12 +39,29 @@ pub struct CaptureRequest {
     pub site_name: Option<String>,
     pub alt_text: Option<String>,
     pub folder_path: Option<String>,
+    pub workflow_status: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
     #[serde(default)]
     pub metadata: JsonValue,
     #[serde(default)]
     pub allow_duplicate: bool,
+    #[serde(default)]
+    pub auto_classify: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateFolderRequest {
+    parent_path: String,
+    name: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FolderCoverRequest {
+    #[serde(default)]
+    folder_ids: Vec<i64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -56,6 +74,7 @@ pub struct CaptureResult {
     pub file_name: Option<String>,
     pub folder: Option<DamFolder>,
     pub applied_tag_ids: Vec<i64>,
+    pub ai_classification_started: bool,
     pub message: String,
 }
 
@@ -63,7 +82,25 @@ pub fn get_capture_server_info() -> Option<CaptureServerInfo> {
     CAPTURE_SERVER_INFO.get().cloned()
 }
 
-pub fn init_capture_server() {
+fn capture_http_client() -> Result<&'static reqwest::Client, String> {
+    if let Some(client) = CAPTURE_HTTP_CLIENT.get() {
+        return Ok(client);
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(90))
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .pool_idle_timeout(Duration::from_secs(90))
+        .pool_max_idle_per_host(8)
+        .build()
+        .map_err(|error| error.to_string())?;
+    let _ = CAPTURE_HTTP_CLIENT.set(client);
+    CAPTURE_HTTP_CLIENT
+        .get()
+        .ok_or_else(|| "Failed to initialize the browser capture HTTP client".to_string())
+}
+
+pub fn init_capture_server(app: tauri::AppHandle) {
     if CAPTURE_SERVER_INFO.get().is_some() {
         return;
     }
@@ -79,14 +116,15 @@ pub fn init_capture_server() {
     let server_token = token.clone();
 
     tauri::async_runtime::spawn(async move {
-        let listener = match tokio::net::TcpListener::bind(("127.0.0.1", DEFAULT_CAPTURE_PORT)).await {
-            Ok(listener) => listener,
-            Err(error) => {
-                eprintln!("Failed to bind browser capture server: {}", error);
-                let _ = sender.send(None);
-                return;
-            }
-        };
+        let listener =
+            match tokio::net::TcpListener::bind(("127.0.0.1", DEFAULT_CAPTURE_PORT)).await {
+                Ok(listener) => listener,
+                Err(error) => {
+                    eprintln!("Failed to bind browser capture server: {}", error);
+                    let _ = sender.send(None);
+                    return;
+                }
+            };
         let port = listener
             .local_addr()
             .map(|address| address.port())
@@ -97,6 +135,9 @@ pub fn init_capture_server() {
             port,
             api_version: 1,
         };
+        // Publish from the listener task so a slow startup cannot leave an orphan service.
+        let _ = persist_server_info(&info);
+        let _ = CAPTURE_SERVER_INFO.set(info.clone());
         let _ = sender.send(Some(info));
 
         loop {
@@ -104,8 +145,9 @@ pub fn init_capture_server() {
                 continue;
             };
             let request_token = server_token.clone();
+            let request_app = app.clone();
             tauri::async_runtime::spawn(async move {
-                if let Err(error) = handle_connection(stream, &request_token).await {
+                if let Err(error) = handle_connection(stream, &request_token, &request_app).await {
                     eprintln!("Browser capture request failed: {}", error);
                 }
             });
@@ -130,15 +172,28 @@ fn capture_config_dir() -> Result<PathBuf, String> {
 
 fn load_or_create_token() -> Result<String, String> {
     let token_path = capture_config_dir()?.join("token.txt");
-    if let Ok(existing) = std::fs::read_to_string(&token_path) {
-        let token = existing.trim();
-        if token.len() >= 32 && token.chars().all(|character| character.is_ascii_alphanumeric()) {
-            return Ok(token.to_string());
+    match std::fs::read_to_string(&token_path) {
+        Ok(existing) => {
+            let token = existing.trim();
+            if token.len() >= 32 && token.chars().all(|c| c.is_ascii_alphanumeric()) {
+                return Ok(token.to_string());
+            }
+            return Err("Stored browser capture token is invalid; refusing to overwrite it".into());
         }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.to_string()),
     }
-
     let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
-    std::fs::write(&token_path, &token).map_err(|error| error.to_string())?;
+    use std::io::Write;
+    // Never overwrite a credential created by another process during startup.
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&token_path)
+        .map_err(|error| error.to_string())?;
+    file.write_all(token.as_bytes())
+        .map_err(|error| error.to_string())?;
+    file.sync_all().map_err(|error| error.to_string())?;
     Ok(token)
 }
 
@@ -151,8 +206,11 @@ fn persist_server_info(info: &CaptureServerInfo) -> Result<(), String> {
 async fn handle_connection(
     mut stream: tokio::net::TcpStream,
     expected_token: &str,
+    app: &tauri::AppHandle,
 ) -> Result<(), String> {
-    let request = read_request(&mut stream).await?;
+    let request = tokio::time::timeout(Duration::from_secs(15), read_request(&mut stream))
+        .await
+        .map_err(|_| "Request headers/body timed out")??;
 
     if request.method == "OPTIONS" {
         return write_json(&mut stream, "204 No Content", &json!({})).await;
@@ -162,9 +220,35 @@ async fn handle_connection(
         return write_json(
             &mut stream,
             "200 OK",
-            &json!({ "ok": true, "apiVersion": 1, "app": "Lap" }),
+            &json!({ "ok": true, "apiVersion": 1, "app": "Lap", "pairingSupported": true }),
         )
         .await;
+    }
+
+    if request.method == "POST" && request.path.starts_with("/pair/") {
+        let origin = request
+            .headers
+            .get("origin")
+            .map(String::as_str)
+            .unwrap_or_default();
+        let result = match request.path.as_str() {
+            "/pair/request" => crate::t_capture_pairing::begin(app, origin),
+            "/pair/status" => serde_json::from_slice::<JsonValue>(&request.body)
+                .map_err(|_| "Invalid JSON".to_string())
+                .and_then(|body| crate::t_capture_pairing::status(origin, &body, expected_token)),
+            _ => Err("Unknown pairing route".into()),
+        };
+        return match result {
+            Ok(value) => write_json(&mut stream, "200 OK", &value).await,
+            Err(error) => {
+                write_json(
+                    &mut stream,
+                    "400 Bad Request",
+                    &json!({"ok":false,"error":error}),
+                )
+                .await
+            }
+        };
     }
 
     let supplied_token = request
@@ -183,19 +267,96 @@ async fn handle_connection(
 
     match (request.method.as_str(), request.path.as_str()) {
         ("GET", "/folders") => match t_dam::list_folders() {
-            Ok(folders) => write_json(
-                &mut stream,
-                "200 OK",
-                &json!({ "ok": true, "folders": folders }),
-            )
-            .await,
-            Err(error) => write_json(
-                &mut stream,
-                "500 Internal Server Error",
-                &json!({ "ok": false, "error": error }),
-            )
-            .await,
+            Ok(folders) => {
+                let ai_configured = crate::t_ai_online::list_online_ai_providers()
+                    .map(|providers| {
+                        providers
+                            .iter()
+                            .any(|provider| provider.enabled && provider.has_api_key)
+                    })
+                    .unwrap_or(false);
+                write_json(
+                    &mut stream,
+                    "200 OK",
+                    &json!({
+                        "ok": true,
+                        "folders": folders,
+                        "aiConfigured": ai_configured
+                    }),
+                )
+                .await
+            }
+            Err(error) => {
+                write_json(
+                    &mut stream,
+                    "500 Internal Server Error",
+                    &json!({ "ok": false, "error": error }),
+                )
+                .await
+            }
         },
+        ("POST", "/folders") => {
+            let create_request: CreateFolderRequest = match serde_json::from_slice(&request.body) {
+                Ok(value) => value,
+                Err(error) => {
+                    return write_json(
+                        &mut stream,
+                        "400 Bad Request",
+                        &json!({ "ok": false, "error": format!("Invalid JSON: {}", error) }),
+                    )
+                    .await;
+                }
+            };
+            match t_dam::create_child_folder(&create_request.parent_path, &create_request.name) {
+                Ok(folder) => {
+                    write_json(
+                        &mut stream,
+                        "201 Created",
+                        &json!({ "ok": true, "folder": folder }),
+                    )
+                    .await
+                }
+                Err(error) => {
+                    write_json(
+                        &mut stream,
+                        "422 Unprocessable Entity",
+                        &json!({ "ok": false, "error": error }),
+                    )
+                    .await
+                }
+            }
+        }
+        ("POST", "/folder-covers") => {
+            let cover_request: FolderCoverRequest = match serde_json::from_slice(&request.body) {
+                Ok(value) => value,
+                Err(error) => {
+                    return write_json(
+                        &mut stream,
+                        "400 Bad Request",
+                        &json!({ "ok": false, "error": format!("Invalid JSON: {}", error) }),
+                    )
+                    .await;
+                }
+            };
+            match t_dam::get_folder_covers(&cover_request.folder_ids) {
+                Ok(covers) => {
+                    write_json(
+                        &mut stream,
+                        "200 OK",
+                        &json!({ "ok": true, "covers": covers }),
+                    )
+                    .await
+                }
+                Err(error) => {
+                    write_json(
+                        &mut stream,
+                        "500 Internal Server Error",
+                        &json!({ "ok": false, "error": error }),
+                    )
+                    .await
+                }
+            }
+        }
         ("POST", "/capture") => {
             let capture_request: CaptureRequest = match serde_json::from_slice(&request.body) {
                 Ok(value) => value,
@@ -210,12 +371,14 @@ async fn handle_connection(
             };
             match capture_remote_asset(capture_request).await {
                 Ok(result) => write_json(&mut stream, "200 OK", &result).await,
-                Err(error) => write_json(
-                    &mut stream,
-                    "422 Unprocessable Entity",
-                    &json!({ "ok": false, "error": error }),
-                )
-                .await,
+                Err(error) => {
+                    write_json(
+                        &mut stream,
+                        "422 Unprocessable Entity",
+                        &json!({ "ok": false, "error": error }),
+                    )
+                    .await
+                }
             }
         }
         _ => {
@@ -243,7 +406,10 @@ async fn read_request(stream: &mut tokio::net::TcpStream) -> Result<HttpRequest,
     let mut content_length = 0usize;
 
     loop {
-        let read = stream.read(&mut buffer).await.map_err(|error| error.to_string())?;
+        let read = stream
+            .read(&mut buffer)
+            .await
+            .map_err(|error| error.to_string())?;
         if read == 0 {
             break;
         }
@@ -270,7 +436,9 @@ async fn read_request(stream: &mut tokio::net::TcpStream) -> Result<HttpRequest,
     let header_end = header_end.ok_or_else(|| "Incomplete HTTP headers".to_string())?;
     let header_text = String::from_utf8_lossy(&data[..header_end]);
     let mut lines = header_text.split("\r\n");
-    let request_line = lines.next().ok_or_else(|| "Missing request line".to_string())?;
+    let request_line = lines
+        .next()
+        .ok_or_else(|| "Missing request line".to_string())?;
     let mut request_parts = request_line.split_whitespace();
     let method = request_parts.next().unwrap_or_default().to_uppercase();
     let path = request_parts
@@ -287,7 +455,12 @@ async fn read_request(stream: &mut tokio::net::TcpStream) -> Result<HttpRequest,
         }
     }
     let body_start = header_end + 4;
-    let body_end = body_start.saturating_add(content_length).min(data.len());
+    let body_end = body_start
+        .checked_add(content_length)
+        .ok_or("Request body is too large")?;
+    if body_end > data.len() {
+        return Err("Incomplete HTTP body".into());
+    }
 
     Ok(HttpRequest {
         method,
@@ -343,6 +516,16 @@ async fn capture_remote_asset(request: CaptureRequest) -> Result<CaptureResult, 
 
     if !request.allow_duplicate {
         if let Some(file_id) = t_dam::find_file_by_source_url(source_url)? {
+            t_dam::set_workflow_status(
+                file_id,
+                request.workflow_status.as_deref().unwrap_or("inbox"),
+            )?;
+            let applied_tag_ids = t_dam::apply_tags(file_id, &request.tags)?;
+            let ai_classification_started = if request.auto_classify {
+                queue_online_ai_classification(file_id).unwrap_or(false)
+            } else {
+                false
+            };
             return Ok(CaptureResult {
                 ok: true,
                 duplicate: true,
@@ -350,20 +533,17 @@ async fn capture_remote_asset(request: CaptureRequest) -> Result<CaptureResult, 
                 file_path: None,
                 file_name: None,
                 folder: None,
-                applied_tag_ids: Vec::new(),
+                applied_tag_ids,
+                ai_classification_started,
                 message: "This source URL is already in the library".to_string(),
             });
         }
     }
 
-    let folder = t_dam::find_folder(request.folder_path.as_deref())?
-        .ok_or_else(|| "No Lap album folder is available. Add an album or an Inbox folder first.".to_string())?;
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(90))
-        .redirect(reqwest::redirect::Policy::limited(10))
-        .build()
-        .map_err(|error| error.to_string())?;
-    let mut builder = client
+    let folder = t_dam::find_folder(request.folder_path.as_deref())?.ok_or_else(|| {
+        "No Lap album folder is available. Add an album or an Inbox folder first.".to_string()
+    })?;
+    let mut builder = capture_http_client()?
         .get(source_url)
         .header(USER_AGENT, "Lap Browser Capture/1.0");
     if let Some(page_url) = request.page_url.as_deref() {
@@ -371,11 +551,14 @@ async fn capture_remote_asset(request: CaptureRequest) -> Result<CaptureResult, 
             builder = builder.header(REFERER, page_url);
         }
     }
-    let response = builder.send().await.map_err(|error| error.to_string())?;
+    let mut response = builder.send().await.map_err(|error| error.to_string())?;
     if !response.status().is_success() {
         return Err(format!("The source returned HTTP {}", response.status()));
     }
-    if response.content_length().is_some_and(|size| size > MAX_DOWNLOAD_BYTES) {
+    if response
+        .content_length()
+        .is_some_and(|size| size > MAX_DOWNLOAD_BYTES)
+    {
         return Err("The asset is larger than the 512 MB capture limit".to_string());
     }
 
@@ -383,7 +566,14 @@ async fn capture_remote_asset(request: CaptureRequest) -> Result<CaptureResult, 
         .headers()
         .get(CONTENT_TYPE)
         .and_then(|value| value.to_str().ok())
-        .map(|value| value.split(';').next().unwrap_or(value).trim().to_lowercase())
+        .map(|value| {
+            value
+                .split(';')
+                .next()
+                .unwrap_or(value)
+                .trim()
+                .to_lowercase()
+        })
         .unwrap_or_else(|| "application/octet-stream".to_string());
     let disposition_name = response
         .headers()
@@ -391,9 +581,12 @@ async fn capture_remote_asset(request: CaptureRequest) -> Result<CaptureResult, 
         .and_then(|value| value.to_str().ok())
         .and_then(filename_from_content_disposition);
     let resolved_url = response.url().as_str().to_string();
-    let bytes = response.bytes().await.map_err(|error| error.to_string())?;
-    if bytes.len() as u64 > MAX_DOWNLOAD_BYTES {
-        return Err("The asset is larger than the 512 MB capture limit".to_string());
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(|error| error.to_string())? {
+        if bytes.len() as u64 + chunk.len() as u64 > MAX_DOWNLOAD_BYTES {
+            return Err("The asset is larger than the 512 MB capture limit".to_string());
+        }
+        bytes.extend_from_slice(&chunk);
     }
 
     let filename = disposition_name
@@ -401,8 +594,26 @@ async fn capture_remote_asset(request: CaptureRequest) -> Result<CaptureResult, 
         .or_else(|| filename_from_url(source_url))
         .unwrap_or_else(|| format!("capture-{}", Utc::now().timestamp_millis()));
     let filename = ensure_extension(sanitize_filename(&filename), &mime);
-    let target_path = unique_target_path(Path::new(&folder.path), &filename);
-    std::fs::write(&target_path, &bytes).map_err(|error| error.to_string())?;
+    // Reserve the name atomically: simultaneous captures must not overwrite a file.
+    let (target_path, mut target_file) = loop {
+        let path = unique_target_path(Path::new(&folder.path), &filename);
+        match tokio::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .await
+        {
+            Ok(file) => break (path, file),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(error.to_string()),
+        }
+    };
+    if let Err(error) = target_file.write_all(&bytes).await {
+        drop(target_file);
+        let _ = tokio::fs::remove_file(&target_path).await;
+        return Err(error.to_string());
+    }
+    drop(target_file);
 
     let target_path_string = target_path.to_string_lossy().into_owned();
     let file_type = match t_utils::get_file_type(&target_path_string) {
@@ -420,7 +631,9 @@ async fn capture_remote_asset(request: CaptureRequest) -> Result<CaptureResult, 
             return Err(error);
         }
     };
-    let file_id = file.id.ok_or_else(|| "Imported file has no database ID".to_string())?;
+    let file_id = file
+        .id
+        .ok_or_else(|| "Imported file has no database ID".to_string())?;
     let source = CaptureSourceMetadata {
         source_url: source_url.to_string(),
         page_url: request.page_url,
@@ -431,8 +644,16 @@ async fn capture_remote_asset(request: CaptureRequest) -> Result<CaptureResult, 
         metadata: request.metadata,
     };
     t_dam::upsert_source_metadata(file_id, &source)?;
-    t_dam::set_workflow_status(file_id, "inbox")?;
+    t_dam::set_workflow_status(
+        file_id,
+        request.workflow_status.as_deref().unwrap_or("inbox"),
+    )?;
     let applied_tag_ids = t_dam::apply_tags(file_id, &request.tags)?;
+    let ai_classification_started = if request.auto_classify {
+        queue_online_ai_classification(file_id).unwrap_or(false)
+    } else {
+        false
+    };
 
     Ok(CaptureResult {
         ok: true,
@@ -442,13 +663,44 @@ async fn capture_remote_asset(request: CaptureRequest) -> Result<CaptureResult, 
         file_name: Some(file.name),
         folder: Some(folder),
         applied_tag_ids,
+        ai_classification_started,
         message: "Captured successfully".to_string(),
     })
 }
 
+fn queue_online_ai_classification(file_id: i64) -> Result<bool, String> {
+    let provider = crate::t_ai_online::list_online_ai_providers()?
+        .into_iter()
+        .find(|provider| provider.enabled && provider.has_api_key)
+        .ok_or_else(|| "没有可用的在线 AI 服务".to_string())?;
+    let provider_id = provider.id;
+    let folder_options =
+        crate::t_ai_batch::organization_folder_options("library", None).unwrap_or_default();
+
+    tauri::async_runtime::spawn(async move {
+        let result = if folder_options.is_empty() {
+            crate::t_ai_online::analyze_file_with_online_ai(file_id, provider_id, None).await
+        } else {
+            crate::t_ai_online::analyze_file_for_organization(
+                file_id,
+                provider_id,
+                folder_options,
+                None,
+            )
+            .await
+        };
+        if let Err(error) = result {
+            eprintln!("Browser capture AI classification failed: {}", error);
+        }
+    });
+    Ok(true)
+}
+
 fn filename_from_content_disposition(value: &str) -> Option<String> {
     for part in value.split(';') {
-        let (key, raw) = part.trim().split_once('=')?;
+        let Some((key, raw)) = part.trim().split_once('=') else {
+            continue;
+        };
         if key.trim().eq_ignore_ascii_case("filename") {
             return Some(raw.trim().trim_matches('"').to_string());
         }
@@ -507,11 +759,16 @@ fn unique_target_path(folder: &Path, filename: &str) -> PathBuf {
         return initial;
     }
     let path = Path::new(filename);
-    let stem = path.file_stem().and_then(|value| value.to_str()).unwrap_or("capture");
+    let stem = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("capture");
     let extension = path.extension().and_then(|value| value.to_str());
     for index in 1..10_000 {
         let candidate = match extension {
-            Some(extension) => folder.join(format!("{} ({}) .{}", stem, index, extension).replace(") .", ").")),
+            Some(extension) => {
+                folder.join(format!("{} ({}) .{}", stem, index, extension).replace(") .", ")."))
+            }
             None => folder.join(format!("{} ({})", stem, index)),
         };
         if !candidate.exists() {
@@ -519,4 +776,17 @@ fn unique_target_path(folder: &Path, filename: &str) -> PathBuf {
         }
     }
     folder.join(format!("{}-{}", stem, Uuid::new_v4().simple()))
+}
+
+#[cfg(test)]
+mod capture_regression_tests {
+    use super::*;
+    #[test]
+    fn disposition_parser_skips_attachment_directive() {
+        assert_eq!(
+            filename_from_content_disposition("attachment; filename=\"reference.png\""),
+            Some("reference.png".into())
+        );
+        assert_eq!(filename_from_content_disposition("inline"), None);
+    }
 }

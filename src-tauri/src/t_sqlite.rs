@@ -5035,6 +5035,17 @@ impl AFile {
         Self::query_files(&sql, &[&folder_id])
     }
 
+    /// Return the first image-like asset in a folder for lightweight folder covers.
+    pub fn get_first_image_by_folder_id(folder_id: i64) -> Result<Option<Self>, String> {
+        let sql = format!(
+            "{} WHERE a.folder_id = ?1 AND a.file_type IN (1, 3) ORDER BY a.name COLLATE NOCASE ASC LIMIT 1",
+            Self::build_base_query()
+        );
+        Ok(Self::query_files(&sql, &[&folder_id])?
+            .into_iter()
+            .next())
+    }
+
     // --- AI Logic ---
 
     /// check ai status

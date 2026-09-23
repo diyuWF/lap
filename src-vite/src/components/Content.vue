@@ -3,7 +3,7 @@
   <div
     ref="contentRootRef"
     tabindex="-1"
-    class="relative flex-1 flex flex-col select-none outline-none"
+    class="lap-content-root relative flex-1 flex flex-col select-none outline-none"
     :class="{ 'opacity-50 pointer-events-none': uiStore.isInputActive('ManageLibraries') }"
     @focus="activateContentPane"
     @mousedown.capture="activateContentPane"
@@ -24,7 +24,7 @@
     <!-- title bar -->
     <div
       v-if="!showWelcomeContent"
-      class="absolute top-0 left-0 right-0 px-2 h-12 flex flex-row flex-nowrap items-center justify-between bg-base-300 z-30 overflow-hidden"
+      class="lap-content-toolbar absolute top-0 left-0 right-0 px-2 h-12 flex flex-row flex-nowrap items-center justify-between bg-base-300 z-30 overflow-hidden"
       data-tauri-drag-region
     >
       <!-- title -->
@@ -642,10 +642,13 @@
 
 import { ref, watch, computed, createVNode, onMounted, onBeforeUnmount, nextTick, render, markRaw } from 'vue';
 import { emit as tauriEmit, listen } from '@tauri-apps/api/event';
-import { ask, open as openDialog } from '@tauri-apps/plugin-dialog';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { startDrag } from '@crabnebula/tauri-plugin-drag';
 import { useI18n } from 'vue-i18n';
 import { useToast } from '@/common/toast';
+import { confirmAction } from '@/common/confirmAction';
+import { createReferenceBoardDragSession } from '@/common/reference-board-drag.mjs';
 import { useUIStore } from '@/stores/uiStore';
 import { getAlbum, getAllAlbums, recountAlbum, getQueryCountAndSum, getQueryTimeLine, getQueryFiles, getGroupedQueryRows, getGroupFileIds, getQueryFileIds, syncAlbumFolderMtimes,
          getSmartQueryCountAndSum, getSmartQueryTimeLine, getSmartQueryFiles, getSmartGroupedQueryRows, getSmartGroupFileIds, getSmartQueryFileIds, getSmartQueryFilePosition,
@@ -661,7 +664,7 @@ import { getShortcutLabel, matchesShortcut, ShortcutActionId, ShortcutPlatform, 
 import { getSmartTagById, SMART_TAG_SEARCH_THRESHOLD } from '@/common/smartTags';
 import { getAlbumScanState, getAlbumScanIcon, shouldAnimateAlbumScanIcon } from '@/common/scanStatus';
 import { DATE_SORT, GROUP, LIB_ITEM, RATE, SIDEBAR } from '@/common/constants';
-import { isWin, isMac, isLinux, setTheme, separator,
+import { isWin, isMac, isLinux, isTauriRuntime, setTheme, separator,
          formatFileSize, formatDate, getCalendarDateRange, formatFolderBreadcrumb, getThumbnailDataUrl, getAssetSrc, getPreviewUrl,
          getCachedThumbnailDataUrl,
          clearCachedThumbnailDataUrl,
@@ -1385,7 +1388,7 @@ class CopyIndexError extends Error {}
 
 async function confirmLargeBatch(count: number) {
   if (count <= LARGE_BATCH_CONFIRM_THRESHOLD) return true;
-  return ask(
+  return confirmAction(
     t('info_panel.large_batch.content', { count: count.toLocaleString() }),
     {
       title: t('info_panel.large_batch.title'),
@@ -1940,9 +1943,15 @@ let pointerDragFiles: Array<{
   file_path: string;
   folder_id: number;
   album_id: number;
+  file_type?: number;
+  name?: string;
 }> | null = null;
 let dragGhostHotspotX = 0;
 let dragGhostHotspotY = 0;
+let nativeDragOutStarted = false;
+let referenceBoardPromptStarted = false;
+const referenceBoardDragSession = createReferenceBoardDragSession();
+let unlistenReferenceBoardClosed: (() => void) | null = null;
 
 function getExternalDropUris(dt: DataTransfer | null) {
   const value = dt?.getData('text/uri-list')
@@ -2285,9 +2294,124 @@ function createDragGhost(
   dragGhostAction = action;
 }
 
+function isAtAppBoundary(event: PointerEvent) {
+  const edge = 3;
+  return event.clientX <= edge
+    || event.clientY <= edge
+    || event.clientX >= window.innerWidth - edge
+    || event.clientY >= window.innerHeight - edge;
+}
+
+async function createReferenceBoardWindow() {
+  const label = 'referenceboard';
+  const existingWindow = await WebviewWindow.getByLabel(label);
+  if (existingWindow) {
+    await existingWindow.unminimize();
+    await existingWindow.show();
+    await existingWindow.setFocus();
+    return existingWindow;
+  }
+
+  return new Promise<WebviewWindow>((resolve, reject) => {
+    const referenceWindow = new WebviewWindow(label, {
+      url: '/reference-board',
+      title: 'Lap Reference Board',
+      shadow: false,
+      width: 1000,
+      height: 700,
+      minWidth: 520,
+      minHeight: 360,
+      resizable: true,
+      visible: false,
+      transparent: true,
+      decorations: false,
+      alwaysOnTop: true,
+      dragDropEnabled: true,
+    });
+    referenceWindow.once('tauri://created', async () => {
+      await referenceWindow.show();
+      await referenceWindow.setFocus();
+      resolve(referenceWindow);
+    });
+    referenceWindow.once('tauri://error', (error) => reject(error));
+  });
+}
+
+async function startNativeImageDragOut() {
+  if (
+    nativeDragOutStarted
+    || !isTauriRuntime
+    || !pointerDragFiles?.length
+  ) return;
+
+  const paths = pointerDragFiles
+    .filter(file => Number(file.file_type) === 1 && Boolean(file.file_path))
+    .map(file => file.file_path);
+  if (!paths.length) return;
+
+  nativeDragOutStarted = true;
+  await clearContentInternalDrag();
+
+  try {
+    await startDrag({
+      item: paths,
+      icon: paths[0],
+      mode: 'copy',
+    });
+  } catch (error) {
+    console.error('Failed to start native image drag:', error);
+    toast.warning(t('reference_board.drag_out_failed'));
+  } finally {
+    nativeDragOutStarted = false;
+  }
+}
+
+async function handleImageDragAtBoundary() {
+  if (
+    referenceBoardPromptStarted
+    || nativeDragOutStarted
+    || !isTauriRuntime
+    || !pointerDragFiles?.some(file => Number(file.file_type) === 1 && Boolean(file.file_path))
+  ) return;
+
+  referenceBoardPromptStarted = true;
+  try {
+    const existingWindow = await WebviewWindow.getByLabel('referenceboard');
+    // A hidden board retains its geometry but never counts as an open board.
+    if (await referenceBoardDragSession.nextDrag(existingWindow) === 'native') {
+      await startNativeImageDragOut();
+      return;
+    }
+
+    await clearContentInternalDrag();
+    const createBoard = await confirmAction(t('reference_board.create_prompt_message'), {
+      title: t('reference_board.create_prompt_title'),
+      variant: 'board',
+      okLabel: t('reference_board.create_prompt_ok'),
+      cancelLabel: t('reference_board.create_prompt_cancel'),
+    });
+    if (!createBoard) {
+      referenceBoardDragSession.chooseExternal();
+      toast.info(t('reference_board.external_drag_hint'));
+      return;
+    }
+
+    await createReferenceBoardWindow();
+  } catch (error) {
+    console.error('Failed to prepare image drag-out:', error);
+    toast.warning(t('reference_board.open_failed'));
+  } finally {
+    referenceBoardPromptStarted = false;
+  }
+}
+
 function updateContentDragPosition(event: PointerEvent) {
   if (!dragGhost || (event.clientX === 0 && event.clientY === 0)) return;
   dragGhost.style.transform = `translate3d(${Math.round(event.clientX - dragGhostHotspotX)}px, ${Math.round(event.clientY - dragGhostHotspotY)}px, 0)`;
+  if (isAtAppBoundary(event)) {
+    void handleImageDragAtBoundary();
+    return;
+  }
   const elementAtPointer = document.elementFromPoint(event.clientX, event.clientY);
   if (elementAtPointer?.closest('[data-collection-tray-root]') && !config.collectionTray.expanded) {
     config.collectionTray.expanded = true;
@@ -2318,6 +2442,7 @@ function markContentInternalDrag({
   const draggedFile = fileList.value[index];
   const fileItem = document.getElementById(`item-${index}`);
   if (!fileItem || !isRealFileItem(draggedFile)) return;
+  nativeDragOutStarted = false;
   isContentInternalDrag.value = true;
   const selected = getActionableSelectedItems();
   pointerDragUsesSelection = Boolean(draggedFile.isSelected && selectedCount.value > 0);
@@ -2328,6 +2453,8 @@ function markContentInternalDrag({
     file_path: f.file_path,
     folder_id: f.folder_id,
     album_id: f.album_id,
+    file_type: f.file_type,
+    name: f.name,
   }));
   createDragGhost(
     fileItem,
@@ -2364,6 +2491,8 @@ async function clearContentInternalDrag(event?: PointerEvent) {
         file_path: file.file_path,
         folder_id: file.folder_id,
         album_id: file.album_id,
+        file_type: file.file_type,
+        name: file.name,
       }));
     }
 
@@ -2667,6 +2796,13 @@ onMounted(() => {
 
   migrateRightPanelWidthToPixels();
   window.addEventListener('resize', handleWindowResize);
+  if (isTauriRuntime) {
+    void listen('reference-board:closed', () => {
+      referenceBoardDragSession.boardClosed();
+    }).then((unlisten) => {
+      unlistenReferenceBoardClosed = unlisten;
+    });
+  }
 });
 
 onBeforeUnmount(() => {
@@ -2684,6 +2820,7 @@ onBeforeUnmount(() => {
   if (unlistenImageViewer) unlistenImageViewer();
   if (unlistenImageEditor) unlistenImageEditor();
   if (unlistenLibraryTotalRefreshed) unlistenLibraryTotalRefreshed();
+  unlistenReferenceBoardClosed?.();
 });
 
 // New event handlers for GridView
@@ -6885,7 +7022,7 @@ const onMoveToFolder = async () => {
     : (files[0]?.name || '');
   const libraryDestination = await resolveLibraryDestination(destPath);
   if (!libraryDestination) {
-    const confirmed = await ask(
+    const confirmed = await confirmAction(
       t('msgbox.move_to_folder.warning', { source: sourceLabel, dest: destPath }),
       {
         title: t('msgbox.move_to_folder.confirm_title'),

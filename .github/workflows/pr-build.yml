@@ -49,9 +49,18 @@ jobs:
       - name: Validate browser extension
         run: |
           node --check lap-extension/background.js
+          node --check lap-extension/content.js
           node --check lap-extension/options.js
           node --check lap-extension/popup.js
           node -e "JSON.parse(require('fs').readFileSync('lap-extension/manifest.json','utf8')); console.log('manifest.json OK')"
+
+      - name: Install browser extension test dependencies
+        working-directory: scripts/extension-tests
+        run: npm ci --no-audit --no-fund
+
+      - name: Test browser extension interactions
+        working-directory: scripts/extension-tests
+        run: npm test
 
   phase-2-3-backend:
     name: Phase 2-3 - Rust backend

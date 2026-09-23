@@ -97,7 +97,7 @@ export const useConfigStore = defineStore('configStore', {
 
       // general settings
       language: 'en',             // default language
-      appearance: 1,              // appearance (0: light; 1: dark)
+      appearance: 0,              // appearance (0: light; 1: dark)
       lightTheme: 0,              // light theme color index
       darkTheme: 0,               // dark theme color index
       scale: 1,                   // root font-size scale

@@ -58,7 +58,7 @@
               @click.stop="expandAlbum(album)"
               @dblclick.stop
             />
-            <div class="w-10 h-10 mr-2 rounded-box shrink-0 overflow-hidden border border-base-content/5 bg-base-content/5" @click.stop>
+            <div class="w-10 h-10 mr-2 rounded-box shrink-0 overflow-hidden bg-base-content/5" @click.stop>
               <!-- Scanning / Paused / Queued -->
               <div v-if="isAlbumScanning(album.id)"
                 class="w-full h-full flex items-center justify-center cursor-pointer"

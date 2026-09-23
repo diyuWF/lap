@@ -1,0 +1,563 @@
+# Lap 0.4.1 Manual Validation Checklist
+
+## Validation information
+
+Tester: User
+
+Date: 2026-07-29
+
+Branch: `feat/phase4-ai-preview-pipeline`
+
+Manual feedback baseline commit: `d541af4f97cea3cd069ece8139324cb18b11d809`
+
+Manual feedback baseline package: `Lap-0.4.1-Chat-Delivery-12`
+
+Latest packaged candidate commit: `4eefde94d81ddbe7a745bf82b4c672e15ed5cafb`
+
+Latest packaged candidate: `Lap-0.4.1-Chat-Delivery-27`
+
+Next implementation commit: pending drag-preview footprint, purple palette, and logo-only AI-center correction
+
+Next candidate package: pending fresh GitHub build
+
+Automated gate:
+
+- PASS — PR Build #82
+- PASS — Chat Validation Package #27
+
+Environment: Windows desktop application and Chromium browser extension; Pinterest image detail page
+
+## 1. Installation and startup
+
+- [ ] Windows installer completes successfully
+- [ ] Application launches
+- [ ] Existing Lap library opens
+- [ ] Existing assets remain visible
+- [ ] Restart preserves settings
+- [ ] No database migration errors
+
+Result:
+
+Evidence:
+
+Issues:
+
+## 2. SVG preview
+
+- [ ] SVG is indexed
+- [ ] SVG opens in preview
+- [ ] Transparency is correct
+- [ ] Large SVG remains responsive
+
+Result:
+
+Evidence:
+
+Issues:
+
+## 3. PDF preview
+
+- [ ] PDF is indexed
+- [ ] PDF preview opens
+- [ ] Multi-page documents work
+- [ ] Zoom works
+- [ ] Non-English filenames work
+
+Result:
+
+Evidence:
+
+Issues:
+
+## 4. 3D preview
+
+Formats:
+
+- [ ] GLB
+- [ ] glTF
+- [ ] OBJ
+- [ ] STL
+
+Controls:
+
+- [ ] Orbit rotation
+- [ ] Zoom
+- [ ] Pan
+- [ ] Reset camera
+- [ ] Wireframe mode
+- [ ] Switching models releases previous resources
+- [ ] Invalid model produces useful error
+
+Result:
+
+Evidence:
+
+Issues:
+
+## 5. Browser extension
+
+Sites tested:
+
+- [ ] Normal webpage
+- [x] Pinterest
+- [ ] Behance
+- [ ] ArtStation
+
+Functions:
+
+- [ ] Extension loads
+- [ ] Local Lap connection works
+- [ ] Folder list loads
+- [ ] Single image capture works
+- [ ] Batch image discovery works
+- [ ] Destination folder selection works
+- [ ] Source URL saved
+- [ ] Page title saved
+- [ ] Duplicate handling works
+
+Result: FAILED — package 27 still does not open children when the visible drag preview covers a parent but its pointer hotspot remains outside the target; focused correction awaits a fresh package
+
+Evidence:
+
+- The extension settings page finds the capture service only after manually testing a copied address and Token.
+- With an invalid Token, the page shows raw English `Invalid pairing token`.
+- In Windows light mode, labels and default-rule controls have insufficient contrast.
+- Dragging an image immediately opens a large destination panel and uses a pointer card. This does not provide a clear intent threshold and is not the requested image-following interaction.
+- Earlier drag thresholds and the repeated tutorial made the action feel slow.
+- Small/lazy-loaded thumbnails do not reliably begin drag capture.
+- The extension points to an App Token location that does not exist in the current Advanced settings screen.
+- The extension does not use the official Lap icon.
+- After a parent level opens, the unchanged pointer position can hit a newly
+  rendered control and repeatedly bounce back to the root level.
+- A child level does not offer “save directly into the current parent” alongside
+  its child folders.
+- AI-center drops immediately trigger AI instead of collecting material for a
+  later manual one-click run, and the desktop “智能相册” does not expose that queue.
+- Saving displays an in-page “正在保存” surface and keeps the webpage blocked until
+  the local download finishes.
+
+Issues:
+
+- The setup flow needs a one-click local Lap detector that distinguishes “Lap not running”, “Lap found but Token missing”, and “Lap found but Token invalid”.
+- Light-theme labels, placeholders, status messages, and controls need accessible contrast.
+- The dragged image should become semi-transparent and follow the pointer with
+  no tutorial rail, timer, or progress bar before activation.
+- Total pointer-path length must accumulate even when the cursor returns toward
+  the image; the threshold is one third of browser width, not current
+  displacement or the shorter viewport side.
+- After the threshold, one instrument-like circular menu must dim/blur the page
+  and stay fixed at the exact viewport center.
+- The center contains only the original purple AI wordmark and its moving
+  particle halo; “AI 分类” remains the accessible and desktop-workspace name. A
+  drop must collect with `workflowStatus: inbox` and `autoClassify: false`; AI
+  starts only after the user opens the desktop AI classification workspace.
+- Folder destinations and “创建目录” must be circular controls distributed around
+  the inner orbit according to the available destination count.
+- The first level must contain only root folders. A parent activation must replace
+  that level with its direct children plus “保存到当前文件夹”, “返回上级”, and
+  “创建目录”; unrelated roots and deeper descendants must never be mixed. A
+  stationary pointer must not activate the newly rendered level.
+- Empty folders must show a folder icon; populated folders must show the first
+  image as a circular thumbnail and fall back safely if the thumbnail is missing.
+- Dropping on an existing radial folder should save immediately with no
+  confirmation dialog; “更多” should open the complete folder browser.
+- Every radial menu should append “创建目录”; dropping there should open an
+  in-page parent/name form, create a real child directory, and immediately save
+  the current image.
+- Small images, `draggable=false` thumbnails, lazy-loaded image sources, and images under a covering element need the same explicit drag flow.
+- `Settings → Advanced → Browser capture` must expose the local address and pairing Token that the extension asks users to copy.
+- The extension Manifest, popup, options page, and in-page save panel should use the official Lap icon.
+
+## 5.1 Localization
+
+Functions:
+
+- [ ] Language names are written in their own language
+- [ ] Changing language updates the Settings window immediately
+- [ ] Changing language updates the main window immediately
+- [ ] Online AI, review, batch, preview, and 3D surfaces do not remain Chinese under a non-Chinese locale
+
+Result: FAILED — localization fixes implemented; awaiting a fresh package
+
+Evidence:
+
+- The language selector displayed every language name in Chinese.
+- The Settings window changed its local i18n state, but the main window event only updated persisted configuration and did not update the global i18n locale.
+- Newly added AI analysis, review, batch, preview, 3D, settings, and manager surfaces contained hard-coded Chinese strings.
+
+Issues:
+
+- Use autonyms such as `English`, `Deutsch`, `Español`, `日本語`, and `한국어`.
+- Synchronize the global i18n locale when the persisted language changes.
+- Move newly added AI and preview text into the locale catalogs; non-Chinese locales must not fall back to hard-coded Chinese.
+
+## 6. Online AI
+
+Providers tested:
+
+- [x] OpenAI-compatible
+- [ ] Gemini
+- [ ] Anthropic
+
+Functions:
+
+- [x] Provider saves
+- [ ] API key is protected
+- [ ] Connection test works
+- [ ] Single-file analysis works
+- [ ] Batch analysis works
+- [ ] Suggestions enter review queue
+- [ ] Accept applies tags
+- [ ] Reject does not apply tags
+- [ ] Restart preserves configuration
+- [ ] Pending assets can generate folder plans
+- [ ] Scope can be limited to one selected root and its descendants
+- [ ] Scope can include the whole existing folder hierarchy
+- [ ] Folder plans require confirmation before files move
+- [ ] Confirmed plans move files with conflict-safe naming
+- [ ] Missing/deleted destinations are rejected without data loss
+
+Result: BLOCKED — automated package passed; awaiting manual provider retest
+
+Evidence:
+
+- OpenRouter configured with `https://openrouter.ai` now requests `https://openrouter.ai/api/v1/chat/completions`.
+- The provider returned JSON `HTTP 429` from Google AI Studio for `google/gemma-4-31b-it:free`, confirming that the request reached the correct API.
+- Lap displayed the complete upstream JSON payload, including an internal `user_id`, instead of a concise, safe explanation.
+
+Issues:
+
+- Upstream rate limits need a provider-aware Chinese message with retry, own-key, and model-switch guidance.
+- Raw provider payloads and internal identifiers must not be shown in the UI.
+
+## Final status
+
+- [ ] PASS — ready for merge
+- [ ] FAILED — defects require fixes
+- [x] BLOCKED — automated gate passed; waiting for manual validation
+
+## Defect log
+
+| ID | Description | Severity | Status |
+|---|---|---|---|
+| LAP-VAL-001 | OpenRouter root URL reached website HTML instead of the OpenAI-compatible JSON API. | High | Retest PASS — correct endpoint returned provider JSON |
+| LAP-VAL-002 | Browser drag capture lacked feedback and the overlay stylesheet was truncated. | High | Partial retest PASS; interaction design superseded by LAP-VAL-005 |
+| LAP-VAL-003 | HTTP 429 shows raw upstream JSON and an internal user identifier instead of a safe, actionable Chinese rate-limit message. | High | Candidate 13 built successfully; awaiting manual retest |
+| LAP-VAL-004 | Extension setup lacks local auto-detection, exposes a raw English Token error, and has insufficient light-theme contrast. | High | Candidate 13 built successfully; awaiting manual retest |
+| LAP-VAL-005 | Drag capture opens the destination UI without a clear intent threshold; expected behavior is a semi-transparent pointer-following image followed by a delayed radial folder menu. | High | Superseded by the 100 ms candidate in LAP-VAL-011 |
+| LAP-VAL-006 | The 1.3-second tutorial appears on every drag, feels slow, and small/lazy-loaded thumbnails do not reliably enter drag capture. | High | Candidate 14 built successfully; 100 ms follow-up awaiting package |
+| LAP-VAL-007 | Language names are shown in Chinese, the main window does not switch locale immediately, and new AI/preview surfaces stay hard-coded in Chinese. | High | Candidate 13 built successfully; awaiting manual retest |
+| LAP-VAL-008 | Extension setup points to a missing App Token screen, and the extension does not use the official Lap icon. | High | Candidate 13 built successfully; awaiting manual retest |
+| LAP-VAL-009 | The one-second drag threshold still feels slow and the center action uses the ambiguous “保存到 Lap” label. | High | Superseded by the conditional “AI 分类” flow in LAP-VAL-011 |
+| LAP-VAL-010 | Pending assets cannot be safely planned into existing nested folders and executed after user confirmation. | High | Candidate 13 built successfully with scoped plans and the validating executor; awaiting manual retest |
+| LAP-VAL-011 | The 500 ms radial still feels slow; the light circular visual, unconditional pending center, and post-drop confirmation do not match the requested direct-save/conditional-AI flow. | High | Candidate 15 built successfully; awaiting manual retest |
+| LAP-VAL-012 | The desktop application's default day/night themes do not yet use the selected compact charcoal-glass visual language and its warm light counterpart. | Medium | Implemented in the working branch; awaiting fresh package and manual validation |
+| LAP-VAL-013 | The 100 ms timer does not reflect drag intent; the interaction needs a centered animated rail, distance activation, page dim/blur, a larger fixed-center radial, and a restored AI center. | High | Implemented in the working branch; awaiting fresh package and manual validation |
+| LAP-VAL-014 | Dragging images outside Lap cannot yet create a persistent, always-on-top, pan/zoom reference board. | High | First authorized reference-board slice implemented; awaiting Windows validation |
+| LAP-VAL-015 | Browser intent used displacement from the starting point, so returning toward the image reduced progress; the progress rail was also visually intrusive. | High | Replaced by cumulative path length, a width/3 threshold, and no pre-threshold UI; awaiting fresh package |
+| LAP-VAL-016 | Lap intercepted every boundary drag into the reference board, blocking normal drag-out to Photoshop; drops were recentered and close/recreate restored stale layout. | High | Replaced by first-use choice, native OS drag, real drop-point placement, and close reset; awaiting Windows package |
+| LAP-VAL-017 | The centered browser radial rendered as an oversized opaque black disc with undersized folder targets, leaving a large visual gap from the selected circular-control reference. | High | Replaced by a transparent 820 px positioning ring, 118 px count-aware folder targets, and a 164 px conditional AI center; browser visual QA passed, awaiting packaged manual validation |
+| LAP-VAL-018 | The transparent-ring candidate still did not follow the selected precision-instrument reference and could not visually distinguish populated folders from empty folders. | High | Replaced by an instrument tick/orbit/bronze-arc dial, full-orbit circular controls, and authenticated first-image folder covers; cloud-browser visual QA passed, awaiting packaged manual validation |
+| LAP-VAL-019 | The AI center lacked a dedicated mark and did not start classification directly; root and descendant folders were rendered together instead of opening one hierarchy level at a time. | High | Replaced by an original AI center asset, background AI queueing, and root/direct-child radial navigation; cloud-browser interaction and visual QA passed, awaiting packaged manual validation |
+| LAP-VAL-020 | Package 24 could hide the AI center, parent dwell depended on unstable child drag events, and first install did not open Token pairing. | High | AI center is now always available, document-level dwell opens direct children, and `onInstalled: install` opens setup; deterministic extension tests pass, awaiting packaged Chromium validation |
+| LAP-VAL-021 | Package 25 can bounce between radial levels, cannot save directly to the current parent, auto-runs AI before collection is complete, hides the queue behind Smart Albums, and blocks the page with saving status. | High | Pointer-lock hierarchy, current-folder target, `autoClassify: false`, embedded AI classification collection, silent background capture, pooled HTTP client, and async write implemented; awaiting fresh package |
+| LAP-VAL-022 | Package 26 still fails to open child folders under real native drag, places destination circles across the inner orbit stroke, and uses the rejected bronze planetary AI mark. | High | Package 27 fixed target placement and the moving AI mark, but native preview overlap still failed; hierarchy trigger superseded by LAP-VAL-023 |
+| LAP-VAL-023 | Package 27 only hit-tests the mouse hotspot, so a visibly overlapping native drag preview does not open the covered parent; bronze accents and the visible AI-center label are also rejected. | High | Drag preview is staged with a centered hotspot, dwell now tests preview-rectangle/folder-circle overlap at 220 ms, accents are purple, and the center is logo-only; awaiting fresh package and Chromium retest |
+
+## 5.2 Browser radial classification follow-up
+
+Drag intent:
+
+- [ ] Native semi-transparent image follows the pointer
+- [ ] No tutorial, timer, progress rail, or other overlay appears before threshold
+- [ ] Moving forward and then backward keeps adding to total path length
+- [ ] Total travel below one third of browser width does not open the radial
+- [ ] Total travel at one third of browser width opens the radial
+- [ ] Page dim/blur begins only when the radial appears
+- [ ] The 820 px precision dial remains centered while the pointer moves
+- [ ] The dial shows one crisp outer tick ring, one thin inner orbit, and one purple partial arc
+- [ ] Circular destination controls are distributed evenly around the inner orbit
+- [ ] Every destination/create circle is wholly inside the inner orbit with a visible gap
+- [ ] Destination/create circles never intersect each other at desktop or compact widths
+- [ ] Empty folders show the bundled folder icon
+- [ ] Populated folders show the first image as a circular thumbnail
+- [ ] A missing or unreadable cover falls back to the folder icon
+- [ ] Folder labels remain readable and circular targets do not overlap
+- [ ] The first level contains top-level folders only
+- [ ] A child folder is absent until its parent is activated
+- [ ] Dwelling with the dragged preview visibly overlapping a parent opens only
+  its direct children even when the pointer hotspot is outside the circle
+- [ ] Native drag-preview interference does not reset the parent dwell
+- [ ] Keeping the pointer stationary after navigation does not bounce to another level
+- [ ] Moving the pointer after navigation allows the next intended dwell
+- [ ] Every child level includes “保存到 {current folder}”
+- [ ] Parent and unrelated root siblings are absent from a child level
+- [ ] “返回上级” restores the immediately preceding level
+- [ ] Deeper descendants appear only after activating their direct parent
+
+AI classification collection:
+
+- [ ] The center shows the original purple AI wordmark without visible “AI 分类” text
+- [ ] Two particle-halo layers drift and rotate independently without moving the center action
+- [ ] Reduced-motion mode stops the AI halo motion
+- [ ] Dropping there closes the overlay immediately with no save/success toast
+- [ ] Capture uses `workflowStatus: inbox` and `autoClassify: false`
+- [ ] The desktop sidebar label is “AI 分类”, not “智能相册”
+- [ ] Opening it shows the collected images and their thumbnails
+- [ ] Collected items are selected by default
+- [ ] Existing directory targets remain usable
+- [ ] “创建目录” is present
+
+With an enabled AI provider and stored API key:
+
+- [ ] The center AI-logo action remains available
+- [ ] Center contains only the purple AI wordmark and moving particle halo
+- [ ] Dropping on the center AI logo saves with workflow status `inbox`
+- [ ] The capture request sets `autoClassify: false`
+- [ ] Lap does not call the provider until “一键 AI 分类” is clicked
+- [ ] Clicking “一键 AI 分类” generates plans for the collected queue
+- [ ] AI produces tag metadata and, when destinations exist, an existing-folder suggestion
+- [ ] The AI center does not move the file without the existing review/confirmation flow
+- [ ] Dropping on an existing directory saves immediately with status `selected`
+- [ ] No old confirmation modal appears after either drop
+
+Create-directory path:
+
+- [ ] Drop on “创建目录”
+- [ ] In-page form lists existing Lap directories as parents
+- [ ] Invalid names and duplicate child names show a safe error
+- [ ] A valid child directory is created in the selected parent
+- [ ] Current image is immediately saved into the new child directory
+- [ ] No second save confirmation appears
+
+Result:
+
+Evidence: the focused local regression suite now verifies the new contracts;
+packaged Chromium validation is still required.
+
+Current follow-up evidence: the focused Happy DOM suite passes seven tests. It
+verifies `workflowStatus: inbox` plus `autoClassify: false`, immediate overlay
+removal with no capture toast, a viewport-staged centered drag image, direct-child
+dwell when the drag-preview rectangle overlaps a parent but the pointer misses,
+a stationary-pointer navigation lock, current-parent save, capacity-aware
+nonintersecting orbit placement at 1200 × 900 and 360 × 640, first-install
+pairing, and the logo-only AI asset markup. Strict i18n audit and Vite production
+build pass; local Rust checks are skipped because Cargo is unavailable, so the
+fresh PR build remains authoritative. The package and browser recapture remain
+pending; no browser control or local Chromium binary is available, so visual QA
+is not reported as passed.
+
+First-install pairing:
+
+- [ ] Loading the extension for the first time immediately opens its setup page
+- [ ] The page automatically detects a running local Lap
+- [ ] The Token field is visible and focused as the next required action
+- [ ] Reloading/updating the extension does not reopen setup
+
+Issues:
+
+## 5.3 Desktop reference board
+
+Window creation:
+
+- [ ] First image drag to a Lap boundary asks whether to create a reference board
+- [ ] Choosing create opens one empty separate reference board
+- [ ] Choosing another app does not create or populate a board
+- [ ] With a board open, dragging to Photoshop creates a normal Photoshop drop
+- [ ] With a board open, only dropping inside the board adds the image
+- [ ] Multiple selected images can be dropped into the board together
+- [ ] The drag-out does not also move/copy files inside the Lap library
+- [ ] Non-image files do not open the reference board
+
+Board behavior:
+
+- [ ] Reference board is frameless and stays above normal windows by default
+- [ ] Pin control disables and re-enables always-on-top
+- [ ] Dragging empty space pans the canvas
+- [ ] Mouse wheel zooms around the pointer
+- [ ] Zoom reaches both very small and very large scales without breaking
+- [ ] Fit All frames every image
+- [ ] 100% centers the selected image at actual board size
+- [ ] Images can be rearranged independently
+- [ ] A newly dropped image appears at the actual drop location, not the center
+- [ ] Delete/Backspace removes only the selected board item
+- [ ] Native file drop adds more images to the open board
+- [ ] Closing and recreating starts with an empty board and reset camera
+- [ ] Minimize and close controls work
+
+Result: BLOCKED — fresh Windows package required
+
+Evidence:
+
+- Browser-rendered board passed its existing pan/zoom surface at 1363 × 936.
+- Native system drag-out, the first-use dialog, Photoshop coexistence, physical
+  drop coordinates, and close reset require the packaged Windows application.
+
+Issues:
+
+## 7. AI pending-area organization
+
+Test setup:
+
+- [ ] Create `游戏原画`
+- [ ] Under it create `三渲二`, `写实`, `中国风`, and `欧美风`
+- [ ] Create a separate top-level folder `风景摄影`
+- [ ] Capture several mixed images into the pending area
+
+Selected-root mode:
+
+- [ ] Select `游戏原画`
+- [ ] Generate plans
+- [ ] Every proposed destination is `游戏原画` or one of its descendants
+- [ ] `风景摄影` is never proposed in this mode
+
+Whole-library mode:
+
+- [ ] Generate plans without a selected root
+- [ ] AI can select suitable existing folders under either top-level folder
+- [ ] AI cannot invent a folder that does not exist
+- [ ] The AI classification queue is not offered as a destination
+
+Review and execution:
+
+- [ ] Plans show destination, confidence, and reason
+- [ ] No file moves before explicit confirmation
+- [ ] Confirmed plans move to the selected existing folder
+- [ ] Name conflicts keep both files
+- [ ] Delete a proposed destination before execution and confirm the item fails safely
+- [ ] Restart preserves unexecuted plans
+
+Result:
+
+Evidence:
+
+Issues:
+
+## 8. Lap signature day/night themes
+
+Dark theme:
+
+- [ ] Default Dark + Default Theme resolves to the new Lap dark visual system
+- [ ] Main canvas is near-black without crushing image or text contrast
+- [ ] Title bar, sidebar, toolbar, cards, popovers, fields, buttons, and toggles
+  use consistent charcoal/glass surfaces and subtle borders
+- [ ] Purple/amber accent glow stays restrained and does not distract from assets
+
+Light theme:
+
+- [ ] Default Light + Default Theme resolves to the new Lap light visual system
+- [ ] Canvas is warm off-white/gray rather than harsh pure white
+- [ ] Translucent white cards remain distinct without washed-out labels
+- [ ] Primary actions and selected navigation retain the shared purple accent
+
+Coverage:
+
+- [ ] Home library view
+- [ ] Settings General and Advanced
+- [ ] Image viewer
+- [ ] Dialogs and dropdown menus
+- [ ] Empty, loading, disabled, selected, hover, and focus states
+- [ ] Dense image grids at 100% and 125% Windows scaling
+- [ ] Theme selection persists after restart
+
+Result: BLOCKED — fresh packaged candidate required
+
+Evidence:
+
+- Browser-rendered Settings passed at 1363 × 936 in both `lap-dark` and
+  `lap-light`, with no overflow and no Lap application console errors.
+- Native Home/viewer/data-backed screens require the Windows Tauri package.
+
+Issues:
+
+## 0.4.3 capture pairing and reliability candidate (2026-09-21)
+
+The concrete repeated-Token defect reported by the user authorizes focused work at the manual-validation gate. Baseline: `c8b271b68b54e33fb5919aed1093af7af50eb425` on `feat/phase4-ai-preview-pipeline`; keep PR #2 Draft.
+
+- Extension validation now persists the credential immediately. A new first-connection flow uses a 120-second request secret and six-digit comparison code; only the main desktop window can approve. Web-page origins cannot start or poll pairing. Tokens remain local and existing credentials are reused across restarts. Manual pairing remains for older desktops.
+- Desktop no longer silently overwrites an unreadable/invalid credential. Listener startup publishes service state even after a slow start. HTTP reads have a deadline and reject truncated bodies; chunked downloads enforce the size limit; atomic file creation prevents concurrent overwrites. Content-Disposition filenames now skip the attachment directive correctly.
+- Extension API validation, errors, timeouts and tags share one module. Batch captures run in the worker with persisted outcomes; interrupted POSTs are reported as unknown and are never automatically replayed. Recent-folder writes are serialized. Hover and stale drag/create timers are guarded. Normal drag saves remain silent; failures are visible. AI capture remains inbox-first with no automatic AI execution.
+- Settings use a focused connection card, comparison-code prompt, remembered state, advanced manual fallback, responsive spacing and keyboard focus. Desktop capture settings place manual credentials behind disclosure. Inspiration: Eagle browser capture (https://en.eagle.cool/extensions) and Raycast preferences hierarchy (https://developers.raycast.com/api-reference/preferences); these are design references, not copied UI assets.
+
+Validation: `pnpm install --frozen-lockfile`, strict i18n audit, Vite build and 16 extension regression tests passed locally before packaging. Full `cargo fmt --check` reports pre-existing formatting differences in untouched modules; edited Rust files pass targeted rustfmt. Local `cargo check --locked` is BLOCKED by native dependency linker errors (target-lexicon), so Windows CI is the authoritative compile gate. Browser/native visual and real end-to-end pairing still require manual validation. Added Rust pairing security and filename regression tests are pending execution in a native-capable environment.
+
+The chat validation workflow now packages version 0.4.3 instead of silently rewriting it to 0.4.1. No database migration, release or merge is included.
+
+Required native checks for this candidate:
+- [ ] Install the new desktop and load the 0.4.3 unpacked extension from a stable folder.
+- [ ] Start Connect, compare both codes, approve; close/reopen both apps and verify no repeat prompt.
+- [ ] Reject a request; verify no credential is stored. Let a request expire and retry.
+- [ ] Keep the desktop offline; verify the previous token is retained and Save is disabled.
+- [ ] Save via drag and AI inbox; verify silent success, visible failure, and no unsolicited AI call.
+- [ ] Start a batch, close/reopen the popup, verify progress; restart the worker during a write and inspect unknown results before retrying.
+- [ ] Inspect desktop and extension at 100%/125% scaling, both themes, and keyboard-only navigation.
+
+## 0.4.4 synchronized candidate (2026-09-22)
+
+User-selected visual reference replaces the old dark AI disk, white folder buttons, and global gauge. The AI artwork now floats transparently and grows to the available central space. Each folder/action has a generated transparent lilac ring, slow 30-second rotation, fixed outlined text, and brighter target/focus state. Nodes use a wider responsive ellipse with explicit viewport/AI/neighbor clearance; crowded levels retain More. Folder covers are no longer fetched for these transparent controls, reducing redundant work. Reduced-motion mode stops animation and resizing recalculates positions.
+
+The Windows 0.4.3 build found a cross-platform test-runner defect: Node 20 on Windows does not expand `*.test.mjs`. The test command now explicitly names all three suites. Local 16-test suite passes; rebuilt Windows installer pending CI. Pairing/backend changes from 4174a94 are retained without changing database schema.
+
+Browser fixture verification: the actual extension script and stylesheet render at 447x660 beside the selected reference; transparent AI/folder backgrounds, 30-second ring animation, child-folder navigation and folder-save payload were observed. This verifies browser UI and mocked capture dispatch, not native end-to-end saving. Full native pairing/installation checks remain pending.
+
+
+## 0.4.5 AI settings and reference board (2026-09-22)
+
+Concrete user-reported defects authorize this work. Baseline `25b3401f2626130e69ef4bd6fbbac5708116b1ba`; keep PR #2 Draft. 0.4.4 Windows CI run 35688624269 and PR checks 35688624303 succeeded, superseding older pending notes. No merge, release, database migration or Phase 6 work.
+
+- Shared built-in prompt embedded by Vue and Rust, visible/editable with restore and blank fallback; nine presets with official documentation URLs. New presets clear prior service identity and credentials.
+- Test current unsaved configuration with a generated test image and strict metadata JSON validation. No user asset upload or automatic save. Changing destination/protocol requires a newly entered key. Gemini system instructions are separate and thought parts are excluded. Parsing errors omit private payloads.
+- Frameless reference board, theme-aware translucent black/white canvas, floating bottom controls. Esc saves immediately and hides; reopening retains window geometry. Existing storage key preserves images, camera, zoom and pin state. This supersedes the older close-clears-board instruction at the user's request.
+- Extension 0.4.5 retains 0.4.4 pairing and transparent radial UI.
+
+Changed files: AI/board components, Content.vue window reopening, shared helpers/prompt/presets, t_ai_online.rs, dam-api.js, locales, focused regression tests and packaging workflow.
+
+Validation before interruption: PASS pnpm install --frozen-lockfile, pnpm i18n:audit:strict (1339 keys), pnpm exec vite build, npm test in scripts/extension-tests (22 tests), four extension node --check commands, manifest parse, git diff --check. Browser fixture PASS: current draft test, cleared preset key, embedded prompt, alpha 0.46 black/white board with 0px border, Esc hide/reopen and dragged layout restoration. Native bridge and board icons mocked; no external API used.
+
+Local cargo check --locked BLOCKED by dependency linker failure; full cargo fmt --check FAILED on pre-existing formatting. Windows CI must pass locked check, six targeted AI Rust tests and NSIS build before delivery. The environment interrupted before commit; recovered source is revalidated before submission.
+
+Required native checks (still BLOCKED pending Windows/manual execution):
+- [ ] Install 0.4.5; test a real vision model with user-owned key, including unsaved edits.
+- [ ] Verify preset switching does not alter an existing service/key.
+- [ ] Check native board transparency and both themes at 100%/125% scaling.
+- [ ] Move/resize native window and images, pan/zoom, Esc and reopen unchanged.
+- [ ] Restart Lap and verify board/window placement.
+- [ ] Recheck remembered browser pairing and capture.
+
+## 0.4.6 design-assets edition (2026-09-22)
+
+User selected the focused designer workflow: folders, search, tags, previews, web capture, online AI, and reference boards remain. People/face recognition, shooting calendar, map, and camera classification entry points are retired. Existing library records and media are preserved. PR #2 remains Draft.
+
+Browser inspection against actual production CSS/HTML: PASS light desktop settings and AI service modal; PASS browser options and popup; PASS purple radial overlay; PASS creation dialog on a host page whose generic `main` is a two-column grid. That host-style test exposed a real narrowed-form defect and the candidate now explicitly sets `.lap-capture-main { display: block; }`. Browser fixture uses a mocked service and sample images; it does not prove native saving.
+
+Frontend: PASS strict Chinese key audit (1339 keys) and Vite build. Extension: PASS 22 interaction tests, JS syntax checks, JSON manifest parse, and diff whitespace check. Windows package: PASS Chat Validation Package #32 and PR Build #87; true native usage still requires manual confirmation. Native manual checks after delivery:
+
+- [ ] Upgrade a desktop with old face/calendar/people selection and confirm folders appear without losing existing assets.
+- [ ] Confirm only folders, AI classification, search, and tags are offered; About command opens About.
+- [ ] Open settings/AI modal and browser popup/options on both light and dark themes at 100% and 125% scaling.
+- [ ] Test real webpage drag overlay, create-folder dialog, remembered pairing, AI inbox and capture end-to-end.
+- [ ] Reopen frameless reference board after moving it and pressing Esc; check position/theme transparency and persisted content.
+
+## 0.4.8 direct classification and calmer surfaces (2026-09-23)
+
+User reported two related defects: sidebar one-click classification only generated a pending plan instead of filing assets, and plan destinations could not be edited. The 0.4.8 implementation separates direct organization from explicit plan generation and reduces repeated card borders in desktop and extension UI. Automated checks and Windows package status are recorded in the handoff after CI. Live provider, filesystem move, and visual testing remain pending.
+
+- [ ] Capture two images into AI Classification; click sidebar “一键 AI 分类” once. Neither image prompts for approval; both move into existing AI-selected folders and leave the pending inbox. “AI 分类方案” remains empty for these assets.
+- [ ] Simulate a provider error and a missing folder: failed assets remain in the inbox and can be retried; already organized assets are not moved twice.
+- [ ] Capture another image and in “待整理素材” click “生成分类方案”. The plan appears in “AI 分类方案”; changing its target folder persists after Refresh and after restarting Lap. Apply the plan and confirm the file moves to the selected folder.
+- [ ] Test invalid/deleted folders and a stale plan. The app shows a concise error and does not move or lose the original file.
+- [ ] At 100% and 125% scale, compare desktop home, AI workbench, service settings, extension popup, options, and folder picker against the warm-white reference in light and dark modes: cards have no repetitive outlines, text aligns, active and keyboard focus states stay visible.
+
+## 0.4.7 board prompting and silent dialogs (2026-09-23)
+
+User reported a native defect in 0.4.6: closing the reference board hides the window, and the next boundary drag auto-opens it without asking. The drag handler treated any existing window handle as visible. It now checks the window's actual visibility and resets the external-drag preference on board-close. Native desktop confirmation APIs and JavaScript confirm calls were replaced by a compact, silent Lap prompt; rename dialogs follow the same card style. AI folder-plan and board questions are shorter. No library data or board layout was deleted.
+
+Local checks: PASS `pnpm install --frozen-lockfile`, `pnpm i18n:audit:strict` (1341 keys), `pnpm exec vite build` (717 modules), `npm test` (23/23 including hide → re-prompt → external drag → re-prompt), `git diff --check`. Chrome preview could not access the local preview URL in this environment; no browser screenshot or native UI claim is made. A new Windows package and real device test are still required.
+
+- [ ] Drag an image to the desktop boundary without a board: short Lap card appears, with no system sound.
+- [ ] Choose “打开参考板”, move and resize it, add images, and press Esc: the window hides and retains its layout.
+- [ ] Drag a second image while the board is open: start a native system drag; Photoshop still accepts the file.
+- [ ] Drag again after closing the board: the card appears again; the hidden board stays hidden until “打开参考板” is chosen.
+- [ ] Choose “暂不打开”: the next drag can go to another app and does not reopen the hidden board; the following drag asks again.
+- [ ] Reopen the board and confirm its window position, image layout, theme, and Esc close at 100% / 125% zoom.
+- [ ] Execute an AI folder plan and rename a file: prompts use the software's card style, short copy, readable alignment, and no system sound in light and dark themes.
