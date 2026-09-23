@@ -1,7 +1,7 @@
 <template>
   <div class="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4" @mousedown.self="$emit('close')">
-    <section class="flex h-[82vh] w-[1040px] max-w-[96vw] flex-col overflow-hidden rounded-box border border-base-content/10 bg-base-200 shadow-2xl">
-      <header class="flex items-center justify-between border-b border-base-content/10 px-5 py-4">
+    <section class="flex h-[82vh] w-[1040px] max-w-[96vw] flex-col overflow-hidden rounded-box bg-base-100 shadow-2xl">
+      <header class="flex items-center justify-between px-6 pb-4 pt-6">
         <div>
           <h2 class="font-semibold">{{ $t('dam_features.review.title') }}</h2>
           <p class="mt-0.5 text-xs text-base-content/45">{{ $t('dam_features.review.subtitle') }}</p>
@@ -19,7 +19,7 @@
         </div>
       </header>
 
-      <div v-if="status === 'pending' && rows.length" class="flex items-center justify-between border-b border-base-content/10 bg-base-300/30 px-5 py-2">
+      <div v-if="status === 'pending' && rows.length" class="flex items-center justify-between px-6 py-2">
         <label class="flex items-center gap-2 text-sm">
           <input v-model="selectAll" class="checkbox checkbox-sm" type="checkbox" @change="toggleAll" />
           {{ $t('dam_features.review.selected_count', { count: selectedIds.size }) }}
@@ -30,7 +30,7 @@
         </div>
       </div>
 
-      <main class="min-h-0 flex-1 overflow-y-auto p-4">
+      <main class="min-h-0 flex-1 overflow-y-auto px-6 py-3">
         <div v-if="loading" class="flex h-full items-center justify-center">
           <span class="loading loading-spinner loading-md"></span>
         </div>
@@ -41,7 +41,7 @@
           <article
             v-for="row in rows"
             :key="row.id"
-            class="grid grid-cols-[28px_minmax(160px,1.2fr)_100px_minmax(220px,2fr)_90px_150px] items-center gap-3 rounded-box border border-base-content/10 bg-base-300/25 px-3 py-3"
+            class="grid grid-cols-[28px_minmax(160px,1.2fr)_100px_minmax(220px,2fr)_90px_150px] items-center gap-3 rounded-box bg-base-200/70 px-4 py-3"
           >
             <input
               v-if="row.status === 'pending'"
@@ -74,7 +74,7 @@
         </div>
       </main>
 
-      <footer class="flex items-center justify-between border-t border-base-content/10 px-5 py-3 text-xs text-base-content/45">
+      <footer class="flex items-center justify-between px-6 py-4 text-xs text-base-content/45">
         <span>{{ $t('dam_features.review.total', { count: rows.length }) }}</span>
         <button v-if="status !== 'pending'" class="btn btn-ghost btn-xs text-error" type="button" :disabled="busy" @click="clearReviewed">{{ $t('dam_features.review.clear') }}</button>
       </footer>

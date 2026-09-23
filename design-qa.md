@@ -306,7 +306,7 @@ final result: passed
 
 Reference: the supplied warm white dashboard with borderless light gray panels, a narrow left rail, generous spacing, and dark pill actions. The user's current AI workbench screenshot has thin outlines around almost every control and row.
 
-Source changes remove repetitive card outlines from desktop home and settings, the AI workbench and service manager, and extension popup, settings, and in-page folder picker. Active selection and keyboard focus remain visible; light and dark surfaces keep their respective contrast.
+Source changes remove repetitive card outlines from desktop home and settings, the AI workbench, AI review queue and service manager, and extension popup, settings, and in-page folder picker. Active selection and keyboard focus remain visible; light and dark surfaces keep their respective contrast.
 
 Visual verification: blocked. The native desktop requires Windows, and the cloud browser control surface is unavailable in this workspace. A successful build cannot establish pixel-level fidelity. Compare the installed 0.4.8 app and loaded extension at 100% and 125% scaling in both themes before marking the visual gate passed.
 

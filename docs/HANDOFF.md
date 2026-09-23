@@ -71,7 +71,7 @@ The PR is intentionally kept Draft until manual validation is complete.
 0.4.8 automatic classification and borderless UI candidate on `feat/phase4-ai-preview-pipeline`:
 
 - The sidebar one-click action analyzes each pending item and immediately moves it to an existing AI-selected folder without showing a confirmation or leaving a manual plan. If analysis or move fails, the item stays in the inbox for retry. The workbench's explicit Generate plans action still creates pending plans; each destination can now be edited to another existing, non-inbox folder and revalidated by the backend before moving.
-- Desktop AI workbench, provider settings, global settings surfaces, and extension popup, options, and folder picker remove repetitive card outlines. Light/dark contrast, focus rings, and the purple radial capture control remain. Desktop and browser packaging target 0.4.8. Real Windows move, folder edits, and visual comparison still need manual validation. PR #2 remains Draft.
+- Desktop AI workbench, AI review queue, provider and global settings surfaces, and extension popup, options, and folder picker remove repetitive card outlines. Light/dark contrast, focus rings, and the purple radial capture control remain. Desktop and browser packaging target 0.4.8. Real Windows move, folder edits, and visual comparison still need manual validation. PR #2 remains Draft.
 
 0.4.7 reference-board confirmation baseline on `feat/phase4-ai-preview-pipeline`:
 
