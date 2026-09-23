@@ -152,7 +152,8 @@ import MessageBox from '@/components/MessageBox.vue';
 import TButton from '@/components/TButton.vue';
 import FileConflictDialog from '@/components/FileConflictDialog.vue';
 import { useToast } from '@/common/toast';
-import { ask, open as openDialog } from '@tauri-apps/plugin-dialog';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { confirmAction } from '@/common/confirmAction';
 
 import {
   IconRight,
@@ -706,7 +707,7 @@ const clickMoveToFolder = async () => {
   if (conflictPolicy === 'skip') return;
 
   if (!destinationAlbum) {
-    const confirmed = await ask(
+    const confirmed = await confirmAction(
       t('msgbox.move_to_folder.warning', { source: folder.name, dest: destPath }),
       {
         title: t('msgbox.move_to_folder.confirm_title'),

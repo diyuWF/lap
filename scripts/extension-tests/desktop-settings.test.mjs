@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createProviderForm, providerInput } from '../../src-vite/src/common/online-ai-form.mjs';
 import { BOARD_STORAGE_KEY, readBoardState, writeBoardState } from '../../src-vite/src/common/reference-board-state.mjs';
+import { createReferenceBoardDragSession } from '../../src-vite/src/common/reference-board-drag.mjs';
 const prompt = readFileSync(new URL('../../src-vite/src/common/online-ai-system-prompt.txt', import.meta.url), 'utf8');
 const presets = JSON.parse(readFileSync(new URL('../../src-vite/src/common/online-ai-presets.json', import.meta.url), 'utf8'));
 
@@ -54,4 +55,20 @@ test('board restores valid old entries, retries image loading and rejects invali
 });
 test('storage failure propagates so the board can remain open instead of losing layout', () => {
   assert.throws(() => writeBoardState({ setItem() { throw new Error('quota'); } }, [], {}, true), /quota/);
+});
+test('closing a hidden reference board requires a new choice before it can reopen', async () => {
+  const session = createReferenceBoardDragSession();
+  let visible = false;
+  const savedWindow = { isVisible: async () => visible };
+  assert.equal(await session.nextDrag(null), 'prompt');
+  visible = true;
+  assert.equal(await session.nextDrag(savedWindow), 'native');
+  visible = false;
+  session.boardClosed();
+  assert.equal(await session.nextDrag(savedWindow), 'prompt');
+  session.chooseExternal();
+  assert.equal(await session.nextDrag(savedWindow), 'native');
+  assert.equal(await session.nextDrag(savedWindow), 'prompt');
+  session.boardClosed();
+  assert.equal(await session.nextDrag(savedWindow), 'prompt');
 });

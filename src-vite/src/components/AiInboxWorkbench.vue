@@ -254,6 +254,7 @@ import { getFileThumbById } from '@/common/api';
 import { config } from '@/common/config';
 import { IconPhoto } from '@/common/icons';
 import { useToast } from '@/common/toast';
+import { confirmAction } from '@/common/confirmAction';
 import {
   getThumbUrl,
   getThumbnailDataUrl,
@@ -500,7 +501,12 @@ async function runAllCandidates() {
 
 async function executePlans() {
   if (!selectedPlanIds.value.size) return;
-  if (!confirm(t('dam_features.inbox.execute_confirm', { count: selectedPlanIds.value.size }))) return;
+  if (!await confirmAction(t('dam_features.inbox.execute_confirm', { count: selectedPlanIds.value.size }), {
+    title: t('dam_features.inbox.execute_title'),
+    variant: 'ai',
+    okLabel: t('dam_features.inbox.execute_ok'),
+    cancelLabel: t('msgbox.cancel'),
+  })) return;
   executing.value = true;
   executionResult.value = null;
   batchResult.value = null;

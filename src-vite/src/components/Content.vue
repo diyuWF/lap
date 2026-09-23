@@ -642,11 +642,13 @@
 
 import { ref, watch, computed, createVNode, onMounted, onBeforeUnmount, nextTick, render, markRaw } from 'vue';
 import { emit as tauriEmit, listen } from '@tauri-apps/api/event';
-import { ask, open as openDialog } from '@tauri-apps/plugin-dialog';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { startDrag } from '@crabnebula/tauri-plugin-drag';
 import { useI18n } from 'vue-i18n';
 import { useToast } from '@/common/toast';
+import { confirmAction } from '@/common/confirmAction';
+import { createReferenceBoardDragSession } from '@/common/reference-board-drag.mjs';
 import { useUIStore } from '@/stores/uiStore';
 import { getAlbum, getAllAlbums, recountAlbum, getQueryCountAndSum, getQueryTimeLine, getQueryFiles, getGroupedQueryRows, getGroupFileIds, getQueryFileIds, syncAlbumFolderMtimes,
          getSmartQueryCountAndSum, getSmartQueryTimeLine, getSmartQueryFiles, getSmartGroupedQueryRows, getSmartGroupFileIds, getSmartQueryFileIds, getSmartQueryFilePosition,
@@ -1386,7 +1388,7 @@ class CopyIndexError extends Error {}
 
 async function confirmLargeBatch(count: number) {
   if (count <= LARGE_BATCH_CONFIRM_THRESHOLD) return true;
-  return ask(
+  return confirmAction(
     t('info_panel.large_batch.content', { count: count.toLocaleString() }),
     {
       title: t('info_panel.large_batch.title'),
@@ -1948,7 +1950,7 @@ let dragGhostHotspotX = 0;
 let dragGhostHotspotY = 0;
 let nativeDragOutStarted = false;
 let referenceBoardPromptStarted = false;
-let referenceBoardChoice: 'board' | 'external' | null = null;
+const referenceBoardDragSession = createReferenceBoardDragSession();
 let unlistenReferenceBoardClosed: (() => void) | null = null;
 
 function getExternalDropUris(dt: DataTransfer | null) {
@@ -2375,38 +2377,26 @@ async function handleImageDragAtBoundary() {
   referenceBoardPromptStarted = true;
   try {
     const existingWindow = await WebviewWindow.getByLabel('referenceboard');
-    if (existingWindow) {
-      referenceBoardChoice = 'board';
-      await existingWindow.unminimize();
-      await existingWindow.show();
-      await startNativeImageDragOut();
-      return;
-    }
-
-    if (referenceBoardChoice === 'board') {
-      referenceBoardChoice = null;
-    }
-    if (referenceBoardChoice === 'external') {
+    // A hidden board retains its geometry but never counts as an open board.
+    if (await referenceBoardDragSession.nextDrag(existingWindow) === 'native') {
       await startNativeImageDragOut();
       return;
     }
 
     await clearContentInternalDrag();
-    const createBoard = await ask(t('reference_board.create_prompt_message'), {
+    const createBoard = await confirmAction(t('reference_board.create_prompt_message'), {
       title: t('reference_board.create_prompt_title'),
-      kind: 'info',
+      variant: 'board',
       okLabel: t('reference_board.create_prompt_ok'),
       cancelLabel: t('reference_board.create_prompt_cancel'),
     });
     if (!createBoard) {
-      referenceBoardChoice = 'external';
+      referenceBoardDragSession.chooseExternal();
       toast.info(t('reference_board.external_drag_hint'));
       return;
     }
 
-    referenceBoardChoice = 'board';
     await createReferenceBoardWindow();
-    toast.info(t('reference_board.created_hint'));
   } catch (error) {
     console.error('Failed to prepare image drag-out:', error);
     toast.warning(t('reference_board.open_failed'));
@@ -2808,7 +2798,7 @@ onMounted(() => {
   window.addEventListener('resize', handleWindowResize);
   if (isTauriRuntime) {
     void listen('reference-board:closed', () => {
-      referenceBoardChoice = null;
+      referenceBoardDragSession.boardClosed();
     }).then((unlisten) => {
       unlistenReferenceBoardClosed = unlisten;
     });
@@ -7032,7 +7022,7 @@ const onMoveToFolder = async () => {
     : (files[0]?.name || '');
   const libraryDestination = await resolveLibraryDestination(destPath);
   if (!libraryDestination) {
-    const confirmed = await ask(
+    const confirmed = await confirmAction(
       t('msgbox.move_to_folder.warning', { source: sourceLabel, dest: destPath }),
       {
         title: t('msgbox.move_to_folder.confirm_title'),

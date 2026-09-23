@@ -1,15 +1,15 @@
 <template>
   <Teleport to="body">
     <Transition name="modal">
-      <div v-if="visible" class="fixed inset-0 bg-black/30 z-600">
+      <div v-if="visible" class="fixed inset-0 z-600 bg-black/35 backdrop-blur-sm">
         <div
           ref="modalDialogRef"
-          class="modal-dialog text-base-content/70 bg-base-200/80 backdrop-blur-md border border-base-content/30 rounded-box overflow-hidden flex flex-col"
+          class="modal-dialog overflow-hidden flex flex-col"
           :style="{ position: 'fixed', top: y + 'px', left: x + 'px', width: width + 'px', ...(height !== undefined && { height: height + 'px' }) }"
         >
         <!-- title bar -->
         <div
-          class="p-3 flex items-center justify-between select-none cursor-default shrink-0"
+          class="px-5 pt-5 pb-3 flex items-center justify-between text-base font-semibold select-none cursor-default shrink-0"
           @mousedown="dragStart"
         >
           {{ title }}
@@ -22,7 +22,7 @@
         </div>
 
         <!-- dialog content -->
-        <div class="px-3 pb-3 flex-1 min-h-0 flex flex-col">
+        <div class="px-5 pb-5 flex-1 min-h-0 flex flex-col">
           <slot></slot>
         </div>
       </div>
@@ -170,6 +170,13 @@ const clickCancel = () => {
 </script>
 
 <style scoped>
+.modal-dialog {
+  color: var(--color-base-content);
+  background: var(--lap-surface-raised, var(--color-base-100));
+  border: 1px solid var(--lap-border, rgba(127, 127, 127, .2));
+  border-radius: 24px;
+  box-shadow: 0 24px 70px rgba(17, 17, 24, .22);
+}
 .modal-enter-active,
 .modal-leave-active {
   transition: opacity 0.2s ease-out;

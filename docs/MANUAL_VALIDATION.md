@@ -530,10 +530,24 @@ User selected the focused designer workflow: folders, search, tags, previews, we
 
 Browser inspection against actual production CSS/HTML: PASS light desktop settings and AI service modal; PASS browser options and popup; PASS purple radial overlay; PASS creation dialog on a host page whose generic `main` is a two-column grid. That host-style test exposed a real narrowed-form defect and the candidate now explicitly sets `.lap-capture-main { display: block; }`. Browser fixture uses a mocked service and sample images; it does not prove native saving.
 
-Frontend: PASS strict Chinese key audit (1339 keys) and Vite build. Extension: PASS 22 interaction tests, JS syntax checks, JSON manifest parse, and diff whitespace check. Windows installer and native runtime: pending fresh 0.4.6 CI. Native manual checks after delivery:
+Frontend: PASS strict Chinese key audit (1339 keys) and Vite build. Extension: PASS 22 interaction tests, JS syntax checks, JSON manifest parse, and diff whitespace check. Windows package: PASS Chat Validation Package #32 and PR Build #87; true native usage still requires manual confirmation. Native manual checks after delivery:
 
 - [ ] Upgrade a desktop with old face/calendar/people selection and confirm folders appear without losing existing assets.
 - [ ] Confirm only folders, AI classification, search, and tags are offered; About command opens About.
 - [ ] Open settings/AI modal and browser popup/options on both light and dark themes at 100% and 125% scaling.
 - [ ] Test real webpage drag overlay, create-folder dialog, remembered pairing, AI inbox and capture end-to-end.
 - [ ] Reopen frameless reference board after moving it and pressing Esc; check position/theme transparency and persisted content.
+
+## 0.4.7 board prompting and silent dialogs (2026-09-23)
+
+User reported a native defect in 0.4.6: closing the reference board hides the window, and the next boundary drag auto-opens it without asking. The drag handler treated any existing window handle as visible. It now checks the window's actual visibility and resets the external-drag preference on board-close. Native desktop confirmation APIs and JavaScript confirm calls were replaced by a compact, silent Lap prompt; rename dialogs follow the same card style. AI folder-plan and board questions are shorter. No library data or board layout was deleted.
+
+Local checks: PASS `pnpm install --frozen-lockfile`, `pnpm i18n:audit:strict` (1341 keys), `pnpm exec vite build` (717 modules), `npm test` (23/23 including hide → re-prompt → external drag → re-prompt), `git diff --check`. Chrome preview could not access the local preview URL in this environment; no browser screenshot or native UI claim is made. A new Windows package and real device test are still required.
+
+- [ ] Drag an image to the desktop boundary without a board: short Lap card appears, with no system sound.
+- [ ] Choose “打开参考板”, move and resize it, add images, and press Esc: the window hides and retains its layout.
+- [ ] Drag a second image while the board is open: start a native system drag; Photoshop still accepts the file.
+- [ ] Drag again after closing the board: the card appears again; the hidden board stays hidden until “打开参考板” is chosen.
+- [ ] Choose “暂不打开”: the next drag can go to another app and does not reopen the hidden board; the following drag asks again.
+- [ ] Reopen the board and confirm its window position, image layout, theme, and Esc close at 100% / 125% zoom.
+- [ ] Execute an AI folder plan and rename a file: prompts use the software's card style, short copy, readable alignment, and no system sound in light and dark themes.

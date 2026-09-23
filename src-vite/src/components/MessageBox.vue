@@ -1,6 +1,6 @@
 <template>
   <ModalDialog :title="title" :width="400" @cancel="clickCancel">
-    <div v-if="message" class="text-sm whitespace-pre-line wrap-break-word select-none">
+    <div v-if="message" class="text-sm leading-6 text-base-content/70 whitespace-pre-line wrap-break-word select-none">
       {{ message }}
     </div>
 
@@ -24,7 +24,7 @@
         type="text"
         maxlength="255"
         :placeholder="inputPlaceholder"
-        class="px-2 py-1 flex-1 min-w-0 input"
+        class="px-3 py-2 flex-1 min-w-0 input input-bordered bg-base-100/70"
         @input="validateInput"
         @keydown.enter.prevent="clickOk"
       />
@@ -42,10 +42,10 @@
       @input="validateInput"
     ></textarea>
 
-    <p class="h-4 text-error text-xs">{{ inputErrorMessage }}</p>
+    <p v-if="showInput && inputErrorMessage" class="mt-2 text-error text-xs">{{ inputErrorMessage }}</p>
 
     <!-- buttons -->
-    <div class="mt-2 flex justify-end space-x-4">
+    <div class="mt-5 flex justify-end gap-2">
       <button v-if="thirdText.length > 0"
         :class="['px-4 py-1 rounded-box cursor-pointer', warningThird ? 'hover:bg-error hover:text-base-100' : 'hover:bg-base-100 hover:text-base-content']" 
         @click="clickThird"

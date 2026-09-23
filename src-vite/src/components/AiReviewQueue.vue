@@ -87,6 +87,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { clearReviewedAiSuggestions, listAiSuggestions, reviewAiSuggestion } from '@/common/ai-review-api';
 import { useToast } from '@/common/toast';
+import { confirmAction } from '@/common/confirmAction';
 
 const emit = defineEmits(['close']);
 const { t } = useI18n();
@@ -160,7 +161,12 @@ async function reviewSelected(action: 'accept' | 'reject') {
 }
 
 async function clearReviewed() {
-  if (!confirm(t('dam_features.review.clear_confirm'))) return;
+  if (!await confirmAction(t('dam_features.review.clear_confirm'), {
+    title: t('dam_features.review.clear'),
+    variant: 'danger',
+    okLabel: t('dam_features.review.clear'),
+    cancelLabel: t('msgbox.cancel'),
+  })) return;
   busy.value = true;
   try {
     const count = await clearReviewedAiSuggestions();

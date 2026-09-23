@@ -167,6 +167,7 @@ import {
 import builtinPrompt from '@/common/online-ai-system-prompt.txt?raw';
 import presets from '@/common/online-ai-presets.json';
 import { createProviderForm, providerInput } from '@/common/online-ai-form.mjs';
+import { confirmAction } from '@/common/confirmAction';
 
 defineEmits(['close']);
 const { t } = useI18n();
@@ -288,7 +289,12 @@ async function test() {
 }
 
 async function remove() {
-  if (!form.id || !confirm(t('online_ai.delete_confirm', { name: form.name }))) return;
+  if (!form.id || !await confirmAction(t('online_ai.delete_confirm', { name: form.name }), {
+    title: t('online_ai.delete_service'),
+    variant: 'danger',
+    okLabel: t('online_ai.delete_service'),
+    cancelLabel: t('msgbox.cancel'),
+  })) return;
   busy.value = true;
   try {
     await deleteOnlineAiProvider(form.id);

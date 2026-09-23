@@ -684,7 +684,8 @@ import { ref, watch, computed, onMounted, onUnmounted } from 'vue';
 import { LogicalSize } from '@tauri-apps/api/dpi';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { emit as tauriEmit } from '@tauri-apps/api/event';
-import { ask, open as openDialog } from '@tauri-apps/plugin-dialog';
+import { open as openDialog } from '@tauri-apps/plugin-dialog';
+import { confirmAction } from '@/common/confirmAction';
 import { useI18n } from 'vue-i18n';
 import { config, libConfig } from '@/common/config';
 import { THUMBNAIL_BADGE } from '@/common/constants';
@@ -1277,7 +1278,7 @@ const onImageSearchModelChange = async (event: Event) => {
   }
 
   select.value = String(previousModel);
-  const shouldDownload = await ask(
+  const shouldDownload = await confirmAction(
     localeMsg.value.settings.image_search.multilingual_model_download_message,
     {
       title: localeMsg.value.settings.image_search.multilingual_model_download_title,
